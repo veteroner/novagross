@@ -1,0 +1,11 @@
+# Seller Panel - Netlify Deployment
+[build]
+  command = "echo 'Pre-built'"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "9"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

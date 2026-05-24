@@ -1,0 +1,29 @@
+# This file is overridden by src/app/robots.ts in production.
+# Keeping as fallback for static crawlers.
+
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://novagross.com/sitemap.xml
+Sitemap: https://novagross.com/sitemap-images.xml
+
+# Disallow admin and API routes
+Disallow: /api/
+Disallow: /hesabim/
+Disallow: /_next/
+Disallow: /admin/
+Disallow: /sepet
+Disallow: /odeme
+Disallow: /siparis-basarili
+
+# Disallow non-page resources
+Disallow: /favicon.ico
+Disallow: /apple-touch-icon.png
+Disallow: /apple-touch-icon-precomposed.png
+Disallow: /sw.js
+
+# Allow product and category pages
+Allow: /urun/
+Allow: /kategori/
+Allow: /magaza/

@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.next
+.turbo
+out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+._*
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+
+# TypeScript
+*.tsbuildinfo
+
+# Supabase
+supabase/.temp
+
+# Sensitive
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+._.DS_Store
+**/._.DS_Store
+
+# Local Netlify folder
+.netlify

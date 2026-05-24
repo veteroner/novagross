@@ -1,0 +1,111 @@
+// API Route: Resend Webhook
+// POST /api/email/webhook
+
+import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
+import { EmailLogger } from '@/lib/email/logger';
+import type { EmailStatus } from '@/lib/email/types';
+
+export const dynamic = 'force-dynamic';
+
+function mapResendEventToStatus(eventType: string | undefined): EmailStatus | null {
+  if (!eventType) return null;
+
+  // Resend event types are typically like: email.delivered, email.opened, ...
+  switch (eventType) {
+    case 'email.delivered':
+      return 'delivered';
+    case 'email.opened':
+      return 'opened';
+    case 'email.clicked':
+      return 'clicked';
+    case 'email.bounced':
+      return 'bounced';
+    case 'email.complained':
+      return 'complained';
+    case 'email.sent':
+      return 'sent';
+    default:
+      return null;
+  }
+}
+
+function getResendEmailId(data: any): string | null {
+  if (!data) return null;
+  return (
+    data.email_id ||
+    data.emailId ||
+    data.id ||
+    data.message_id ||
+    data.messageId ||
+    null
+  );
+}
+
+function getWebhookTimestamp(headers: Headers): Date | undefined {
+  const raw = headers.get('svix-timestamp') || headers.get('webhook-timestamp');
+  if (!raw) return undefined;
+  if (!/^[0-9]+$/.test(raw)) return undefined;
+  return new Date(Number(raw) * 1000);
+}
+
+export async function POST(req: NextRequest) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { ok: false, error: 'RESEND_API_KEY is not set' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  if (!webhookSecret) {
+    return NextResponse.json(
+      { ok: false, error: 'RESEND_WEBHOOK_SECRET is not set' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
+  const resend = new Resend(apiKey);
+  const payload = await req.text();
+
+  try {
+    const verified = resend.webhooks.verify({
+      payload,
+      headers: {
+        id: req.headers.get('svix-id') || req.headers.get('webhook-id') || '',
+        timestamp:
+          req.headers.get('svix-timestamp') || req.headers.get('webhook-timestamp') || '',
+        signature:
+          req.headers.get('svix-signature') || req.headers.get('webhook-signature') || '',
+      },
+      webhookSecret,
+    }) as any;
+
+    const eventType: string | undefined = verified?.type || verified?.event || verified?.event_type;
+    const status = mapResendEventToStatus(eventType);
+    const resendId = getResendEmailId(verified?.data);
+
+    if (!status || !resendId) {
+      // Unknown event type or missing email id — acknowledge to avoid retries.
+      return NextResponse.json(
+        { ok: true, ignored: true, eventType },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    await EmailLogger.updateStatus(resendId, status, getWebhookTimestamp(req.headers));
+
+    return NextResponse.json(
+      { ok: true },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    console.error('Invalid Resend webhook:', error);
+    return new NextResponse('Invalid webhook', {
+      status: 400,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+}

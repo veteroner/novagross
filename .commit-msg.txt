@@ -1,0 +1,14 @@
+UX kapsamli duzeltmeler: sepet, kargo, adres, kupon, varyant, profil
+
+- Sepet: Urun gorselleri gercek resimlerle gosteriliyor (placeholder kaldirildi)
+- Kargo: Hardcoded 500TL kaldirildi, DB'den dinamik free_shipping_threshold
+- Kargo: Tum statik sayfalar (SSS, Iade, Hakkimizda, Urun) dinamik esik kullaniyor
+- Adres: hesabim/adreslerim tam CRUD (ekle/duzenle/sil/varsayilan yap)
+- Odeme: Yeni adres kaydetme checkboxi, kayitli adreslerden secim
+- Kupon: KRITIK BUG duzeltildi - kupon indirimi odeme sayfasina aktarilmiyordu
+- Kupon: Odeme sidebarina CouponInput eklendi, kullanim sayaci callbackte artiyor
+- Varyant: Urun sayfasi varyant secimi artik calisiyor (fiyat/stok guncelleniyor)
+- Profil: hesabim sayfasi tam fonksiyonel (profil duzenleme + sifre degistirme)
+- Sifre: Sifre degistir sayfasi tam fonksiyonel (gucluluk gostergesi + sifirlama)
+- Siparis: Detay sayfasi server component hatasi duzeltildi (CopyTrackingButton)
+- Yeni bilesenler: use-shipping-config, product-variant-selector, shipping-threshold-text, copy-tracking-button

@@ -1,0 +1,66 @@
+# Novagross - Netlify Configuration
+
+# Ana web sitesi konfigürasyonu
+[build]
+  base = "/"
+  command = "pnpm install && turbo run build --filter @novagross/web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+  PNPM_VERSION = "9"
+
+# Next.js plugin
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Admin Panel için Context (subdomain)
+[context.admin]
+  base = "/"
+  command = "turbo run build --filter @novagross/admin"
+  publish = "apps/admin/.next"
+
+[context.admin.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+[context.admin.functions]
+  directory = "apps/admin/netlify/functions"
+
+# Redirects
+[[redirects]]
+  from = "/admin/*"
+  to = "https://admin.novagross.com/:splat"
+  status = 301
+  force = true
+
+# Prevent stale Service Worker / manifest caching (can cause broken JS/CSS via old cached responses)
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/site.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Prevent search engines from indexing non-page resources
+[[headers]]
+  for = "/favicon.ico"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "public, max-age=86400, immutable"
+
+[[headers]]
+  for = "/apple-touch-icon*.png"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

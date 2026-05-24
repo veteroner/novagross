@@ -1465,8 +1465,10 @@ export type Database = {
       }
       store_applications: {
         Row: {
+          account_holder: string | null
           address: string | null
           admin_notes: string | null
+          bank_name: string | null
           business_license_url: string | null
           city: string | null
           company_name: string | null
@@ -1474,6 +1476,7 @@ export type Database = {
           description: string | null
           district: string | null
           email: string | null
+          iban: string | null
           id: string
           identity_document_url: string | null
           other_documents: Json | null
@@ -1490,8 +1493,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_holder?: string | null
           address?: string | null
           admin_notes?: string | null
+          bank_name?: string | null
           business_license_url?: string | null
           city?: string | null
           company_name?: string | null
@@ -1499,6 +1504,7 @@ export type Database = {
           description?: string | null
           district?: string | null
           email?: string | null
+          iban?: string | null
           id?: string
           identity_document_url?: string | null
           other_documents?: Json | null
@@ -1515,8 +1521,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_holder?: string | null
           address?: string | null
           admin_notes?: string | null
+          bank_name?: string | null
           business_license_url?: string | null
           city?: string | null
           company_name?: string | null
@@ -1524,6 +1532,7 @@ export type Database = {
           description?: string | null
           district?: string | null
           email?: string | null
+          iban?: string | null
           id?: string
           identity_document_url?: string | null
           other_documents?: Json | null

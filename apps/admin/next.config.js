@@ -2,7 +2,7 @@
 const nextConfig = {
   transpilePackages: ['@novagross/ui', '@novagross/utils', '@novagross/database'],
   images: {
-    domains: ['via.placeholder.com', 'mdyecmjlxswprbpdtohg.supabase.co'],
+    domains: ['via.placeholder.com', 'yditeqzqqwqiywoaftfr.supabase.co'],
   },
 }
 

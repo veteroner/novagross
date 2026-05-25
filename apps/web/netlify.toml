@@ -1,8 +1,8 @@
-# Novagross Seller
+# Novagross Web (storefront)
 [build]
   base = "/"
-  command = "cd /opt/build/repo && pnpm install && pnpm -C apps/seller build"
-  publish = "apps/seller/.next"
+  command = "cd /opt/build/repo && pnpm install && pnpm -C apps/web build"
+  publish = "apps/web/.next"
 
 [build.environment]
   NODE_VERSION = "22"

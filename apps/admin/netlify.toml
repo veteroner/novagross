@@ -1,4 +1,4 @@
-# Admin panel deployment configuration
+# Novagross Admin
 [build]
   base = "/"
   command = "cd /opt/build/repo && pnpm install && pnpm -C apps/admin build"
@@ -6,6 +6,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
   PNPM_VERSION = "9"
 
 [functions]

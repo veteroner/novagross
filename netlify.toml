@@ -1,41 +1,14 @@
-# Novagross - Netlify Configuration
+# Novagross - Shared Netlify Configuration
+# Build/publish settings are configured per-site via Netlify UI/API.
+# Each site (web/admin/seller) has its own netlify.toml in its app folder.
 
-# Ana web sitesi konfigürasyonu
-[build]
-  base = "/"
-  command = "pnpm install && turbo run build --filter @novagross/web"
-  publish = "apps/web/.next"
-
-[build.environment]
-  NODE_VERSION = "22"
-  NPM_FLAGS = "--legacy-peer-deps"
-  PNPM_VERSION = "9"
-
-# Next.js plugin
+# Plugin (applies to all Next.js sites)
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Admin Panel için Context (subdomain)
-[context.admin]
-  base = "/"
-  command = "turbo run build --filter @novagross/admin"
-  publish = "apps/admin/.next"
+# ------------ Cache Headers ------------
 
-[context.admin.environment]
-  NODE_VERSION = "22"
-  NPM_FLAGS = "--legacy-peer-deps"
-
-[context.admin.functions]
-  directory = "apps/admin/netlify/functions"
-
-# Redirects
-[[redirects]]
-  from = "/admin/*"
-  to = "https://admin.novagross.com/:splat"
-  status = 301
-  force = true
-
-# Prevent stale Service Worker / manifest caching (can cause broken JS/CSS via old cached responses)
+# Prevent stale Service Worker / manifest caching
 [[headers]]
   for = "/sw.js"
   [headers.values]
@@ -53,7 +26,6 @@
   [headers.values]
     Cache-Control = "no-cache"
 
-# Prevent search engines from indexing non-page resources
 [[headers]]
   for = "/favicon.ico"
   [headers.values]

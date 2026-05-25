@@ -49,8 +49,14 @@ export class EmailLogger {
     try {
       const supabase = createServiceRoleClient();
       
-      const updateData: Record<string, any> = { status };
-      
+      const updateData: {
+        status: EmailStatus
+        delivered_at?: string
+        opened_at?: string
+        clicked_at?: string
+        bounced_at?: string
+      } = { status };
+
       if (timestamp) {
         switch (status) {
           case 'delivered':
@@ -67,7 +73,7 @@ export class EmailLogger {
             break;
         }
       }
-      
+
       await supabase
         .from('email_logs')
         .update(updateData)

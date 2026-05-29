@@ -16,9 +16,9 @@ export function Footer() {
             <Image
               src="/logo.png"
               alt="Novagross"
-              width={200}
-              height={56}
-              className="h-12 w-auto mb-4"
+              width={240}
+              height={160}
+              className="h-16 md:h-20 w-auto mb-4"
             />
             <p className="text-sm text-muted-foreground">
               En kaliteli ürünler, en uygun fiyatlarla. Güvenli alışveriş, hızlı teslimat.

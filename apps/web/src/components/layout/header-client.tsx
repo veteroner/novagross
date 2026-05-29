@@ -125,16 +125,17 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-20 items-center justify-between">
+      <div className="container flex h-24 md:h-28 items-center justify-between gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center shrink-0" aria-label="Novagross Ana Sayfa">
           <Image
             src="/logo.png"
             alt="Novagross"
-            width={300}
-            height={80}
+            width={400}
+            height={267}
             priority
-            className="h-12 md:h-16 w-auto"
+            sizes="(max-width: 768px) 160px, 240px"
+            className="h-16 sm:h-20 md:h-24 w-auto"
           />
         </Link>
 

@@ -65,13 +65,11 @@ export default function Sidebar() {
     <>
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <Store className="w-5 h-5 text-primary" />
-          </div>
+          <img src="/logo.png" alt="Novagross" className="h-8 w-auto" />
           <div>
-            <h1 className="text-lg font-bold text-primary">Novagross</h1>
+            <p className="text-sm font-semibold">Satıcı Paneli</p>
             <p className="text-xs text-muted-foreground truncate max-w-[160px]">
-              {storeName || 'Satıcı Paneli'}
+              {storeName || 'Mağaza'}
             </p>
           </div>
         </div>

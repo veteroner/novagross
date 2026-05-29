@@ -62,7 +62,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-white shadow-lg">
       <div className="p-6">
-        <h1 className="text-2xl font-bold text-primary">Novagross</h1>
+        <img src="/logo.png" alt="Novagross" className="h-10 w-auto mb-2" />
         <p className="text-sm text-muted-foreground">Admin Panel</p>
       </div>
 

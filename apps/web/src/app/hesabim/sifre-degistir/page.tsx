@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
+import { translateAuthError } from '@/lib/auth-errors'
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function ChangePasswordPage() {
@@ -68,7 +69,7 @@ export default function ChangePasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) {
-        setMessage({ type: 'error', text: error.message })
+        setMessage({ type: 'error', text: translateAuthError(error.message) })
       } else {
         setMessage({ type: 'success', text: 'Şifreniz başarıyla güncellendi!' })
         setNewPassword('')
@@ -89,7 +90,7 @@ export default function ChangePasswordPage() {
         redirectTo: `${window.location.origin}/auth/callback?next=/hesabim/sifre-degistir`,
       })
       if (error) {
-        setMessage({ type: 'error', text: error.message })
+        setMessage({ type: 'error', text: translateAuthError(error.message) })
       } else {
         setMessage({ type: 'success', text: `Şifre sıfırlama bağlantısı ${userEmail} adresine gönderildi.` })
       }

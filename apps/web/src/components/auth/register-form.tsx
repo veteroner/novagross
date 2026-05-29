@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
+import { translateAuthError } from '@/lib/auth-errors'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 
 export function RegisterForm() {
@@ -53,11 +54,7 @@ export function RegisterForm() {
       })
 
       if (error) {
-        if (error.message.includes('already registered')) {
-          setError('Bu e-posta adresi zaten kayıtlı')
-        } else {
-          setError(error.message)
-        }
+        setError(translateAuthError(error.message))
         return
       }
 

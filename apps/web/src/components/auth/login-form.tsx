@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
+import { translateAuthError } from '@/lib/auth-errors'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 
 export function LoginForm() {
@@ -32,11 +33,7 @@ export function LoginForm() {
       })
 
       if (error) {
-        if (error.message === 'Invalid login credentials') {
-          setError('E-posta veya şifre hatalı')
-        } else {
-          setError(error.message)
-        }
+        setError(translateAuthError(error.message))
         return
       }
 

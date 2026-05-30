@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -8,15 +8,22 @@ import {
   Package,
   ShoppingCart,
   Users,
-  Mail,
-  Megaphone,
-  Store,
+  Tag,
+  Image as ImageIcon,
   Settings,
   BarChart3,
+  Ticket,
   MessageSquare,
-  ChevronDown,
+  BadgeCheck,
+  Store,
+  Banknote,
+  Wallet,
   LogOut,
+  Mail,
+  Megaphone,
+  ChevronDown,
   Bell,
+  type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -30,76 +37,64 @@ type CounterKey =
 type NavLeaf = {
   href: string
   label: string
+  icon?: LucideIcon
   counter?: CounterKey
   description?: string
 }
 
 type NavGroup = {
   label: string
-  icon: React.ComponentType<{ className?: string }>
-  href?: string // top-level click target (optional, otherwise dropdown only)
+  icon: LucideIcon
+  href?: string // direct link if no dropdown
   items: NavLeaf[]
-  /** Sum of all child counters surfaces on the group itself */
   surfacesCounters?: CounterKey[]
 }
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'Trendikon'
 
 const NAV: NavGroup[] = [
-  {
-    label: 'Anasayfa',
-    icon: LayoutDashboard,
-    href: '/',
-    items: [],
-  },
+  { label: 'Anasayfa', icon: LayoutDashboard, href: '/', items: [] },
   {
     label: 'Ürünler',
     icon: Package,
     items: [
-      { href: '/urunler', label: 'Tüm Ürünler', description: 'Liste, düzenle, sil' },
+      { href: '/urunler', label: 'Tüm Ürünler', icon: Package, description: 'Liste, düzenle, sil' },
       {
         href: '/urunler/onay-bekleyenler',
         label: 'Onay Bekleyenler',
+        icon: BadgeCheck,
         description: 'Satıcı ürün onayı',
         counter: 'pendingProducts',
       },
-      { href: '/urunler/ekle', label: 'Yeni Ürün Ekle', description: 'Manuel ürün ekle' },
-      { href: '/urunler/stok-gecmisi', label: 'Stok Geçmişi', description: 'Stok hareketleri' },
-      { href: '/kategoriler', label: 'Kategoriler', description: 'Kategori ağacı' },
+      { href: '/urunler/ekle', label: 'Yeni Ürün Ekle', icon: Package, description: 'Manuel ekle' },
+      { href: '/urunler/stok-gecmisi', label: 'Stok Geçmişi', icon: Package, description: 'Hareketler' },
+      { href: '/kategoriler', label: 'Kategoriler', icon: Tag, description: 'Kategori ağacı' },
     ],
     surfacesCounters: ['pendingProducts'],
   },
-  {
-    label: 'Sipariş',
-    icon: ShoppingCart,
-    href: '/siparisler',
-    items: [],
-  },
-  {
-    label: 'Müşteriler',
-    icon: Users,
-    href: '/musteriler',
-    items: [],
-  },
+  { label: 'Sipariş', icon: ShoppingCart, href: '/siparisler', items: [] },
+  { label: 'Müşteriler', icon: Users, href: '/musteriler', items: [] },
   {
     label: 'Pazaryeri',
     icon: Store,
     items: [
-      { href: '/saticilar', label: 'Satıcılar', description: 'Mağaza listesi' },
+      { href: '/saticilar', label: 'Satıcılar', icon: Store, description: 'Mağaza listesi' },
       {
         href: '/saticilar/basvurular',
-        label: 'Satıcı Başvuruları',
-        description: 'Bekleyen başvurular',
+        label: 'Başvurular',
+        icon: Store,
+        description: 'Bekleyen',
         counter: 'pendingApplications',
       },
       {
         href: '/para-cekme',
         label: 'Para Çekme',
-        description: 'Withdrawal talepleri',
+        icon: Banknote,
+        description: 'Withdrawal',
         counter: 'pendingWithdrawals',
       },
-      { href: '/odemeler', label: 'Haftalık Ödemeler', description: 'Çarşamba batch' },
-      { href: '/ayarlar/komisyon', label: 'Komisyon Ayarları', description: 'Satıcı oranları' },
+      { href: '/odemeler', label: 'Haftalık Ödemeler', icon: Wallet, description: 'Çarşamba batch' },
+      { href: '/ayarlar/komisyon', label: 'Komisyon', icon: Settings, description: 'Satıcı oranları' },
     ],
     surfacesCounters: ['pendingApplications', 'pendingWithdrawals'],
   },
@@ -107,11 +102,12 @@ const NAV: NavGroup[] = [
     label: 'Pazarlama',
     icon: Megaphone,
     items: [
-      { href: '/banners', label: 'Bannerlar', description: 'Anasayfa görselleri' },
-      { href: '/kuponlar', label: 'Kuponlar', description: 'İndirim kodları' },
+      { href: '/banners', label: 'Bannerlar', icon: ImageIcon, description: 'Anasayfa görselleri' },
+      { href: '/kuponlar', label: 'Kuponlar', icon: Ticket, description: 'İndirim kodları' },
       {
         href: '/yorumlar',
         label: 'Yorumlar',
+        icon: MessageSquare,
         description: 'Onay & moderasyon',
         counter: 'pendingReviews',
       },
@@ -122,11 +118,11 @@ const NAV: NavGroup[] = [
     label: 'E-posta',
     icon: Mail,
     items: [
-      { href: '/aboneler', label: 'Aboneler', description: 'Bülten listesi' },
-      { href: '/email-logs', label: 'Loglar', description: 'Gönderim kayıtları' },
-      { href: '/email-templates-analytics', label: 'Şablon Analitiği', description: 'Açılma & tıklama' },
-      { href: '/email-unsubscribes', label: 'Çıkışlar', description: 'Abonelikten çıkanlar' },
-      { href: '/ayarlar/email-sablonlari', label: 'Şablonlar', description: '49 hazır şablon' },
+      { href: '/aboneler', label: 'Aboneler', icon: Mail, description: 'Bülten' },
+      { href: '/email-logs', label: 'Loglar', icon: Mail, description: 'Gönderim kayıtları' },
+      { href: '/email-templates-analytics', label: 'Şablon Analitiği', icon: BarChart3, description: 'Açılma & tıklama' },
+      { href: '/email-unsubscribes', label: 'Çıkışlar', icon: Mail, description: 'Abonelikten çıkanlar' },
+      { href: '/ayarlar/email-sablonlari', label: 'Şablonlar', icon: Mail, description: '49 hazır şablon' },
     ],
   },
   {
@@ -140,18 +136,18 @@ const NAV: NavGroup[] = [
     label: 'Raporlar',
     icon: BarChart3,
     items: [
-      { href: '/raporlar', label: 'Platform Raporları', description: 'GMV, top satıcılar' },
-      { href: '/raporlar/anlik-trafik', label: 'Anlık Trafik', description: 'Canlı kullanıcılar' },
+      { href: '/raporlar', label: 'Platform Raporları', icon: BarChart3, description: 'GMV, top satıcılar' },
+      { href: '/raporlar/anlik-trafik', label: 'Anlık Trafik', icon: BarChart3, description: 'Canlı kullanıcılar' },
     ],
   },
   {
     label: 'Ayarlar',
     icon: Settings,
     items: [
-      { href: '/ayarlar', label: 'Genel', description: 'Ayar paneli' },
-      { href: '/ayarlar/site', label: 'Site Ayarları', description: 'Ortam değişkenleri' },
-      { href: '/ayarlar/guvenlik', label: 'Güvenlik', description: 'Admin & yetki' },
-      { href: '/ayarlar/kargo', label: 'Kargo', description: 'Firma & oranlar' },
+      { href: '/ayarlar', label: 'Genel', icon: Settings, description: 'Ayar paneli' },
+      { href: '/ayarlar/site', label: 'Site Ayarları', icon: Settings, description: 'Ortam değişkenleri' },
+      { href: '/ayarlar/guvenlik', label: 'Güvenlik', icon: Settings, description: 'Admin & yetki' },
+      { href: '/ayarlar/kargo', label: 'Kargo', icon: Settings, description: 'Firma & oranlar' },
     ],
   },
 ]
@@ -193,45 +189,10 @@ function Badge({ n }: { n: number }) {
   )
 }
 
-function DropdownItem({
-  item,
-  counters,
-  onSelect,
-  active,
-}: {
-  item: NavLeaf
-  counters: Record<CounterKey, number>
-  onSelect?: () => void
-  active: boolean
-}) {
-  const count = item.counter ? counters[item.counter] : 0
-  return (
-    <Link
-      href={item.href}
-      onClick={onSelect}
-      className={`flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-gray-50 ${
-        active ? 'bg-orange-50' : ''
-      }`}
-    >
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-900 flex items-center">
-          {item.label}
-          <Badge n={count} />
-        </div>
-        {item.description ? (
-          <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
-        ) : null}
-      </div>
-    </Link>
-  )
-}
-
 export default function TopNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [counters, setCounters] = useState(EMPTY_COUNTERS)
-  const [openIdx, setOpenIdx] = useState<number | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -252,25 +213,6 @@ export default function TopNav() {
     }
   }, [])
 
-  // Close dropdown when clicking outside.
-  // Using `click` (not `mousedown`) so React's onClick on the toggle button
-  // fires first and we don't race-close the dropdown we just opened.
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (!containerRef.current) return
-      if (!containerRef.current.contains(e.target as Node)) {
-        setOpenIdx(null)
-      }
-    }
-    document.addEventListener('click', onDocClick)
-    return () => document.removeEventListener('click', onDocClick)
-  }, [])
-
-  // Close dropdown on route change
-  useEffect(() => {
-    setOpenIdx(null)
-  }, [pathname])
-
   const onLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -279,9 +221,7 @@ export default function TopNav() {
   }
 
   const isGroupActive = (g: NavGroup) => {
-    if (g.href && (g.href === '/' ? pathname === '/' : pathname.startsWith(g.href))) {
-      return true
-    }
+    if (g.href && (g.href === '/' ? pathname === '/' : pathname.startsWith(g.href))) return true
     return g.items.some((it) => pathname.startsWith(it.href))
   }
 
@@ -336,84 +276,89 @@ export default function TopNav() {
         </div>
       </div>
 
-      {/* Primary nav */}
-      <div ref={containerRef}>
-        <div className="max-w-screen-2xl mx-auto px-6">
-          <nav className="flex items-stretch gap-1 -mb-px overflow-x-auto">
-            {NAV.map((g, idx) => {
-              const Icon = g.icon
-              const active = isGroupActive(g)
-              const hasDropdown = g.items.length > 0
-              const counter = groupCounterTotal(g)
-              const onClickHandler = (e: React.MouseEvent) => {
-                if (hasDropdown) {
-                  e.preventDefault()
-                  // Stop bubbling so document `click` listener (which closes
-                  // open dropdowns when clicking outside the nav container)
-                  // doesn't immediately fire on the same click event.
-                  e.stopPropagation()
-                  setOpenIdx(openIdx === idx ? null : idx)
-                }
-              }
-              const inner = (
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    active
-                      ? 'text-gray-900 border-orange-500'
-                      : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {g.label}
-                  <Badge n={counter} />
-                  {hasDropdown && (
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${
-                        openIdx === idx ? 'rotate-180' : ''
-                      }`}
-                    />
-                  )}
-                </span>
-              )
-              return (
-                <div key={g.label} className="relative">
-                  {hasDropdown ? (
-                    <button
-                      type="button"
-                      onClick={onClickHandler}
-                      aria-expanded={openIdx === idx}
-                      aria-haspopup="menu"
-                      className="focus:outline-none cursor-pointer"
-                    >
-                      {inner}
-                    </button>
-                  ) : (
-                    <Link href={g.href!} className="block">
-                      {inner}
-                    </Link>
-                  )}
+      {/* Primary nav — CSS-only hover/focus dropdowns (no JS state) */}
+      <div className="max-w-screen-2xl mx-auto px-6">
+        <nav className="flex items-stretch gap-1 -mb-px overflow-x-auto">
+          {NAV.map((g) => {
+            const Icon = g.icon
+            const active = isGroupActive(g)
+            const hasDropdown = g.items.length > 0
+            const counter = groupCounterTotal(g)
 
-                  {hasDropdown && openIdx === idx && (
-                    <div
-                      role="menu"
-                      className="absolute left-0 top-full mt-0 w-72 bg-white border rounded-b-lg shadow-xl overflow-hidden z-50"
-                    >
-                      {g.items.map((it) => (
-                        <DropdownItem
+            const labelInner = (
+              <span
+                className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  active
+                    ? 'text-gray-900 border-orange-500'
+                    : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {g.label}
+                <Badge n={counter} />
+                {hasDropdown && <ChevronDown className="h-3.5 w-3.5 opacity-60" />}
+              </span>
+            )
+
+            // Group with dropdown: hover/focus reveals menu via CSS-only.
+            if (hasDropdown) {
+              return (
+                <div key={g.label} className="relative group">
+                  {/* Tabbable trigger — keyboard focus also opens menu */}
+                  <button type="button" tabIndex={0} className="focus:outline-none cursor-pointer">
+                    {labelInner}
+                  </button>
+
+                  {/* Menu — opens when group is hovered or any descendant is focused */}
+                  <div
+                    className="absolute left-0 top-full w-72 bg-white border rounded-b-lg shadow-xl overflow-hidden z-50
+                               opacity-0 invisible translate-y-1
+                               group-hover:opacity-100 group-hover:visible group-hover:translate-y-0
+                               group-focus-within:opacity-100 group-focus-within:visible group-focus-within:translate-y-0
+                               transition duration-150"
+                    role="menu"
+                  >
+                    {g.items.map((it) => {
+                      const ItemIcon = it.icon
+                      const count = it.counter ? counters[it.counter] : 0
+                      const itemActive = pathname.startsWith(it.href)
+                      return (
+                        <Link
                           key={it.href}
-                          item={it}
-                          counters={counters}
-                          active={pathname.startsWith(it.href)}
-                          onSelect={() => setOpenIdx(null)}
-                        />
-                      ))}
-                    </div>
-                  )}
+                          href={it.href}
+                          role="menuitem"
+                          className={`flex items-start gap-3 px-4 py-2.5 hover:bg-orange-50 focus:bg-orange-50 outline-none ${
+                            itemActive ? 'bg-orange-50' : ''
+                          }`}
+                        >
+                          {ItemIcon ? (
+                            <ItemIcon className="h-4 w-4 text-gray-500 mt-0.5 shrink-0" />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-gray-900 flex items-center">
+                              {it.label}
+                              <Badge n={count} />
+                            </div>
+                            {it.description ? (
+                              <div className="text-xs text-gray-500 mt-0.5">{it.description}</div>
+                            ) : null}
+                          </div>
+                        </Link>
+                      )
+                    })}
+                  </div>
                 </div>
               )
-            })}
-          </nav>
-        </div>
+            }
+
+            // Direct link, no dropdown.
+            return (
+              <Link key={g.label} href={g.href!} className="block">
+                {labelInner}
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </header>
   )

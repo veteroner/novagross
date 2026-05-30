@@ -252,7 +252,9 @@ export default function TopNav() {
     }
   }, [])
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside.
+  // Using `click` (not `mousedown`) so React's onClick on the toggle button
+  // fires first and we don't race-close the dropdown we just opened.
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (!containerRef.current) return
@@ -260,8 +262,8 @@ export default function TopNav() {
         setOpenIdx(null)
       }
     }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
   }, [])
 
   // Close dropdown on route change
@@ -346,6 +348,10 @@ export default function TopNav() {
               const onClickHandler = (e: React.MouseEvent) => {
                 if (hasDropdown) {
                   e.preventDefault()
+                  // Stop bubbling so document `click` listener (which closes
+                  // open dropdowns when clicking outside the nav container)
+                  // doesn't immediately fire on the same click event.
+                  e.stopPropagation()
                   setOpenIdx(openIdx === idx ? null : idx)
                 }
               }

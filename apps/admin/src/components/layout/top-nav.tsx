@@ -17,7 +17,6 @@ import {
   ChevronDown,
   LogOut,
   Bell,
-  Search,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -308,16 +307,7 @@ export default function TopNav() {
             <span className="text-sm text-gray-500 font-medium">Admin Paneli</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100"
-              title="Ara"
-            >
-              <Search className="h-4 w-4" />
-              <span>Ara</span>
-            </button>
-
+          <div className="flex items-center gap-2">
             <Link
               href="/iletisim-mesajlari"
               className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 text-gray-700"
@@ -332,8 +322,9 @@ export default function TopNav() {
             </Link>
 
             <button
+              type="button"
               onClick={onLogout}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-gray-600 hover:bg-gray-100 cursor-pointer"
               title="Çıkış yap"
             >
               <LogOut className="h-4 w-4" />
@@ -381,7 +372,13 @@ export default function TopNav() {
               return (
                 <div key={g.label} className="relative">
                   {hasDropdown ? (
-                    <button type="button" onClick={onClickHandler} className="focus:outline-none">
+                    <button
+                      type="button"
+                      onClick={onClickHandler}
+                      aria-expanded={openIdx === idx}
+                      aria-haspopup="menu"
+                      className="focus:outline-none cursor-pointer"
+                    >
                       {inner}
                     </button>
                   ) : (
@@ -391,7 +388,10 @@ export default function TopNav() {
                   )}
 
                   {hasDropdown && openIdx === idx && (
-                    <div className="absolute left-0 top-full mt-0 w-72 bg-white border rounded-b-lg shadow-lg overflow-hidden">
+                    <div
+                      role="menu"
+                      className="absolute left-0 top-full mt-0 w-72 bg-white border rounded-b-lg shadow-xl overflow-hidden z-50"
+                    >
                       {g.items.map((it) => (
                         <DropdownItem
                           key={it.href}

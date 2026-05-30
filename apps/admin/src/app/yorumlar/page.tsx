@@ -141,40 +141,56 @@ export default async function ReviewsPage({
         description="Ürün ve mağaza yorumlarını yönet"
       />
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b">
-        <Link
-          href={tabHref('products')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px text-sm font-medium ${
-            tab === 'products'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Package className="h-4 w-4" />
-          Ürün Yorumları
-          <Badge variant="secondary">{productsTotal ?? 0}</Badge>
-          {(productsPending ?? 0) > 0 && (
-            <Badge variant="default" className="bg-orange-500">
-              {productsPending} bekliyor
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href={tabHref('stores')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px text-sm font-medium ${
-            tab === 'stores'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Store className="h-4 w-4" />
-          Mağaza Yorumları
-          <Badge variant="secondary">{storesTotal ?? 0}</Badge>
-          {(storesHidden ?? 0) > 0 && (
-            <Badge variant="secondary">{storesHidden} gizli</Badge>
-          )}
-        </Link>
+      {/* Tabs (Hepsiburada tarzı) */}
+      <div className="bg-white rounded-lg border">
+        <div className="flex items-center gap-0 overflow-x-auto border-b">
+          <Link
+            href={tabHref('products')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+              tab === 'products'
+                ? 'border-orange-500 text-gray-900'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Package className="h-4 w-4" />
+            Ürün Yorumları
+            <span
+              className={`ml-1 inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full text-xs font-semibold ${
+                tab === 'products' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {productsTotal ?? 0}
+            </span>
+            {(productsPending ?? 0) > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full bg-orange-500 text-white text-xs font-semibold">
+                {productsPending}
+              </span>
+            )}
+          </Link>
+          <Link
+            href={tabHref('stores')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+              tab === 'stores'
+                ? 'border-orange-500 text-gray-900'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Store className="h-4 w-4" />
+            Mağaza Yorumları
+            <span
+              className={`ml-1 inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full text-xs font-semibold ${
+                tab === 'stores' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {storesTotal ?? 0}
+            </span>
+            {(storesHidden ?? 0) > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[1.4rem] h-5 px-1.5 rounded-full bg-gray-500 text-white text-xs font-semibold">
+                {storesHidden}
+              </span>
+            )}
+          </Link>
+        </div>
       </div>
 
       {/* Status filter */}

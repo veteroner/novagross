@@ -276,9 +276,12 @@ export default function TopNav() {
         </div>
       </div>
 
-      {/* Primary nav — CSS-only hover/focus dropdowns (no JS state) */}
+      {/* Primary nav — CSS-only hover/focus dropdowns (no JS state).
+          IMPORTANT: no `overflow-x-auto` here — that clips the absolutely
+          positioned dropdown menu on the y-axis (browsers force overflow-y
+          to a non-visible value when overflow-x is auto/scroll). */}
       <div className="max-w-screen-2xl mx-auto px-6">
-        <nav className="flex items-stretch gap-1 -mb-px overflow-x-auto">
+        <nav className="flex items-stretch gap-1 -mb-px flex-wrap">
           {NAV.map((g) => {
             const Icon = g.icon
             const active = isGroupActive(g)

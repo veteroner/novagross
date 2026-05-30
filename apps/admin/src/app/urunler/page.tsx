@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, PageHeader, EmptyState } from '@novagross/ui'
+import { Button, Card, CardContent, Input, Badge, PageHeader, EmptyState, TabBar, type TabItem } from '@novagross/ui'
 import { formatPrice } from '@novagross/utils'
 import { Plus, Search, Edit, Trash2, Eye } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
@@ -18,13 +18,17 @@ interface Product {
   is_featured: boolean
   brand: string | null
   sku: string
+  approval_status: string | null
   category: { name: string } | null
 }
+
+type Filter = 'all' | 'active' | 'inactive' | 'out_of_stock' | 'pending'
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trendikon.com').replace(/\/$/, '')
 
@@ -51,6 +55,7 @@ export default function ProductsPage() {
         is_featured,
         brand,
         sku,
+        approval_status,
         category:categories(name)
       `)
       .order('created_at', { ascending: false })
@@ -61,10 +66,35 @@ export default function ProductsPage() {
     setLoading(false)
   }
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
-  )
+  const counts = {
+    all: products.length,
+    active: products.filter((p) => p.is_active).length,
+    inactive: products.filter((p) => !p.is_active).length,
+    out_of_stock: products.filter((p) => (p.stock ?? 0) === 0).length,
+    pending: products.filter((p) => p.approval_status === 'pending').length,
+  }
+
+  const filteredProducts = products
+    .filter((p) => {
+      if (filter === 'active') return p.is_active
+      if (filter === 'inactive') return !p.is_active
+      if (filter === 'out_of_stock') return (p.stock ?? 0) === 0
+      if (filter === 'pending') return p.approval_status === 'pending'
+      return true
+    })
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.sku ?? '').toLowerCase().includes(search.toLowerCase())
+    )
+
+  const tabs: TabItem[] = [
+    { key: 'all', label: 'Tümü', count: counts.all },
+    { key: 'active', label: 'Aktif', count: counts.active },
+    { key: 'inactive', label: 'Pasif', count: counts.inactive },
+    { key: 'out_of_stock', label: 'Stoksuz', count: counts.out_of_stock },
+    { key: 'pending', label: 'Onay Bekliyor', count: counts.pending },
+  ]
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bu ürünü silmek istediğinize emin misiniz?')) return
@@ -107,21 +137,26 @@ export default function ProductsPage() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[260px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Ürün adı veya SKU ile ara..."
+            className="pl-10 bg-white"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <TabBar
+        items={tabs}
+        value={filter}
+        onChange={(k) => setFilter(k as Filter)}
+      />
+
       <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Ürün adı veya SKU ile ara..."
-                className="pl-10"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Card, Badge, Button, PageHeader, EmptyState, StatCard } from '@novagross/ui'
+import { Card, Badge, Button, PageHeader, EmptyState, StatCard, TabBar, type TabItem } from '@novagross/ui'
 import {
   Mail,
   Phone,
@@ -62,12 +62,25 @@ function statusBadge(status: MessageStatus) {
 export function MessagesClient({ messages }: { messages: Message[] }) {
   const [selected, setSelected] = useState<Message | null>(null)
   const [notes, setNotes] = useState('')
+  const [filter, setFilter] = useState<MessageStatus | 'all'>('all')
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const totalMessages = messages.length
   const newMessages = messages.filter((m) => m.status === 'new').length
+  const readMessages = messages.filter((m) => m.status === 'read').length
   const repliedMessages = messages.filter((m) => m.status === 'replied').length
+  const archivedMessages = messages.filter((m) => m.status === 'archived').length
+
+  const filteredMessages = filter === 'all' ? messages : messages.filter((m) => m.status === filter)
+
+  const tabs: TabItem[] = [
+    { key: 'all', label: 'Tümü', count: totalMessages },
+    { key: 'new', label: 'Yeni', count: newMessages },
+    { key: 'read', label: 'Okundu', count: readMessages },
+    { key: 'replied', label: 'Yanıtlandı', count: repliedMessages },
+    { key: 'archived', label: 'Arşiv', count: archivedMessages },
+  ]
 
   const openDetail = (m: Message) => {
     setSelected(m)
@@ -157,6 +170,8 @@ export function MessagesClient({ messages }: { messages: Message[] }) {
         />
       </div>
 
+      <TabBar items={tabs} value={filter} onChange={(k) => setFilter(k as any)} />
+
       <Card>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -172,18 +187,18 @@ export function MessagesClient({ messages }: { messages: Message[] }) {
               </tr>
             </thead>
             <tbody>
-              {messages.length === 0 ? (
+              {filteredMessages.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-0">
                     <EmptyState
                       compact
                       icon={MessageSquare}
-                      title="Henüz mesaj yok"
+                      title={filter === 'all' ? 'Henüz mesaj yok' : 'Bu durumda mesaj yok'}
                     />
                   </td>
                 </tr>
               ) : (
-                messages.map((m) => (
+                filteredMessages.map((m) => (
                   <tr
                     key={m.id}
                     className={`border-b hover:bg-gray-50 cursor-pointer ${

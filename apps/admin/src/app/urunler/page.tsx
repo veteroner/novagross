@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from '@novagross/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, PageHeader, EmptyState } from '@novagross/ui'
 import { formatPrice } from '@novagross/utils'
 import { Plus, Search, Edit, Trash2, Eye } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
@@ -26,7 +26,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://novagross.com').replace(/\/$/, '')
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trendikon.com').replace(/\/$/, '')
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -93,16 +93,19 @@ export default function ProductsPage() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Ürünler</h1>
-        <Link href="/urunler/ekle">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Yeni Ürün
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Ürünler"
+        description={loading ? 'Yükleniyor…' : `${products.length} ürün`}
+        actions={
+          <Link href="/urunler/ekle">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Yeni Ürün
+            </Button>
+          </Link>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -201,9 +204,16 @@ export default function ProductsPage() {
               </table>
 
               {filteredProducts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Ürün bulunamadı
-                </div>
+                <EmptyState
+                  compact
+                  icon={Plus}
+                  title={search ? 'Aramaya uygun ürün yok' : 'Henüz ürün yok'}
+                  description={
+                    search
+                      ? 'Farklı bir anahtar kelime dene.'
+                      : 'Sağ üstteki "Yeni Ürün" ile başlayabilirsin.'
+                  }
+                />
               )}
             </div>
           )}

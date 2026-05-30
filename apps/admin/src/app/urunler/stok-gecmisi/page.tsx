@@ -1,4 +1,4 @@
-import { Card, Badge } from '@novagross/ui'
+import { Card, Badge, PageHeader, StatCard, EmptyState } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { Package, TrendingUp, TrendingDown, MinusCircle } from 'lucide-react'
@@ -86,42 +86,33 @@ export default async function StokGecmisiPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Stok Geçmişi</h1>
-        <p className="text-gray-600 mt-1">Tüm stok hareketlerini ve değişikliklerini görüntüleyin</p>
-      </div>
+      <PageHeader
+        title="Stok Geçmişi"
+        description="Tüm stok hareketlerini ve değişikliklerini görüntüleyin"
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Toplam İşlem</p>
-              <p className="text-2xl font-bold">{totalAdjustments}</p>
-            </div>
-            <Package className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-green-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Toplam Artış</p>
-              <p className="text-2xl font-bold text-green-600">+{totalIncreases}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-green-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-red-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Toplam Azalış</p>
-              <p className="text-2xl font-bold text-red-600">-{totalDecreases}</p>
-            </div>
-            <TrendingDown className="w-8 h-8 text-red-500" />
-          </div>
-        </Card>
+        <StatCard
+          label="Toplam İşlem"
+          value={totalAdjustments}
+          icon={Package}
+          iconColor="text-blue-500"
+        />
+        <StatCard
+          label="Toplam Artış"
+          value={`+${totalIncreases}`}
+          icon={TrendingUp}
+          iconColor="text-green-500"
+          emphasis="success"
+        />
+        <StatCard
+          label="Toplam Azalış"
+          value={`-${totalDecreases}`}
+          icon={TrendingDown}
+          iconColor="text-red-500"
+          emphasis="danger"
+        />
       </div>
 
       {/* Stock Adjustments Table */}
@@ -186,8 +177,8 @@ export default async function StokGecmisiPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
-                    Henüz stok hareketi bulunmuyor
+                  <td colSpan={6} className="p-0">
+                    <EmptyState compact icon={Package} title="Henüz stok hareketi yok" />
                   </td>
                 </tr>
               )}

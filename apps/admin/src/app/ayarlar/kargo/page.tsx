@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Card, Button, Badge } from '@novagross/ui'
+import { Card, Button, Badge, PageHeader } from '@novagross/ui'
+import { ArrowLeft } from 'lucide-react'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { Plus, Truck, Edit, Trash2 } from 'lucide-react'
@@ -28,20 +29,30 @@ export default async function KargoAyarlariPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kargo Ayarları</h1>
-          <p className="text-gray-600 mt-1">Kargo firmaları ve teslimat yöntemlerini yönetin</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/ayarlar/kargo/oranlar">Kargo Oranları</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/ayarlar/kargo/magaza-ayarlari">Mağaza Ayarları</Link>
-          </Button>
-        </div>
+      <div>
+        <Link
+          href="/ayarlar"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Ayarlara Dön
+        </Link>
       </div>
+
+      <PageHeader
+        title="Kargo Ayarları"
+        description="Kargo firmaları ve teslimat yöntemlerini yönetin"
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/ayarlar/kargo/oranlar">Kargo Oranları</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/ayarlar/kargo/magaza-ayarlari">Mağaza Ayarları</Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Kargo Firmaları */}
       <Card>

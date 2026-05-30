@@ -1,3 +1,5 @@
+import { PageHeader, EmptyState } from '@novagross/ui'
+import { Store } from 'lucide-react'
 import { SellersList } from '@/components/admin/SellersList'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 
@@ -31,20 +33,16 @@ export default async function SellersPage() {
   const sellers = (data ?? []).map((s) => ({ ...s, balance: null }))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Satıcı Yönetimi</h1>
-        <p className="mt-2 text-gray-600">
-          Tüm satıcıları görüntüleyin ve yönetin
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Satıcı Yönetimi"
+        description="Tüm satıcıları görüntüleyin ve yönetin"
+      />
 
       {sellers && sellers.length > 0 ? (
         <SellersList initialSellers={sellers as any} />
       ) : (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Henüz satıcı bulunmuyor</p>
-        </div>
+        <EmptyState icon={Store} title="Henüz satıcı yok" />
       )}
     </div>
   )

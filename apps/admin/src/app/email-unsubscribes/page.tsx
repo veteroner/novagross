@@ -1,4 +1,4 @@
-import { Card, Badge } from '@novagross/ui'
+import { Card, Badge, PageHeader, StatCard, EmptyState } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { MailX, Calendar, Globe } from 'lucide-react'
@@ -53,41 +53,25 @@ export default async function EmailUnsubscribesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">E-posta Çıkışları</h1>
-        <p className="text-gray-600 mt-1">Abonelikten çıkan kullanıcıların kayıtları</p>
-      </div>
+      <PageHeader
+        title="E-posta Çıkışları"
+        description="Abonelikten çıkan kullanıcıların kayıtları"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Kayıt</p>
-              <p className="text-2xl font-bold">{total}</p>
-            </div>
-            <MailX className="w-8 h-8 text-red-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">En Yaygın Kategori</p>
-              <p className="text-lg font-semibold">{topCategory || '-'}</p>
-            </div>
-            <Globe className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Son Güncelleme</p>
-              <p className="text-lg font-semibold">{formatDate(unsubscribes?.[0]?.unsubscribed_at || null)}</p>
-            </div>
-            <Calendar className="w-8 h-8 text-gray-500" />
-          </div>
-        </Card>
+        <StatCard label="Kayıt" value={total} icon={MailX} iconColor="text-red-500" />
+        <StatCard
+          label="En Yaygın Kategori"
+          value={topCategory || '-'}
+          icon={Globe}
+          iconColor="text-blue-500"
+        />
+        <StatCard
+          label="Son Güncelleme"
+          value={formatDate(unsubscribes?.[0]?.unsubscribed_at || null)}
+          icon={Calendar}
+          iconColor="text-gray-500"
+        />
       </div>
 
       <Card>
@@ -120,8 +104,8 @@ export default async function EmailUnsubscribesPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-gray-500">
-                    Henüz çıkış kaydı bulunmuyor
+                  <td colSpan={4} className="p-0">
+                    <EmptyState compact icon={MailX} title="Henüz çıkış kaydı yok" />
                   </td>
                 </tr>
               )}

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@novagross/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, PageHeader, EmptyState } from '@novagross/ui'
 import { formatPrice } from '@novagross/utils'
-import { Eye, Truck, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Eye, Truck, CheckCircle, XCircle, Clock, ShoppingCart } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 
 interface Order {
@@ -85,11 +85,14 @@ export default function OrdersPage() {
     : orders.filter(o => o.status === statusFilter)
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8">Siparişler</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Siparişler"
+        description={loading ? 'Yükleniyor…' : `${filteredOrders.length} sipariş`}
+      />
 
       {/* Status Filters */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 flex-wrap">
         {['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
           <Button
             key={status}
@@ -160,9 +163,15 @@ export default function OrdersPage() {
               </table>
 
               {filteredOrders.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Sipariş bulunamadı
-                </div>
+                <EmptyState
+                  compact
+                  icon={ShoppingCart}
+                  title={
+                    statusFilter === 'all'
+                      ? 'Henüz sipariş yok'
+                      : `${statusLabels[statusFilter]} sipariş yok`
+                  }
+                />
               )}
             </div>
           )}

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Card, Button } from '@novagross/ui'
+import { Card, Button, PageHeader } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { Percent, Truck, Mail, Globe, Shield } from 'lucide-react'
 
@@ -23,30 +23,30 @@ export default async function SettingsPage() {
     },
     {
       title: 'E-posta Şablonları',
-      description: 'Otomatik e-posta şablonlarını düzenleyin',
+      description: 'Otomatik e-posta şablonlarını görüntüleyin ve test edin',
       icon: Mail,
-      available: false,
+      href: '/ayarlar/email-sablonlari',
+      available: true,
     },
     {
       title: 'Site Ayarları',
-      description: 'Genel site yapılandırması',
+      description: 'Ortam değişkenleri ve sistem durumu',
       icon: Globe,
-      available: false,
+      href: '/ayarlar/site',
+      available: true,
     },
     {
       title: 'Güvenlik',
-      description: 'Güvenlik ve yetkilendirme',
+      description: 'Admin hesapları, kimlik doğrulama ve uyarı sinyalleri',
       icon: Shield,
-      available: false,
+      href: '/ayarlar/guvenlik',
+      available: true,
     },
   ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Ayarlar</h1>
-        <p className="text-gray-600 mt-1">Sistem ayarları</p>
-      </div>
+      <PageHeader title="Ayarlar" description="Sistem ayarları" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {settingsSections.map((section) => (

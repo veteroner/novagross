@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@novagross/ui'
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@novagross/ui'
 import { formatPrice } from '@novagross/utils'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { IyzicoApprovalCard } from '@/components/admin/IyzicoApprovalCard'
@@ -39,15 +39,16 @@ const statusBadges: Record<string, string> = {
 export default async function AdminOrderDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const { supabase } = await requireAdmin(`/siparisler/${params.id}`)
+  const { id } = await params
+  const { supabase } = await requireAdmin(`/siparisler/${id}`)
 
   const [{ data: order, error: orderError }, { data: items, error: itemsError }] = await Promise.all([
     supabase
       .from('orders')
       .select('id, order_number, status, payment_status, total, created_at, user_id, shipping_address')
-      .eq('id', params.id)
+      .eq('id', id)
       .maybeSingle(),
     supabase
       .from('order_items')
@@ -67,7 +68,7 @@ export default async function AdminOrderDetailPage({
           store:store_id ( id, store_name, store_slug )
         `
       )
-      .eq('order_id', params.id)
+      .eq('order_id', id)
       .order('created_at', { ascending: true }),
   ])
 
@@ -92,18 +93,18 @@ export default async function AdminOrderDetailPage({
   }, {} as Record<string, OrderItemRow[]>)
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Sipariş Detayı</h1>
-          <p className="text-muted-foreground mt-1">
-            {order.order_number ? `Sipariş No: ${order.order_number}` : `ID: ${order.id}`}
-          </p>
-        </div>
-        <Link href="/siparisler">
-          <Button variant="outline">Siparişlere Dön</Button>
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Sipariş Detayı"
+        description={
+          order.order_number ? `Sipariş No: ${order.order_number}` : `ID: ${order.id}`
+        }
+        actions={
+          <Link href="/siparisler">
+            <Button variant="outline">Siparişlere Dön</Button>
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">

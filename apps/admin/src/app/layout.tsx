@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Sidebar from '@/components/layout/sidebar'
+import AppShell from '@/components/layout/app-shell'
 
 export const dynamic = 'force-dynamic'
 
+const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'Trendikon'
+
 export const metadata: Metadata = {
-  title: 'Novagross Admin',
-  description: 'Novagross Yönetim Paneli',
+  title: `${BRAND_NAME} Admin`,
+  description: `${BRAND_NAME} Yönetim Paneli`,
 }
 
 export default function RootLayout({
@@ -17,12 +19,7 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body className="min-h-screen bg-background font-sans antialiased">
-        <div className="flex h-screen bg-gray-100">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto p-8">
-            {children}
-          </main>
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )

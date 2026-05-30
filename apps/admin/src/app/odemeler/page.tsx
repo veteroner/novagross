@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, Badge } from '@novagross/ui'
+import { Card, CardContent, CardHeader, CardTitle, Badge, PageHeader, StatCard } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { PayoutBatchActions } from '@/components/admin/payout/payout-batch-actions'
@@ -47,13 +47,14 @@ export const dynamic = 'force-dynamic'
 export default async function OdemelerPage({
   searchParams,
 }: {
-  searchParams: SearchParams
+  searchParams: Promise<SearchParams>
 }) {
   await requireAdmin('/odemeler')
 
+  const sp = await searchParams
   const defaultAsOf = toIsoDate(getNextWednesday(new Date()))
-  const asOf = (searchParams.asOf && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.asOf)
-    ? searchParams.asOf
+  const asOf = (sp.asOf && /^\d{4}-\d{2}-\d{2}$/.test(sp.asOf)
+    ? sp.asOf
     : defaultAsOf) as string
 
   const supabase = createServiceRoleClient()
@@ -69,40 +70,24 @@ export default async function OdemelerPage({
   const total = candidates.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Ödemeler (Çarşamba Batch)</h1>
-          <p className="text-gray-600 mt-1">
-            Bu ekranda {asOf} tarihi itibarıyla ödenebilir tutarlar listelenir.
-          </p>
-        </div>
-        <Badge variant="secondary">Haftalık · Çarşamba</Badge>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Ödemeler (Çarşamba Batch)"
+        description={`Bu ekranda ${asOf} tarihi itibarıyla ödenebilir tutarlar listelenir.`}
+        actions={<Badge variant="secondary">Haftalık · Çarşamba</Badge>}
+      />
 
       <PayoutBatchActions asOf={asOf} candidates={candidates} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Mağaza</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{candidates.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Toplam Tutar</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{formatTry(total)}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Hata</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {error ? error.message : 'Yok'}
-          </CardContent>
-        </Card>
+        <StatCard label="Mağaza" value={candidates.length} />
+        <StatCard label="Toplam Tutar" value={formatTry(total)} />
+        <StatCard
+          label="Hata"
+          value={error ? 'Var' : 'Yok'}
+          hint={error ? error.message : undefined}
+          emphasis={error ? 'danger' : 'default'}
+        />
       </div>
 
       <Card>

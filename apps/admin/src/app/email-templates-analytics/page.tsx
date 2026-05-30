@@ -1,4 +1,4 @@
-import { Card, Badge } from '@novagross/ui'
+import { Card, Badge, PageHeader, StatCard, EmptyState } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { BarChart3, Mail, MousePointerClick, AlertTriangle } from 'lucide-react'
@@ -52,51 +52,16 @@ export default async function EmailTemplatesAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">E-posta Şablon Analitiği</h1>
-        <p className="text-gray-600 mt-1">Şablon bazlı günlük gönderim/açılma/tıklama metrikleri</p>
-      </div>
+      <PageHeader
+        title="E-posta Şablon Analitiği"
+        description="Şablon bazlı günlük gönderim/açılma/tıklama metrikleri"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Gönderim</p>
-              <p className="text-2xl font-bold">{totalSent}</p>
-            </div>
-            <Mail className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Açılma</p>
-              <p className="text-2xl font-bold">{openRate}</p>
-            </div>
-            <BarChart3 className="w-8 h-8 text-green-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Tıklama</p>
-              <p className="text-2xl font-bold">{clickRate}</p>
-            </div>
-            <MousePointerClick className="w-8 h-8 text-purple-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Bounce</p>
-              <p className="text-2xl font-bold">{totalBounced}</p>
-            </div>
-            <AlertTriangle className="w-8 h-8 text-yellow-500" />
-          </div>
-        </Card>
+        <StatCard label="Gönderim" value={totalSent} icon={Mail} iconColor="text-blue-500" />
+        <StatCard label="Açılma" value={openRate} icon={BarChart3} iconColor="text-green-500" />
+        <StatCard label="Tıklama" value={clickRate} icon={MousePointerClick} iconColor="text-purple-500" />
+        <StatCard label="Bounce" value={totalBounced} icon={AlertTriangle} iconColor="text-yellow-500" />
       </div>
 
       <Card>
@@ -138,8 +103,8 @@ export default async function EmailTemplatesAnalyticsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-500">
-                    Henüz analitik kaydı bulunmuyor
+                  <td colSpan={9} className="p-0">
+                    <EmptyState compact icon={BarChart3} title="Henüz analitik kaydı yok" />
                   </td>
                 </tr>
               )}

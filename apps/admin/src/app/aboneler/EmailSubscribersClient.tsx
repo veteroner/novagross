@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Card, CardHeader, CardTitle, CardContent } from '@novagross/ui'
+import { Button, Card, CardHeader, CardTitle, CardContent, PageHeader, StatCard } from '@novagross/ui'
 import { Download, Mail, Users, TrendingUp } from 'lucide-react'
 
 type Subscriber = {
@@ -57,66 +57,38 @@ export function EmailSubscribersClient({ initialSubscribers }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">E-posta Aboneleri</h1>
-          <p className="text-muted-foreground">Bültene abone olan kullanıcıları yönetin</p>
-        </div>
-        <Button onClick={exportToCSV}>
-          <Download className="mr-2 h-4 w-4" />
-          CSV İndir
-        </Button>
-      </div>
+      <PageHeader
+        title="E-posta Aboneleri"
+        description="Bültene abone olan kullanıcıları yönetin"
+        actions={
+          <Button onClick={exportToCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            CSV İndir
+          </Button>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Toplam Abone</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-              <Users className="h-8 w-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Bülten Abonesi</p>
-                <p className="text-2xl font-bold">{stats.activeNewsletters}</p>
-              </div>
-              <Mail className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pazarlama İzni</p>
-                <p className="text-2xl font-bold">{stats.activeMarketing}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Abonelikten Çıkan</p>
-                <p className="text-2xl font-bold">{stats.unsubscribed}</p>
-              </div>
-              <Mail className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Toplam Abone" value={stats.total} icon={Users} iconColor="text-primary" />
+        <StatCard
+          label="Bülten Abonesi"
+          value={stats.activeNewsletters}
+          icon={Mail}
+          iconColor="text-blue-500"
+        />
+        <StatCard
+          label="Pazarlama İzni"
+          value={stats.activeMarketing}
+          icon={TrendingUp}
+          iconColor="text-green-500"
+        />
+        <StatCard
+          label="Abonelikten Çıkan"
+          value={stats.unsubscribed}
+          icon={Mail}
+          iconColor="text-red-500"
+        />
       </div>
 
       {/* Subscribers List */}

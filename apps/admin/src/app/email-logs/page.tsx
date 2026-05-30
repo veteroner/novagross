@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Card, Badge, Button } from '@novagross/ui'
+import { Card, Badge, Button, PageHeader, StatCard, EmptyState } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { Mail, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
@@ -78,62 +78,27 @@ export default async function EmailLogsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">E-posta Logları</h1>
-          <p className="text-gray-600 mt-1">Gönderilen e-postaların detaylı kayıtları</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/email-templates-analytics">Şablon Analitiği</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/email-unsubscribes">Çıkışlar</Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="E-posta Logları"
+        description="Gönderilen e-postaların detaylı kayıtları"
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/email-templates-analytics">Şablon Analitiği</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/email-unsubscribes">Çıkışlar</Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Gönderilen</p>
-              <p className="text-2xl font-bold">{totalSent}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Başarısız</p>
-              <p className="text-2xl font-bold">{totalFailed}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-red-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Bounce</p>
-              <p className="text-2xl font-bold">{totalBounced}</p>
-            </div>
-            <AlertTriangle className="w-8 h-8 text-yellow-500" />
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Açılma Oranı</p>
-              <p className="text-2xl font-bold">{openRate}%</p>
-            </div>
-            <Mail className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
+        <StatCard label="Gönderilen" value={totalSent} icon={CheckCircle} iconColor="text-green-500" />
+        <StatCard label="Başarısız" value={totalFailed} icon={XCircle} iconColor="text-red-500" />
+        <StatCard label="Bounce" value={totalBounced} icon={AlertTriangle} iconColor="text-yellow-500" />
+        <StatCard label="Açılma Oranı" value={`${openRate}%`} icon={Mail} iconColor="text-blue-500" />
       </div>
 
       {/* Email Logs Table */}
@@ -195,8 +160,8 @@ export default async function EmailLogsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
-                    Henüz e-posta logu bulunmuyor
+                  <td colSpan={6} className="p-0">
+                    <EmptyState compact icon={Mail} title="Henüz e-posta logu yok" />
                   </td>
                 </tr>
               )}

@@ -1,4 +1,6 @@
 import { Metadata } from 'next'
+import { PageHeader, EmptyState } from '@novagross/ui'
+import { Mailbox } from 'lucide-react'
 import { ApplicationList } from '@/components/admin/ApplicationList'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 
@@ -44,26 +46,18 @@ export default async function SellerApplicationsPage() {
   }))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Satıcı Başvuruları
-        </h1>
-        <p className="text-gray-600">
-          Bekleyen başvuruları inceleyin ve onaylayın
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Satıcı Başvuruları"
+        description="Bekleyen başvuruları inceleyin ve onaylayın"
+      />
 
       {applications.length === 0 ? (
-        <div className="bg-white rounded-lg shadow border border-gray-200 p-12 text-center">
-          <div className="text-6xl mb-4">📭</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            Bekleyen Başvuru Yok
-          </h3>
-          <p className="text-gray-600">
-            Şu anda onay bekleyen satıcı başvurusu bulunmuyor.
-          </p>
-        </div>
+        <EmptyState
+          icon={Mailbox}
+          title="Bekleyen başvuru yok"
+          description="Şu anda onay bekleyen satıcı başvurusu bulunmuyor."
+        />
       ) : (
         <div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">

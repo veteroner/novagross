@@ -1,3 +1,5 @@
+import { PageHeader, EmptyState } from '@novagross/ui'
+import { Wallet } from 'lucide-react'
 import WithdrawalList from '@/components/admin/WithdrawalList'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 
@@ -56,18 +58,14 @@ export default async function WithdrawalRequestsPage() {
   })
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Para Çekme Talepleri</h1>
-        <p className="text-muted-foreground">
-          Satıcıların para çekme taleplerini görüntüleyin ve yönetin
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Para Çekme Talepleri"
+        description="Satıcıların para çekme taleplerini görüntüleyin ve yönetin"
+      />
 
       {withdrawalRequests.length === 0 ? (
-        <div className="text-center py-12 bg-muted/20 rounded-lg">
-          <p className="text-muted-foreground">Henüz para çekme talebi bulunmuyor.</p>
-        </div>
+        <EmptyState icon={Wallet} title="Henüz para çekme talebi yok" />
       ) : (
         <WithdrawalList requests={withdrawalRequests as any} adminId={userId} />
       )}

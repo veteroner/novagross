@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
     // Send confirmation email to applicant
     await queueEmail({
       to: contactEmail,
-      subject: 'Novagross | Satıcı Başvurunuz Alındı',
+      subject: 'Trendikon | Satıcı Başvurunuz Alındı',
       template: 'seller/application-received',
       priority: 'high',
       data: {
@@ -231,10 +231,10 @@ export async function POST(req: NextRequest) {
     });
 
     // Notify admin
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@novagross.com';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@trendikon.com';
     await queueEmail({
       to: adminEmail,
-      subject: `Novagross | Yeni Satıcı Başvurusu - ${storeName}`,
+      subject: `Trendikon | Yeni Satıcı Başvurusu - ${storeName}`,
       template: 'seller/application-received' as any,
       priority: 'medium',
       data: {
@@ -243,7 +243,7 @@ export async function POST(req: NextRequest) {
         contactEmail,
         contactPhone,
         applicationId: application.id,
-        reviewUrl: `${process.env.NEXT_PUBLIC_ADMIN_URL}/satici-basvurulari/${application.id}`,
+        reviewUrl: `${process.env.NEXT_PUBLIC_ADMIN_URL}/saticilar/basvurular`,
       },
     });
 

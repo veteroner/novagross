@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@novagross/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@novagross/ui';
 import { Button } from '@novagross/ui';
 import { createClient } from '../../../lib/supabase/client';
 import { BarChart, TrendingUp, Mail, CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
@@ -171,34 +171,34 @@ export default function EmailAnalyticsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Email Analytics</h1>
-          <p className="text-gray-600 mt-1">Monitor email delivery and performance</p>
-        </div>
-        <div className="flex gap-3">
-          <div className="flex gap-2 bg-white rounded-lg border p-1">
-            {(['24h', '7d', '30d', 'all'] as const).map(range => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition ${
-                  timeRange === range
-                    ? 'bg-primary text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {range === '24h' ? '24H' : range === '7d' ? '7D' : range === '30d' ? '30D' : 'All'}
-              </button>
-            ))}
-          </div>
-          <Button onClick={fetchAnalytics} variant="outline" disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Email Analytics"
+        description="Monitor email delivery and performance"
+        actions={
+          <>
+            <div className="flex gap-2 bg-white rounded-lg border p-1">
+              {(['24h', '7d', '30d', 'all'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition ${
+                    timeRange === range
+                      ? 'bg-primary text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {range === '24h' ? '24H' : range === '7d' ? '7D' : range === '30d' ? '30D' : 'All'}
+                </button>
+              ))}
+            </div>
+            <Button onClick={fetchAnalytics} variant="outline" disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

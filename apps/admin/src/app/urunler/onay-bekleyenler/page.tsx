@@ -1,3 +1,5 @@
+import { PageHeader, EmptyState } from '@novagross/ui'
+import { BadgeCheck } from 'lucide-react'
 import { ProductApprovalList } from '@/components/admin/ProductApprovalList'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 
@@ -44,13 +46,11 @@ export default async function PendingProductsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Onay Bekleyen Ürünler</h1>
-        <p className="mt-2 text-gray-600">
-          Satıcılar tarafından eklenen ürünleri onaylayın veya reddedin
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Onay Bekleyen Ürünler"
+        description="Satıcılar tarafından eklenen ürünleri onaylayın veya reddedin"
+      />
 
       {pendingProducts && pendingProducts.length > 0 ? (
         <ProductApprovalList
@@ -67,9 +67,11 @@ export default async function PendingProductsPage() {
           adminId={userId}
         />
       ) : (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Henüz onay bekleyen ürün bulunmuyor</p>
-        </div>
+        <EmptyState
+          icon={BadgeCheck}
+          title="Onay bekleyen ürün yok"
+          description="Tüm ürünler değerlendirildi."
+        />
       )}
     </div>
   )

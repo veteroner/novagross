@@ -1,3 +1,4 @@
+import { PageHeader } from '@novagross/ui'
 import { ReportsOverview } from '../../components/admin/ReportsOverview'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 
@@ -151,13 +152,11 @@ export default async function ReportsPage() {
   }))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Platform Raporları</h1>
-        <p className="mt-2 text-gray-600">
-          Platform genelindeki metrikleri ve analizleri görüntüleyin
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Platform Raporları"
+        description="Platform genelindeki metrikleri ve analizleri görüntüleyin"
+      />
 
       <ReportsOverview
         overview={overview as any}

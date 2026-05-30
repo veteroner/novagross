@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from '@novagross/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, PageHeader } from '@novagross/ui'
 import { Plus, Edit, Trash2, Loader2, X, Check } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -189,14 +189,17 @@ export function BannersClient() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Bannerlar</h1>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Yeni Banner
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Bannerlar"
+        description="Ana sayfa banner görsellerini yönet"
+        actions={
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Yeni Banner
+          </Button>
+        }
+      />
 
       {showForm ? (
         <Card className="mb-6">

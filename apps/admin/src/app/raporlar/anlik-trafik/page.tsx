@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card } from '@novagross/ui'
+import { Card, PageHeader, EmptyState } from '@novagross/ui'
 import { Users, Eye, Monitor, Smartphone, Tablet, Activity } from 'lucide-react'
 
 type RealtimeStats = {
@@ -72,16 +72,16 @@ export default function RealtimeTrafficPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Anlık Trafik</h1>
-          <p className="text-gray-600 mt-1">Son 5 dakika içindeki aktif kullanıcılar</p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Activity className="w-4 h-4 animate-pulse text-green-500" />
-          <span>Canlı • {stats ? new Date(stats.timestamp).toLocaleTimeString('tr-TR') : ''}</span>
-        </div>
-      </div>
+      <PageHeader
+        title="Anlık Trafik"
+        description="Son 5 dakika içindeki aktif kullanıcılar"
+        actions={
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Activity className="w-4 h-4 animate-pulse text-green-500" />
+            <span>Canlı • {stats ? new Date(stats.timestamp).toLocaleTimeString('tr-TR') : ''}</span>
+          </div>
+        }
+      />
 
       {/* Main Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -165,8 +165,8 @@ export default function RealtimeTrafficPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-gray-500">
-                    Henüz veri yok
+                  <td colSpan={3} className="p-0">
+                    <EmptyState compact icon={Eye} title="Henüz veri yok" />
                   </td>
                 </tr>
               )}

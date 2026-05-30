@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Card, Badge, Button } from '@novagross/ui'
+import { Card, Badge, Button, PageHeader } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createClient } from '@/lib/supabase/server'
 import { ArrowLeft, Plus } from 'lucide-react'
@@ -78,25 +78,26 @@ export default async function KargoOranlariPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/ayarlar/kargo">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Kargo Ayarları
-              </Link>
-            </Button>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mt-2">Kargo Oranları</h1>
-          <p className="text-gray-600 mt-1">Kargo yöntemlerine göre fiyatlandırma kuralları</p>
-        </div>
-
-        <Button disabled>
-          <Plus className="w-4 h-4 mr-2" />
-          Yeni Oran Ekle
-        </Button>
+      <div>
+        <Link
+          href="/ayarlar/kargo"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Kargo Ayarlarına Dön
+        </Link>
       </div>
+
+      <PageHeader
+        title="Kargo Oranları"
+        description="Kargo yöntemlerine göre fiyatlandırma kuralları"
+        actions={
+          <Button disabled>
+            <Plus className="w-4 h-4 mr-2" />
+            Yeni Oran Ekle
+          </Button>
+        }
+      />
 
       <Card>
         <div className="overflow-x-auto">

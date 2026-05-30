@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@novagross/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@novagross/ui'
 import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
@@ -217,15 +217,21 @@ export default function AddProductPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/urunler">
-          <Button variant="outline" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <Link
+          href="/urunler"
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Ürünlere Dön
         </Link>
-        <h1 className="text-3xl font-bold">Yeni Ürün Ekle</h1>
       </div>
+
+      <PageHeader
+        title="Yeni Ürün Ekle"
+        description="Ürün bilgilerini doldurup kaydet"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Temel Bilgiler */}

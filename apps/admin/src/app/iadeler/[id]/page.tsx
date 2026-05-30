@@ -65,6 +65,15 @@ export default async function ReturnDetailPage({ params }: { params: { id: strin
     .eq('type', 'sale')
     .maybeSingle()
 
+  // iyzico paymentTransactionId var mı? (otomatik refund için)
+  const { data: orderItem } = await (supabase as any)
+    .from('order_items')
+    .select('iyzico_payment_transaction_id')
+    .eq('id', r.order_item_id)
+    .maybeSingle()
+
+  const hasIyzicoTxnId = !!orderItem?.iyzico_payment_transaction_id
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-6 max-w-4xl">
       <div className="flex items-center gap-3">
@@ -252,7 +261,12 @@ export default async function ReturnDetailPage({ params }: { params: { id: strin
               </p>
             ) : null}
             {r.status === 'approved' && !r.refunded_at ? (
-              <ReturnActions requestId={r.id} adminId={userId} markRefundedOnly />
+              <ReturnActions
+                requestId={r.id}
+                adminId={userId}
+                markRefundedOnly
+                hasIyzicoTransactionId={hasIyzicoTxnId}
+              />
             ) : null}
           </CardContent>
         </Card>

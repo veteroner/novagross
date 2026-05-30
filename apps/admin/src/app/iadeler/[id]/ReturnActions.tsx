@@ -8,14 +8,17 @@ export function ReturnActions({
   requestId,
   adminId,
   markRefundedOnly,
+  hasIyzicoTransactionId,
 }: {
   requestId: string
   adminId: string
   markRefundedOnly?: boolean
+  hasIyzicoTransactionId?: boolean
 }) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [adminNote, setAdminNote] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [iyzicoRefundId, setIyzicoRefundId] = useState('')
@@ -23,6 +26,7 @@ export function ReturnActions({
   async function callAction(action: 'approve' | 'reject' | 'mark_refunded') {
     setSubmitting(true)
     setError(null)
+    setSuccess(null)
     try {
       const res = await fetch('/api/returns/action', {
         method: 'POST',
@@ -46,31 +50,84 @@ export function ReturnActions({
     }
   }
 
+  async function callIyzicoRefund() {
+    setSubmitting(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await fetch('/api/iyzico/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnRequestId: requestId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'iyzico refund başarısız')
+      }
+      setSuccess(
+        `✅ iyzico refund başarılı (₺${data.amount?.toFixed(2) ?? ''}, iyzicoPaymentId: ${
+          data.iyzicoPaymentId ?? '—'
+        })`
+      )
+      setTimeout(() => router.refresh(), 1500)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (markRefundedOnly) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>iyzico Refund'ı Manuel İşaretle</CardTitle>
+          <CardTitle>Para İadesi</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {error ? <div className="text-red-700 text-sm">{error}</div> : null}
-          <p className="text-sm text-muted-foreground">
-            iyzico'da müşterinin parası iade edildikten sonra buraya refund ID'sini girip
-            işaretleyin.
-          </p>
-          <input
-            className="w-full px-3 py-2 border rounded-md"
-            placeholder="iyzico refund ID (opsiyonel)"
-            value={iyzicoRefundId}
-            onChange={(e) => setIyzicoRefundId(e.target.value)}
-          />
-          <Button
-            onClick={() => callAction('mark_refunded')}
-            disabled={submitting}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            {submitting ? 'İşaretleniyor...' : '💸 İade Tamamlandı Olarak İşaretle'}
-          </Button>
+          {success ? <div className="text-green-700 text-sm">{success}</div> : null}
+
+          {hasIyzicoTransactionId ? (
+            <div className="border rounded p-3 space-y-2 bg-blue-50">
+              <p className="font-medium text-blue-900">⚡ iyzico'dan Otomatik Refund</p>
+              <p className="text-xs text-blue-800">
+                Tek tıkla iyzico API'sine refund.create çağrılır. Başarılı olursa otomatik olarak{' '}
+                <code>refunded</code> durumuna geçer.
+              </p>
+              <Button
+                onClick={callIyzicoRefund}
+                disabled={submitting}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {submitting ? 'iyzico API çağrılıyor...' : '⚡ iyzico Refund Et'}
+              </Button>
+            </div>
+          ) : (
+            <div className="border rounded p-3 text-sm bg-yellow-50 text-yellow-900">
+              ⚠️ Bu kalem için iyzico paymentTransactionId yok. Otomatik refund yapılamaz, manuel
+              olarak iyzico panelinden iade edip aşağıdan işaretleyin.
+            </div>
+          )}
+
+          <div className="border rounded p-3 space-y-2">
+            <p className="font-medium">Manuel İşaretle</p>
+            <p className="text-xs text-muted-foreground">
+              iyzico'da manuel iade yaptıysanız refund ID'sini girip işaretleyin.
+            </p>
+            <input
+              className="w-full px-3 py-2 border rounded-md"
+              placeholder="iyzico refund ID (opsiyonel)"
+              value={iyzicoRefundId}
+              onChange={(e) => setIyzicoRefundId(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              onClick={() => callAction('mark_refunded')}
+              disabled={submitting}
+            >
+              {submitting ? 'İşaretleniyor...' : '✅ İade Tamamlandı Olarak İşaretle'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )

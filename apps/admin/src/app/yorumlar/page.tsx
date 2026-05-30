@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Card, Badge, PageHeader, EmptyState } from '@novagross/ui'
+import { Card, Badge, PageHeader, EmptyState, TabBar, type TabItem } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { MessageSquare, Star, Store, Package } from 'lucide-react'
 import { ProductReviewActions, StoreReviewActions } from './review-actions'
@@ -193,46 +193,23 @@ export default async function ReviewsPage({
         </div>
       </div>
 
-      {/* Status filter */}
-      <div className="flex gap-2 flex-wrap">
-        <Link
-          href={filterHref('all')}
-          className={`px-3 py-1 rounded-full text-sm border ${
-            status === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700'
-          }`}
-        >
-          Tümü
-        </Link>
-        {tab === 'products' ? (
-          <>
-            <Link
-              href={filterHref('pending')}
-              className={`px-3 py-1 rounded-full text-sm border ${
-                status === 'pending' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700'
-              }`}
-            >
-              Onay Bekleyen
-            </Link>
-            <Link
-              href={filterHref('approved')}
-              className={`px-3 py-1 rounded-full text-sm border ${
-                status === 'approved' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700'
-              }`}
-            >
-              Onaylı
-            </Link>
-          </>
-        ) : (
-          <Link
-            href={filterHref('hidden')}
-            className={`px-3 py-1 rounded-full text-sm border ${
-              status === 'hidden' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-700'
-            }`}
-          >
-            Gizli
-          </Link>
-        )}
-      </div>
+      {/* Status filter — secondary tab bar */}
+      <TabBar
+        variant="secondary"
+        value={status}
+        items={
+          tab === 'products'
+            ? ([
+                { key: 'all', label: 'Tümü', href: filterHref('all') },
+                { key: 'pending', label: 'Onay Bekleyen', href: filterHref('pending') },
+                { key: 'approved', label: 'Onaylı', href: filterHref('approved') },
+              ] as TabItem[])
+            : ([
+                { key: 'all', label: 'Tümü', href: filterHref('all') },
+                { key: 'hidden', label: 'Gizli', href: filterHref('hidden') },
+              ] as TabItem[])
+        }
+      />
 
       <Card>
         <div className="overflow-x-auto">

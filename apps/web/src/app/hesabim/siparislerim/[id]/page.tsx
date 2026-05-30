@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@novagross/ui'
 import { formatPrice, formatDate } from '@novagross/utils'
-import { ArrowLeft, Truck, Package, CheckCircle, MapPin } from 'lucide-react'
+import { ArrowLeft, Truck, Package, CheckCircle, MapPin, RotateCcw } from 'lucide-react'
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CopyTrackingButton } from '@/components/order/copy-tracking-button'
@@ -79,8 +79,29 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     .eq('order_id', order.id)
     .order('created_at')
 
+  // Mevcut iade talepleri (her item için)
+  const { data: existingReturns } = await (supabase as any)
+    .from('return_requests')
+    .select('id, order_item_id, status')
+    .eq('order_id', order.id)
+    .eq('user_id', user.id)
+
+  const returnsByItemId = new Map<string, { id: string; status: string }>()
+  for (const r of (existingReturns as any[] | null) || []) {
+    returnsByItemId.set(r.order_item_id, { id: r.id, status: r.status })
+  }
+
   const shippingAddress = asAddressLike(order.shipping_address)
   const currentStatusIndex = statusSteps.findIndex((s) => s.status === order.status)
+
+  // İade hakkı kontrolü
+  const isDelivered = order.status === 'delivered' && !!order.delivered_at
+  const returnDeadline = order.return_deadline ? new Date(order.return_deadline) : null
+  const isWithinReturnPeriod = returnDeadline && returnDeadline > new Date()
+  const canReturn = isDelivered && isWithinReturnPeriod
+  const daysLeft = returnDeadline
+    ? Math.max(0, Math.ceil((returnDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0
 
   return (
     <div className="space-y-6">
@@ -166,8 +187,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               const images = product?.product_images
               const imageUrl = images && Array.isArray(images) && images[0]?.url
 
+              const ret = returnsByItemId.get(item.id)
               return (
-                <div key={item.id} className="flex gap-4">
+                <div key={item.id} className="flex flex-wrap gap-4 items-start">
                   <div className="w-16 h-16 bg-muted rounded flex items-center justify-center shrink-0 overflow-hidden">
                     {imageUrl ? (
                       <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" />
@@ -175,15 +197,50 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                       <span className="text-2xl">📱</span>
                     )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-[200px]">
                     <h4 className="font-medium">{item.name}</h4>
                     <p className="text-sm text-muted-foreground">Adet: {item.quantity}</p>
+                    {ret ? (
+                      <Link
+                        href={`/hesabim/iadelerim`}
+                        className="inline-block mt-2 text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+                      >
+                        {ret.status === 'pending' && '⏳ İade talebi incelemede'}
+                        {ret.status === 'approved' && '✅ İade onaylandı'}
+                        {ret.status === 'refunded' && '💸 İade tamamlandı'}
+                        {ret.status === 'rejected' && '❌ İade reddedildi'}
+                        {ret.status === 'cancelled' && '🚫 İade iptal edildi'}
+                        {' '}— Detay
+                      </Link>
+                    ) : canReturn ? (
+                      <Button asChild variant="outline" size="sm" className="mt-2">
+                        <Link href={`/hesabim/siparislerim/${order.id}/iade-talep-et/${item.id}`}>
+                          <RotateCcw className="w-3 h-3 mr-1" />
+                          İade Talep Et
+                        </Link>
+                      </Button>
+                    ) : null}
                   </div>
                   <p className="font-medium">{formatPrice(item.total)}</p>
                 </div>
               )
             })}
           </div>
+
+          {/* Return period banner */}
+          {canReturn ? (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <p className="text-blue-900">
+                ℹ️ Yasal iade hakkınızın bitmesine{' '}
+                <strong>{daysLeft} gün</strong> kaldı (son tarih:{' '}
+                {returnDeadline ? formatDate(returnDeadline.toISOString()) : '—'}).
+              </p>
+            </div>
+          ) : isDelivered && returnDeadline && returnDeadline <= new Date() ? (
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+              ⏰ 14 günlük yasal iade süresi dolmuştur.
+            </div>
+          ) : null}
 
           <div className="border-t mt-4 pt-4 space-y-2">
             <div className="flex justify-between text-sm">

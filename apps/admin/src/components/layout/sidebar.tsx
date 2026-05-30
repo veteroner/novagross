@@ -18,7 +18,8 @@ import {
   Banknote,
   Wallet,
   LogOut,
-  Mail
+  Mail,
+  RotateCcw
 } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -38,7 +39,9 @@ const menuItems = [
   { href: '/saticilar', label: 'Satıcılar', icon: Store },
   { href: '/saticilar/basvurular', label: 'Satıcı Başvuruları', icon: Store },
   { href: '/para-cekme', label: 'Para Çekme', icon: Banknote },
-  { href: '/odemeler', label: 'Ödemeler', icon: Wallet },
+  { href: '/odemeler', label: 'Ödemeler (Batch)', icon: Wallet },
+  { href: '/odemeler/onizleme', label: 'Ödeme Önizleme', icon: Wallet },
+  { href: '/iadeler', label: 'İadeler', icon: RotateCcw },
   { href: '/kuponlar', label: 'Kuponlar', icon: Ticket },
   { href: '/yorumlar', label: 'Yorumlar', icon: MessageSquare },
   { href: '/raporlar', label: 'Raporlar', icon: BarChart3 },

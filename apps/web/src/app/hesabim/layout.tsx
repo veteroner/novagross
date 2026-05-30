@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { Card, CardContent } from '@novagross/ui'
-import { User, Package, MapPin, Heart, Settings, LogOut, Lock } from 'lucide-react'
+import { User, Package, MapPin, Heart, Settings, LogOut, Lock, RotateCcw } from 'lucide-react'
 
 const menuItems = [
   { label: 'Profilim', href: '/hesabim', icon: User },
   { label: 'Siparişlerim', href: '/hesabim/siparislerim', icon: Package },
+  { label: 'İadelerim', href: '/hesabim/iadelerim', icon: RotateCcw },
   { label: 'Adreslerim', href: '/hesabim/adreslerim', icon: MapPin },
   { label: 'Favorilerim', href: '/hesabim/favorilerim', icon: Heart },
   { label: 'Şifre Değiştir', href: '/hesabim/sifre-degistir', icon: Lock },

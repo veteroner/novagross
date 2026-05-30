@@ -15,7 +15,12 @@ type EmailTemplate =
   | 'marketing/abandoned-cart'
   | 'marketing/welcome-series'
   | 'marketing/product-recommendations'
-  | 'seller/application-received';
+  | 'seller/application-received'
+  | 'returns/request-received'
+  | 'returns/request-received-admin'
+  | 'returns/approved'
+  | 'returns/rejected'
+  | 'returns/refunded';
 
 type EmailPriority = 'low' | 'medium' | 'high' | 'critical';
 

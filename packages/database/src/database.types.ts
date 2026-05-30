@@ -748,6 +748,7 @@ export type Database = {
           cancelled_reason: string | null
           created_at: string | null
           currency: string | null
+          delivered_at: string | null
           discount_amount: number | null
           email: string
           has_multiple_stores: boolean | null
@@ -757,6 +758,7 @@ export type Database = {
           payment_status: string | null
           phone: string
           primary_store_id: string | null
+          return_deadline: string | null
           shipping_address: Json
           shipping_cost: number | null
           shipping_method: string | null

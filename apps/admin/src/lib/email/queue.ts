@@ -17,7 +17,12 @@ type EmailTemplate =
   | 'marketing/product-recommendations'
   | 'seller/application-received'
   | 'seller/weekly-payout-processed'
-  | 'admin/weekly-payout-summary';
+  | 'admin/weekly-payout-summary'
+  | 'returns/request-received'
+  | 'returns/request-received-admin'
+  | 'returns/approved'
+  | 'returns/rejected'
+  | 'returns/refunded';
 
 type EmailPriority = 'low' | 'medium' | 'high' | 'critical';
 

@@ -17,11 +17,14 @@ export default async function SellerCampaignsPage() {
     supabase.from('categories').select('id, name').order('name'),
   ])
 
+  const publicBaseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://novagross.com').replace(/\/$/, '')
+
   return (
     <CampaignsClient
       campaigns={(campaigns ?? []) as CampaignRow[]}
       products={(products ?? []) as { id: string; name: string }[]}
       categories={(categories ?? []) as { id: string; name: string }[]}
+      publicBaseUrl={publicBaseUrl}
     />
   )
 }

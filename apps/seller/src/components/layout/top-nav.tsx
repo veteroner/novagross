@@ -20,6 +20,10 @@ import {
   TrendingUp,
   ChevronDown,
   Bell,
+  AlertCircle,
+  BadgeCheck,
+  Activity,
+  RefreshCcw,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -29,6 +33,8 @@ type CounterKey =
   | 'pendingQuestions'
   | 'pendingOrders'
   | 'cartSuggestions'
+  | 'openClaims'
+  | 'pendingProducts'
 
 type NavLeaf = {
   href: string
@@ -50,7 +56,21 @@ const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'Trendikon'
 
 const NAV: NavGroup[] = [
   { label: 'Anasayfa', icon: LayoutDashboard, href: '/', items: [] },
-  { label: 'Ürünlerim', icon: Package, href: '/urunler', items: [] },
+  {
+    label: 'Ürünler',
+    icon: Package,
+    items: [
+      { href: '/urunler', label: 'Tüm Ürünlerim', icon: Package },
+      {
+        href: '/urunler/aksiyon-bekleyen',
+        label: 'Aksiyon Bekleyenler',
+        icon: BadgeCheck,
+        description: 'Onay/red/az stok/pasif',
+        counter: 'pendingProducts',
+      },
+    ],
+    surfacesCounters: ['pendingProducts'],
+  },
   {
     label: 'Siparişler',
     icon: ShoppingCart,
@@ -67,7 +87,7 @@ const NAV: NavGroup[] = [
         href: '/kampanyalar',
         label: 'Kampanyalar',
         icon: Megaphone,
-        description: 'Self-campaigns',
+        description: 'BOGO + sepet indirimleri',
       },
       {
         href: '/rota',
@@ -97,16 +117,36 @@ const NAV: NavGroup[] = [
         description: 'Müşteri soruları',
         counter: 'pendingQuestions',
       },
+      {
+        href: '/talepler',
+        label: 'Müşteri Talepleri',
+        icon: RefreshCcw,
+        description: 'İade / değişim / şikayet',
+        counter: 'openClaims',
+      },
       { href: '/mesajlar', label: 'Mesajlar', icon: MessageSquare, description: 'Sipariş mesajları' },
     ],
-    surfacesCounters: ['pendingReviews', 'pendingQuestions'],
+    surfacesCounters: ['pendingReviews', 'pendingQuestions', 'openClaims'],
+  },
+  {
+    label: 'Performans',
+    icon: Activity,
+    items: [
+      {
+        href: '/performans',
+        label: 'Satıcı Performansı',
+        icon: Activity,
+        description: 'Sağlık metrikleri',
+      },
+      { href: '/raporlar', label: 'Raporlar', icon: BarChart3, description: 'Top ürün, yorum, kampanya' },
+      { href: '/analizler', label: 'Satış Analizleri', icon: BarChart3, description: 'Klasik analiz' },
+    ],
   },
   {
     label: 'Finans',
     icon: Wallet,
     items: [
       { href: '/kazanclarim', label: 'Kazançlarım', icon: Wallet, description: 'Bakiye & ödemeler' },
-      { href: '/analizler', label: 'Satış Analizleri', icon: BarChart3, description: 'Performans' },
     ],
   },
   {
@@ -125,6 +165,8 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   pendingQuestions: 0,
   pendingOrders: 0,
   cartSuggestions: 0,
+  openClaims: 0,
+  pendingProducts: 0,
 }
 
 async function fetchCounters(
@@ -132,40 +174,55 @@ async function fetchCounters(
   storeId: string | null
 ): Promise<Record<CounterKey, number>> {
   if (!storeId) return EMPTY_COUNTERS
-  const [a, b, c, d] = await Promise.all([
-    // Reviews on this store's products without seller reply yet
-    (supabase as any)
-      .from('reviews')
-      .select('id', { count: 'exact', head: true })
-      .is('seller_reply', null)
-      .in(
-        'product_id',
-        (await supabase.from('products').select('id').eq('store_id', storeId)).data?.map(
-          (p: any) => p.id
-        ) ?? []
-      ),
-    // Questions waiting for seller answer
-    (supabase as any)
-      .from('product_questions')
-      .select('id', { count: 'exact', head: true })
-      .is('answer', null),
-    // Pending orders for this store
+  // First — collect product ids once
+  const { data: productRows } = await supabase
+    .from('products')
+    .select('id')
+    .eq('store_id', storeId)
+  const productIds = (productRows ?? []).map((p: any) => p.id)
+
+  const [a, b, c, d, e, f] = await Promise.all([
+    productIds.length > 0
+      ? (supabase as any)
+          .from('reviews')
+          .select('id', { count: 'exact', head: true })
+          .is('seller_reply', null)
+          .in('product_id', productIds)
+      : Promise.resolve({ count: 0 } as any),
+    productIds.length > 0
+      ? (supabase as any)
+          .from('product_questions')
+          .select('id', { count: 'exact', head: true })
+          .is('answer', null)
+          .in('product_id', productIds)
+      : Promise.resolve({ count: 0 } as any),
     supabase
       .from('order_items')
       .select('id', { count: 'exact', head: true })
       .eq('store_id', storeId),
-    // Cart pending suggestions
     (supabase as any)
       .from('seller_cart_suggestions')
       .select('product_id', { count: 'exact', head: true })
       .eq('store_id', storeId)
       .gt('pending_cart_count', 0),
+    (supabase as any)
+      .from('customer_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('status', ['open', 'in_progress', 'escalated']),
+    supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('approval_status', ['pending', 'rejected']),
   ])
   return {
     pendingReviews: a.count ?? 0,
     pendingQuestions: b.count ?? 0,
     pendingOrders: c.count ?? 0,
     cartSuggestions: d.count ?? 0,
+    openClaims: e.count ?? 0,
+    pendingProducts: f.count ?? 0,
   }
 }
 
@@ -236,7 +293,8 @@ export default function TopNav() {
   const totalAlerts =
     counters.pendingReviews +
     counters.pendingQuestions +
-    counters.pendingOrders +
+    counters.openClaims +
+    counters.pendingProducts +
     counters.cartSuggestions
 
   return (

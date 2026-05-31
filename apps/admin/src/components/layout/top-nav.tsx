@@ -33,6 +33,8 @@ type CounterKey =
   | 'newMessages'
   | 'pendingWithdrawals'
   | 'pendingApplications'
+  | 'openClaims'
+  | 'escalatedClaims'
 
 type NavLeaf = {
   href: string
@@ -128,9 +130,23 @@ const NAV: NavGroup[] = [
   {
     label: 'İletişim',
     icon: MessageSquare,
-    href: '/iletisim-mesajlari',
-    items: [],
-    surfacesCounters: ['newMessages'],
+    items: [
+      {
+        href: '/iletisim-mesajlari',
+        label: 'İletişim Mesajları',
+        icon: MessageSquare,
+        description: 'Genel iletişim formu',
+        counter: 'newMessages',
+      },
+      {
+        href: '/talepler',
+        label: 'Müşteri Talepleri',
+        icon: MessageSquare,
+        description: 'İade / değişim / şikayet',
+        counter: 'openClaims',
+      },
+    ],
+    surfacesCounters: ['newMessages', 'openClaims'],
   },
   {
     label: 'Raporlar',
@@ -158,10 +174,12 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   newMessages: 0,
   pendingWithdrawals: 0,
   pendingApplications: 0,
+  openClaims: 0,
+  escalatedClaims: 0,
 }
 
 async function fetchCounters(supabase: ReturnType<typeof createClient>) {
-  const [a, b, c, d, e] = await Promise.all([
+  const [a, b, c, d, e, f, g] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
     supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('contact_messages').select('id', { count: 'exact', head: true }).eq('status', 'new'),
@@ -170,6 +188,14 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
       .from('store_applications')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
+    (supabase as any)
+      .from('customer_claims')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['open', 'in_progress', 'escalated']),
+    (supabase as any)
+      .from('customer_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'escalated'),
   ])
   return {
     pendingProducts: a.count ?? 0,
@@ -177,6 +203,8 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
     newMessages: c.count ?? 0,
     pendingWithdrawals: d.count ?? 0,
     pendingApplications: e.count ?? 0,
+    openClaims: f.count ?? 0,
+    escalatedClaims: g.count ?? 0,
   } as Record<CounterKey, number>
 }
 
@@ -235,7 +263,8 @@ export default function TopNav() {
     counters.pendingReviews +
     counters.newMessages +
     counters.pendingWithdrawals +
-    counters.pendingApplications
+    counters.pendingApplications +
+    counters.escalatedClaims
 
   return (
     <header className="bg-white border-b sticky top-0 z-40">

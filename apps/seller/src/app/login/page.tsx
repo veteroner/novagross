@@ -71,19 +71,38 @@ function LoginForm() {
     }
   }
 
+  const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'Trendikon'
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md shadow-xl">
       <CardHeader className="text-center">
-        <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-          <Store className="w-8 h-8 text-primary" />
+        <div
+          className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4"
+          style={{ backgroundColor: 'rgba(22,163,74,0.1)' }}
+        >
+          <Store className="w-8 h-8" style={{ color: '#16A34A' }} />
         </div>
-        <CardTitle className="text-2xl">Satıcı Paneli</CardTitle>
-        <p className="text-sm text-muted-foreground mt-2">
-          Novagross Marketplace satıcı girişi
+        <div className="flex flex-col items-center gap-1">
+          <span
+            className="text-3xl font-extrabold tracking-tight"
+            style={{ color: '#16A34A' }}
+          >
+            {BRAND_NAME}
+          </span>
+          <span className="text-sm text-gray-500 font-medium">Satıcı Paneli</span>
+        </div>
+        <CardTitle className="text-xl mt-4">Giriş yap</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          {BRAND_NAME} Marketplace satıcı girişi
         </p>
-        {searchParams.get('error') === 'not-seller' && (
+        {(searchParams.get('error') === 'not-seller' ||
+          searchParams.get('error') === 'not_seller') && (
           <p className="text-sm text-red-600 mt-2">
             Bu panel sadece onaylı satıcılar içindir.
+          </p>
+        )}
+        {searchParams.get('error') === 'no_store' && (
+          <p className="text-sm text-red-600 mt-2">
+            Hesabınıza bağlı bir mağaza bulunamadı.
           </p>
         )}
       </CardHeader>
@@ -114,8 +133,13 @@ function LoginForm() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}
+          <Button
+            type="submit"
+            className="w-full text-white"
+            style={{ backgroundColor: '#16A34A' }}
+            disabled={submitting}
+          >
+            {submitting ? 'Giriş yapılıyor…' : 'Giriş yap'}
           </Button>
         </form>
 
@@ -123,8 +147,9 @@ function LoginForm() {
           <p className="text-xs text-muted-foreground">
             Henüz satıcı değil misiniz?{' '}
             <a
-              href="https://novagross.com/satici-ol"
-              className="text-primary hover:underline"
+              href={process.env.NEXT_PUBLIC_SITE_URL || 'https://novagross.com'}
+              className="font-medium hover:underline"
+              style={{ color: '#16A34A' }}
             >
               Satıcı başvurusu yapın
             </a>
@@ -137,7 +162,7 @@ function LoginForm() {
 
 export default function SellerLoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-gray-50 p-4">
       <Suspense
         fallback={
           <Card className="w-full max-w-md">

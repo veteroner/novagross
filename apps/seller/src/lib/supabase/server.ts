@@ -3,7 +3,8 @@ import { cookies } from 'next/headers'
 import type { Database } from '@novagross/database'
 
 export async function createClient() {
-  const cookieStore = cookies()
+  // Next.js 15: cookies() returns Promise<ReadonlyRequestCookies>
+  const cookieStore = await cookies()
 
   return createServerClient<Database, 'public'>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

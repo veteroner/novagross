@@ -68,15 +68,24 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       ? 'Çok Satan'
       : null
 
-  // "Flaş Ürün": yüksek indirim (≥%30)
-  const isFlashDeal = discountPct != null && discountPct >= 30
+  // Effective indirim yüzdesi — compare_at_price'tan gelen + kupon/kampanyadan gelen
+  // (her ikisi varsa toplam tasarrufu temsil eder)
+  const couponEffectivePct = product.coupon_percent
+    ? product.coupon_percent
+    : product.coupon_amount && product.price > 0
+    ? (product.coupon_amount / product.price) * 100
+    : 0
+  const totalEffectivePct = Math.max(discountPct ?? 0, couponEffectivePct)
 
-  // "Avantajlı Ürün": aktif kampanya VE indirim varsa veya kupon + bestseller kombosu
+  // "Flaş Ürün": yüksek indirim (≥%30 — kupon ya da compare_at_price)
+  const isFlashDeal = totalEffectivePct >= 30
+
+  // "Avantajlı Ürün": aktif kupon/kampanya varsa veya yüksek indirim (≥%10) varsa veya
+  // bestseller + indirim (≥%15) kombosu
   const isAdvantage =
-    (product.cart_special &&
-      (product.coupon_amount || product.coupon_percent) &&
-      (isBestseller || (discountPct ?? 0) >= 10)) ||
-    (isBestseller && (discountPct ?? 0) >= 15)
+    !!(product.coupon_amount || product.coupon_percent) ||
+    totalEffectivePct >= 15 ||
+    (isBestseller && totalEffectivePct >= 10)
 
   // Hesaplanmış kupon — fixed öncelik, sonra yüzde
   const couponLine =
@@ -148,9 +157,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               Flaş Ürün
             </MiniBadge>
           )}
-          {discountPct != null && !isFlashDeal && (
+          {totalEffectivePct > 0 && !isFlashDeal && !isAdvantage && (
             <MiniBadge icon={Zap} className="text-white bg-red-600">
-              %{discountPct} İndirim
+              %{Math.round(totalEffectivePct)} İndirim
             </MiniBadge>
           )}
           {product.is_new && (

@@ -7,15 +7,16 @@ import StoreFollowButton from '@/components/store/StoreFollowButton'
 import StoreReviews from '@/components/store/StoreReviews'
 
 interface StorePageProps {
-  params: { slug: string }
+  params: Promise<{ slug: string }> | { slug: string }
 }
 
 export async function generateMetadata({ params }: StorePageProps): Promise<Metadata> {
+  const { slug } = await (params as any)
   const supabase = createClient()
   const { data: store } = await supabase
     .from('stores')
     .select('store_name, description')
-    .eq('store_slug', params.slug)
+    .eq('store_slug', slug)
     .single()
 
   if (!store) {
@@ -25,23 +26,32 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   }
 
   return {
-    title: `${store.store_name} | Novagross`,
+    title: `${store.store_name} | Trendikon`,
     description: store.description || `${store.store_name} mağazası`,
   }
 }
 
 export default async function StorePage({ params }: StorePageProps) {
+  const { slug } = await (params as any)
   const supabase = createClient()
 
   // Get store
   const { data: store } = await supabase
     .from('stores')
     .select('*')
-    .eq('store_slug', params.slug)
+    .eq('store_slug', slug)
     .eq('status', 'active')
     .single()
 
   if (!store) notFound()
+
+  // Get storefront (public — RLS gates to is_published=true)
+  const { data: storefront } = await (supabase as any)
+    .from('store_storefront')
+    .select('*')
+    .eq('store_id', store.id)
+    .eq('is_published', true)
+    .maybeSingle()
 
   // Get products
   const { data: products } = await supabase
@@ -100,16 +110,49 @@ export default async function StorePage({ params }: StorePageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Banner */}
-      <div className="h-64 bg-gradient-to-r from-blue-500 to-purple-600 relative">
-        {store.banner_url && (
-          <img
-            src={store.banner_url}
-            alt={store.store_name}
-            className="w-full h-full object-cover"
-          />
+      {/* Banner — storefront varsa onu kullan */}
+      <div
+        className="h-64 relative"
+        style={
+          storefront?.theme_color
+            ? {
+                background: `linear-gradient(135deg, ${storefront.theme_color} 0%, #1F2937 100%)`,
+              }
+            : {
+                background:
+                  'linear-gradient(to right, #3B82F6, #9333EA)',
+              }
+        }
+      >
+        {(storefront?.banner_url || store.banner_url) && (
+          <a
+            href={storefront?.banner_link || `/magaza/${slug}`}
+            className="block w-full h-full"
+          >
+            <img
+              src={storefront?.banner_url || store.banner_url}
+              alt={storefront?.hero_title || store.store_name}
+              className="w-full h-full object-cover"
+            />
+          </a>
         )}
-        <div className="absolute inset-0 bg-black bg-opacity-30" />
+        <div className="absolute inset-0 bg-black bg-opacity-20" />
+
+        {/* Hero text overlay */}
+        {(storefront?.hero_title || storefront?.hero_subtitle) && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-4 text-center">
+            {storefront.hero_title && (
+              <h1 className="text-3xl md:text-4xl font-bold drop-shadow-lg">
+                {storefront.hero_title}
+              </h1>
+            )}
+            {storefront.hero_subtitle && (
+              <p className="text-base md:text-lg mt-2 drop-shadow-md">
+                {storefront.hero_subtitle}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="container mx-auto px-4">
@@ -202,10 +245,34 @@ export default async function StorePage({ params }: StorePageProps) {
         <div className="grid lg:grid-cols-3 gap-8 pb-12">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Storefront "about" */}
+            {storefront?.about && (
+              <Card className="p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Mağaza Hakkında
+                </h2>
+                <p className="text-gray-700 whitespace-pre-wrap">{storefront.about}</p>
+              </Card>
+            )}
+
+            {/* Featured products from storefront */}
+            {storefront?.featured_product_ids?.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  ⭐ Öne Çıkan Ürünler
+                </h2>
+                <StoreProducts
+                  products={(products ?? []).filter((p: any) =>
+                    storefront.featured_product_ids.includes(p.id)
+                  )}
+                />
+              </div>
+            )}
+
             {/* Products */}
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Ürünler ({products?.length || 0})
+                Tüm Ürünler ({products?.length || 0})
               </h2>
               <StoreProducts products={products || []} />
             </div>

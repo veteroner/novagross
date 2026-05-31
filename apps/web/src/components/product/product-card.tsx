@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, Button } from '@novagross/ui'
 import { formatPrice, calculateDiscount } from '@novagross/utils'
-import { Heart, Star, Zap, BadgeCheck, ShoppingBag, Flame } from 'lucide-react'
+import { Heart, Star, Zap, BadgeCheck, ShoppingBag, Flame, Sparkles, Truck } from 'lucide-react'
 import { AddToCartQuickButton } from '@/components/product/add-to-cart-quick-button'
 
 export type ProductCardData = {
@@ -24,6 +24,10 @@ export type ProductCardData = {
   verified_seller?: boolean | null
   /** Eğer ürünün hem compare_at_price hem indirimi varsa "Sepete özel" yeşil fiyatı göster. */
   cart_special?: boolean
+  /** Son 14 günde eklenen ürün */
+  is_new?: boolean | null
+  /** Ürün için ücretsiz kargo aktif mi (free_shipping kupon veya kategori bazında) */
+  free_shipping?: boolean | null
 }
 
 function MiniBadge({
@@ -66,6 +70,13 @@ export function ProductCard({ product }: { product: ProductCardData }) {
 
   // "Flaş Ürün": yüksek indirim (≥%30)
   const isFlashDeal = discountPct != null && discountPct >= 30
+
+  // "Avantajlı Ürün": aktif kampanya VE indirim varsa veya kupon + bestseller kombosu
+  const isAdvantage =
+    (product.cart_special &&
+      (product.coupon_amount || product.coupon_percent) &&
+      (isBestseller || (discountPct ?? 0) >= 10)) ||
+    (isBestseller && (discountPct ?? 0) >= 15)
 
   // Hesaplanmış kupon — fixed öncelik, sonra yüzde
   const couponLine =
@@ -112,6 +123,17 @@ export function ProductCard({ product }: { product: ProductCardData }) {
 
         {/* Top-left badges stack */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
+          {isAdvantage && (
+            <MiniBadge
+              icon={Star}
+              className="text-white"
+              style={{
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+              }}
+            >
+              Avantajlı Ürün
+            </MiniBadge>
+          )}
           {bestsellerLabel && (
             <MiniBadge
               icon={ShoppingBag}
@@ -131,12 +153,26 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               %{discountPct} İndirim
             </MiniBadge>
           )}
+          {product.is_new && (
+            <MiniBadge icon={Sparkles} className="text-white bg-purple-600">
+              Yeni Geldi
+            </MiniBadge>
+          )}
           {product.verified_seller && (
             <MiniBadge icon={BadgeCheck} className="text-white bg-blue-600">
               Yetkili Satıcı
             </MiniBadge>
           )}
         </div>
+
+        {/* Bottom-left mini info: Kargo Bedava */}
+        {product.free_shipping && (
+          <div className="absolute bottom-2 left-2">
+            <MiniBadge icon={Truck} className="text-white bg-emerald-700">
+              Kargo Bedava
+            </MiniBadge>
+          </div>
+        )}
 
         {/* Wishlist (hover) */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">

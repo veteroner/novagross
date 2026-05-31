@@ -10,6 +10,7 @@ type RawProduct = {
   brand?: string | null
   category_id?: string | null
   store_id?: string | null
+  created_at?: string | null
   product_images?: Array<{
     url: string
     sort_order?: number | null
@@ -50,24 +51,34 @@ export async function enrichProducts(
     new Set(products.map((p) => p.category_id).filter(Boolean))
   ) as string[]
 
-  const [popularRes, storesRes, campaignsRes, categoriesRes] = await Promise.all([
-    supabase.from('popular_products').select('product_id, rank').in('product_id', productIds),
-    storeIds.length > 0
-      ? supabase.from('stores').select('id, status').in('id', storeIds)
-      : Promise.resolve({ data: [] }),
-    storeIds.length > 0
-      ? (supabase as any)
-          .from('store_campaigns')
-          .select(
-            'id, store_id, discount_type, discount_value, target_type, product_ids, category_ids, min_order_amount, starts_at, ends_at, is_active'
-          )
-          .in('store_id', storeIds)
-          .eq('is_active', true)
-      : Promise.resolve({ data: [] }),
-    categoryIds.length > 0
-      ? supabase.from('categories').select('id, name').in('id', categoryIds)
-      : Promise.resolve({ data: [] }),
-  ])
+  const [popularRes, storesRes, campaignsRes, categoriesRes, freeShipRes] =
+    await Promise.all([
+      supabase
+        .from('popular_products')
+        .select('product_id, rank')
+        .in('product_id', productIds),
+      storeIds.length > 0
+        ? supabase.from('stores').select('id, status').in('id', storeIds)
+        : Promise.resolve({ data: [] }),
+      storeIds.length > 0
+        ? (supabase as any)
+            .from('store_campaigns')
+            .select(
+              'id, store_id, discount_type, discount_value, target_type, product_ids, category_ids, min_order_amount, starts_at, ends_at, is_active'
+            )
+            .in('store_id', storeIds)
+            .eq('is_active', true)
+        : Promise.resolve({ data: [] }),
+      categoryIds.length > 0
+        ? supabase.from('categories').select('id, name').in('id', categoryIds)
+        : Promise.resolve({ data: [] }),
+      // Free-shipping coupons that target everyone (no min_amount or covered later)
+      supabase
+        .from('coupons')
+        .select('id, free_shipping, is_active, starts_at, expires_at, minimum_amount')
+        .eq('free_shipping', true)
+        .eq('is_active', true),
+    ])
 
   const rankById = new Map<string, number>()
   for (const row of (popularRes.data ?? []) as any[]) {
@@ -85,6 +96,14 @@ export async function enrichProducts(
   }
 
   const now = Date.now()
+
+  // Free shipping is "active" if any free-shipping coupon is currently usable.
+  const hasFreeShipping = ((freeShipRes.data ?? []) as any[]).some((c) => {
+    if (c.starts_at && new Date(c.starts_at).getTime() > now) return false
+    if (c.expires_at && new Date(c.expires_at).getTime() <= now) return false
+    return true
+  })
+
   const activeCampaigns = ((campaignsRes.data ?? []) as any[]).filter((c) => {
     if (c.is_active === false) return false
     if (c.starts_at && new Date(c.starts_at).getTime() > now) return false
@@ -141,6 +160,11 @@ export async function enrichProducts(
       }
     }
 
+    const fourteenDays = 14 * 24 * 60 * 60 * 1000
+    const isNew = p.created_at
+      ? Date.now() - new Date(p.created_at).getTime() < fourteenDays
+      : false
+
     return {
       id: p.id,
       name: p.name,
@@ -157,6 +181,8 @@ export async function enrichProducts(
       coupon_amount,
       coupon_percent,
       cart_special,
+      is_new: isNew,
+      free_shipping: hasFreeShipping,
     }
   })
 }

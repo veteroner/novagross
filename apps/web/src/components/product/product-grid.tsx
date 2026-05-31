@@ -51,7 +51,7 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
     .from('products')
     .select(
       `
-      id, name, slug, price, compare_at_price, stock, category_id, brand, store_id,
+      id, name, slug, price, compare_at_price, stock, category_id, brand, store_id, created_at,
       product_images ( url, sort_order, is_primary )
     `,
       { count: 'exact' }

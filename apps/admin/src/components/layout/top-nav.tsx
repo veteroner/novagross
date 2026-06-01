@@ -35,6 +35,7 @@ type CounterKey =
   | 'pendingApplications'
   | 'openClaims'
   | 'escalatedClaims'
+  | 'pendingAds'
 
 type NavLeaf = {
   href: string
@@ -107,6 +108,13 @@ const NAV: NavGroup[] = [
       { href: '/banners', label: 'Bannerlar', icon: ImageIcon, description: 'Anasayfa görselleri' },
       { href: '/kuponlar', label: 'Kuponlar', icon: Ticket, description: 'İndirim kodları' },
       {
+        href: '/reklamlar',
+        label: 'Reklamlar',
+        icon: Megaphone,
+        description: 'Sponsorlu ürün moderasyonu',
+        counter: 'pendingAds',
+      },
+      {
         href: '/yorumlar',
         label: 'Yorumlar',
         icon: MessageSquare,
@@ -114,7 +122,7 @@ const NAV: NavGroup[] = [
         counter: 'pendingReviews',
       },
     ],
-    surfacesCounters: ['pendingReviews'],
+    surfacesCounters: ['pendingReviews', 'pendingAds'],
   },
   {
     label: 'E-posta',
@@ -176,10 +184,11 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   pendingApplications: 0,
   openClaims: 0,
   escalatedClaims: 0,
+  pendingAds: 0,
 }
 
 async function fetchCounters(supabase: ReturnType<typeof createClient>) {
-  const [a, b, c, d, e, f, g] = await Promise.all([
+  const [a, b, c, d, e, f, g, h] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
     supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('contact_messages').select('id', { count: 'exact', head: true }).eq('status', 'new'),
@@ -196,6 +205,10 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
       .from('customer_claims')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'escalated'),
+    (supabase as any)
+      .from('ad_campaigns')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
   ])
   return {
     pendingProducts: a.count ?? 0,
@@ -205,6 +218,7 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
     pendingApplications: e.count ?? 0,
     openClaims: f.count ?? 0,
     escalatedClaims: g.count ?? 0,
+    pendingAds: h.count ?? 0,
   } as Record<CounterKey, number>
 }
 

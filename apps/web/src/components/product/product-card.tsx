@@ -28,6 +28,10 @@ export type ProductCardData = {
   is_new?: boolean | null
   /** Ürün için ücretsiz kargo aktif mi (free_shipping kupon veya kategori bazında) */
   free_shipping?: boolean | null
+  /** Sponsorlu reklam ile öne çıkarıldı (Hepsi tarzı "Sponsorlu" rozeti) */
+  is_sponsored?: boolean | null
+  /** Sponsorlu ise hangi kampanyaya bağlı (impression/click loglamak için) */
+  ad_campaign_id?: string | null
 }
 
 function MiniBadge({
@@ -132,6 +136,11 @@ export function ProductCard({ product }: { product: ProductCardData }) {
 
         {/* Top-left badges stack */}
         <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[80%]">
+          {product.is_sponsored && (
+            <MiniBadge className="text-white bg-gray-800/90 backdrop-blur-sm">
+              Sponsorlu
+            </MiniBadge>
+          )}
           {isAdvantage && (
             <MiniBadge
               icon={Star}

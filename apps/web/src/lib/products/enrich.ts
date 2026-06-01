@@ -51,7 +51,7 @@ export async function enrichProducts(
     new Set(products.map((p) => p.category_id).filter(Boolean))
   ) as string[]
 
-  const [popularRes, storesRes, campaignsRes, categoriesRes, freeShipRes] =
+  const [popularRes, storesRes, campaignsRes, categoriesRes, freeShipRes, adsRes] =
     await Promise.all([
       supabase
         .from('popular_products')
@@ -78,6 +78,13 @@ export async function enrichProducts(
         .select('id, free_shipping, is_active, starts_at, expires_at, minimum_amount')
         .eq('free_shipping', true)
         .eq('is_active', true),
+      // Aktif sponsorlu reklamlar (sadece bu liste için)
+      (supabase as any)
+        .from('ad_campaigns')
+        .select('id, product_ids, ad_type, status, is_active, starts_at, ends_at')
+        .eq('status', 'approved')
+        .eq('is_active', true)
+        .in('ad_type', ['sponsored_product', 'sponsored_brand']),
     ])
 
   const rankById = new Map<string, number>()
@@ -110,6 +117,18 @@ export async function enrichProducts(
     if (c.ends_at && new Date(c.ends_at).getTime() <= now) return false
     return true
   })
+
+  // Sponsorlu reklamı olan ürünleri map'le
+  const sponsoredByProduct = new Map<string, string>()
+  for (const ad of ((adsRes.data ?? []) as any[])) {
+    if (ad.starts_at && new Date(ad.starts_at).getTime() > now) continue
+    if (ad.ends_at && new Date(ad.ends_at).getTime() <= now) continue
+    if (Array.isArray(ad.product_ids)) {
+      for (const pid of ad.product_ids) {
+        if (productIds.includes(pid)) sponsoredByProduct.set(pid, ad.id)
+      }
+    }
+  }
 
   const applicableCampaigns = (product: RawProduct) =>
     activeCampaigns.filter((c) => {
@@ -183,6 +202,8 @@ export async function enrichProducts(
       cart_special,
       is_new: isNew,
       free_shipping: hasFreeShipping,
+      is_sponsored: sponsoredByProduct.has(p.id),
+      ad_campaign_id: sponsoredByProduct.get(p.id) ?? null,
     }
   })
 }

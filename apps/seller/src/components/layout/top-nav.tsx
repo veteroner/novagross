@@ -96,6 +96,12 @@ const NAV: NavGroup[] = [
         description: 'Sepette bekleyenler için indirim',
         counter: 'cartSuggestions',
       },
+      {
+        href: '/reklam',
+        label: 'Reklam',
+        icon: Megaphone,
+        description: 'Sponsorlu ürün & marka',
+      },
     ],
     surfacesCounters: ['cartSuggestions'],
   },

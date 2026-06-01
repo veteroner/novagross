@@ -123,6 +123,12 @@ const NAV: NavGroup[] = [
         counter: 'pendingInfluencers',
       },
       {
+        href: '/platform-teklifleri',
+        label: 'Avantajlı Teklifler',
+        icon: Megaphone,
+        description: 'Satıcılara komisyon destekli teklifler',
+      },
+      {
         href: '/yorumlar',
         label: 'Yorumlar',
         icon: MessageSquare,

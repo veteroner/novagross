@@ -43,7 +43,7 @@ export default async function AdminAdsPage({
   let q = (supabase as any)
     .from('ad_campaigns')
     .select(
-      'id, name, ad_type, status, daily_budget, bid_per_click, total_spent, is_active, rejection_reason, starts_at, ends_at, created_at, store_id, stores!ad_campaigns_store_id_fkey(name, store_slug)'
+      'id, name, ad_type, status, daily_budget, bid_per_click, total_spent, is_active, rejection_reason, starts_at, ends_at, created_at, store_id, stores!ad_campaigns_store_id_fkey(store_name, store_slug)'
     )
     .order('created_at', { ascending: false })
     .limit(200)
@@ -136,7 +136,7 @@ export default async function AdminAdsPage({
                       )}
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {c.stores?.name ?? '—'}
+                      {c.stores?.store_name ?? '—'}
                       {c.stores?.store_slug && (
                         <div className="text-xs text-gray-500">
                           /{c.stores.store_slug}

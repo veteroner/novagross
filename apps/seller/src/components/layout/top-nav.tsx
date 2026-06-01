@@ -35,6 +35,7 @@ type CounterKey =
   | 'cartSuggestions'
   | 'openClaims'
   | 'pendingProducts'
+  | 'pendingPlatformOffers'
 
 type NavLeaf = {
   href: string
@@ -101,6 +102,13 @@ const NAV: NavGroup[] = [
         label: 'Reklam',
         icon: Megaphone,
         description: 'Sponsorlu ürün & marka',
+      },
+      {
+        href: '/avantajli-teklifler',
+        label: 'Avantajlı Teklifler',
+        icon: Megaphone,
+        description: 'Platform destekli kampanya teklifleri',
+        counter: 'pendingPlatformOffers',
       },
     ],
     surfacesCounters: ['cartSuggestions'],
@@ -187,6 +195,7 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   cartSuggestions: 0,
   openClaims: 0,
   pendingProducts: 0,
+  pendingPlatformOffers: 0,
 }
 
 async function fetchCounters(
@@ -201,7 +210,7 @@ async function fetchCounters(
     .eq('store_id', storeId)
   const productIds = (productRows ?? []).map((p: any) => p.id)
 
-  const [a, b, c, d, e, f] = await Promise.all([
+  const [a, b, c, d, e, f, g] = await Promise.all([
     productIds.length > 0
       ? (supabase as any)
           .from('reviews')
@@ -235,6 +244,11 @@ async function fetchCounters(
       .select('id', { count: 'exact', head: true })
       .eq('store_id', storeId)
       .in('approval_status', ['pending', 'rejected']),
+    (supabase as any)
+      .from('platform_offers')
+      .select('id', { count: 'exact', head: true })
+      .or(`store_id.eq.${storeId},store_id.is.null`)
+      .eq('status', 'pending'),
   ])
   return {
     pendingReviews: a.count ?? 0,
@@ -243,6 +257,7 @@ async function fetchCounters(
     cartSuggestions: d.count ?? 0,
     openClaims: e.count ?? 0,
     pendingProducts: f.count ?? 0,
+    pendingPlatformOffers: g.count ?? 0,
   }
 }
 

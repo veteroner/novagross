@@ -53,7 +53,43 @@ if (typeof setInterval !== 'undefined') {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, searchParams } = request.nextUrl
+
+  // Affiliate ?ref=KOD yakalama — cookie'ye 30 gün set et
+  const refCode = searchParams.get('ref')
+  if (refCode && /^[a-zA-Z0-9_-]{3,32}$/.test(refCode)) {
+    const response = NextResponse.next()
+    response.cookies.set('aff_ref', refCode, {
+      maxAge: 30 * 24 * 60 * 60, // 30 gün
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false, // checkout client tarafında okuyabilsin
+    })
+    // Click tracking — fire-and-forget arka planda
+    try {
+      const visitor = request.cookies.get('visitor_id')?.value ?? crypto.randomUUID()
+      if (!request.cookies.get('visitor_id')) {
+        response.cookies.set('visitor_id', visitor, {
+          maxAge: 365 * 24 * 60 * 60,
+          path: '/',
+          sameSite: 'lax',
+        })
+      }
+      const base = request.nextUrl.origin
+      fetch(`${base}/api/affiliate/click`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ref_code: refCode,
+          visitor_id: visitor,
+          landing_url: request.nextUrl.pathname,
+          user_agent: request.headers.get('user-agent'),
+          referer: request.headers.get('referer'),
+        }),
+      }).catch(() => {})
+    } catch {}
+    return response
+  }
 
   // Check if this path needs rate limiting
   const rateLimitConfig = Object.entries(RATE_LIMITS).find(([path]) =>

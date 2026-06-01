@@ -247,6 +247,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Affiliate: cookie'de ref varsa ve geçerli bir influencer ise affiliate_sales kaydı ekle
+    try {
+      const refCode = request.cookies.get('aff_ref')?.value
+      if (refCode) {
+        const { data: inf } = await (db as any)
+          .from('influencers')
+          .select('id, commission_percent')
+          .eq('ref_code', refCode)
+          .eq('status', 'approved')
+          .maybeSingle()
+        if (inf) {
+          const orderTotal = Number((orderData as any).total)
+          const commissionAmount = (orderTotal * Number(inf.commission_percent)) / 100
+          await (db as any).from('affiliate_sales').insert({
+            influencer_id: inf.id,
+            order_id: orderId,
+            order_total: orderTotal,
+            commission_percent: inf.commission_percent,
+            commission_amount: commissionAmount,
+            status: 'pending',
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Affiliate sale insert error:', e)
+    }
+
     const { error: paymentUpdateError } = await db
       .from('payments')
       .update({
@@ -399,7 +426,7 @@ async function sendBuyerEmailDirect(args: {
     return
   }
 
-  const from = `${process.env.RESEND_FROM_NAME || 'Novagross'} <${process.env.RESEND_FROM_EMAIL}>`
+  const from = `${process.env.RESEND_FROM_NAME || 'Trendikon'} <${process.env.RESEND_FROM_EMAIL}>`
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const url = new URL(args.requestUrl)
@@ -545,8 +572,8 @@ async function queueOrderEmails(
   }
 
   const orderDate = new Date(orderData.created_at).toLocaleString('tr-TR');
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://novagross.com'
-  const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.novagross.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://trendikon.com'
+  const adminUrl = process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.trendikon.com';
 
   // 1. Buyer confirmation email
   const buyerItems = items.map((item: any) => ({
@@ -609,7 +636,7 @@ async function queueOrderEmails(
   // 2b. Platform/admin products (store_id is null)
   const adminItems = (items || []).filter((i: any) => !i.store_id)
   if (adminItems.length > 0) {
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@novagross.com'
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@trendikon.com'
     const subtotal = adminItems.reduce(
       (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0),
       0
@@ -621,7 +648,7 @@ async function queueOrderEmails(
       template: 'orders/new-order-seller',
       priority: 'high',
       data: {
-        storeName: 'Novagross',
+        storeName: 'Trendikon',
         orderNumber,
         orderDate,
         items: adminItems.map((i: any) => ({

@@ -36,6 +36,7 @@ type CounterKey =
   | 'openClaims'
   | 'escalatedClaims'
   | 'pendingAds'
+  | 'pendingInfluencers'
 
 type NavLeaf = {
   href: string
@@ -115,6 +116,13 @@ const NAV: NavGroup[] = [
         counter: 'pendingAds',
       },
       {
+        href: '/influencerlar',
+        label: 'Influencerlar',
+        icon: Users,
+        description: 'Affiliate program & komisyon',
+        counter: 'pendingInfluencers',
+      },
+      {
         href: '/yorumlar',
         label: 'Yorumlar',
         icon: MessageSquare,
@@ -122,7 +130,7 @@ const NAV: NavGroup[] = [
         counter: 'pendingReviews',
       },
     ],
-    surfacesCounters: ['pendingReviews', 'pendingAds'],
+    surfacesCounters: ['pendingReviews', 'pendingAds', 'pendingInfluencers'],
   },
   {
     label: 'E-posta',
@@ -185,10 +193,11 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   openClaims: 0,
   escalatedClaims: 0,
   pendingAds: 0,
+  pendingInfluencers: 0,
 }
 
 async function fetchCounters(supabase: ReturnType<typeof createClient>) {
-  const [a, b, c, d, e, f, g, h] = await Promise.all([
+  const [a, b, c, d, e, f, g, h, i] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
     supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('contact_messages').select('id', { count: 'exact', head: true }).eq('status', 'new'),
@@ -209,6 +218,10 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
       .from('ad_campaigns')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
+    (supabase as any)
+      .from('influencers')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
   ])
   return {
     pendingProducts: a.count ?? 0,
@@ -219,6 +232,7 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
     openClaims: f.count ?? 0,
     escalatedClaims: g.count ?? 0,
     pendingAds: h.count ?? 0,
+    pendingInfluencers: i.count ?? 0,
   } as Record<CounterKey, number>
 }
 

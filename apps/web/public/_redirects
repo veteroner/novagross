@@ -1,0 +1,4 @@
+# SEO: www → apex (canonical) — 301
+https://www.novagross.com/* https://novagross.com/:splat 301!
+http://www.novagross.com/*  https://novagross.com/:splat 301!
+http://novagross.com/*      https://novagross.com/:splat 301!

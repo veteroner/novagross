@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ShoppingCart, User, Menu, X, LogOut, Heart } from 'lucide-react'
 import { Button } from '@novagross/ui'
@@ -125,18 +124,10 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-24 md:h-28 items-center justify-between gap-4">
+      <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center shrink-0" aria-label="Novagross Ana Sayfa">
-          <Image
-            src="/logo.png"
-            alt="Novagross"
-            width={400}
-            height={267}
-            priority
-            sizes="(max-width: 768px) 160px, 240px"
-            className="h-16 sm:h-20 md:h-24 w-auto"
-          />
+        <Link href="/" className="flex items-center gap-2" aria-label="Novagross Ana Sayfa">
+          <span className="text-xl font-bold">Novagross</span>
         </Link>
 
         {/* Navigation - Desktop */}

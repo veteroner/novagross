@@ -13,13 +13,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* About */}
           <div>
-            <Image
-              src="/logo.png"
-              alt="Novagross"
-              width={240}
-              height={160}
-              className="h-16 md:h-20 w-auto mb-4"
-            />
+            <h3 className="font-bold mb-4">Novagross</h3>
             <p className="text-sm text-muted-foreground">
               En kaliteli ürünler, en uygun fiyatlarla. Güvenli alışveriş, hızlı teslimat.
             </p>

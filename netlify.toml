@@ -1,14 +1,56 @@
-# Novagross - Shared Netlify Configuration
-# Build/publish settings are configured per-site via Netlify UI/API.
-# Each site (web/admin/seller) has its own netlify.toml in its app folder.
+# Novagross - Netlify Configuration
 
-# Plugin (applies to all Next.js sites)
+# Ana web sitesi konfigürasyonu
+[build]
+  base = "/"
+  command = "pnpm install && turbo run build --filter @nova-store/web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+  PNPM_VERSION = "9"
+
+# Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# ------------ Cache Headers ------------
+# Admin Panel için Context (subdomain)
+[context.admin]
+  base = "/"
+  command = "turbo run build --filter @nova-store/admin"
+  publish = "apps/admin/.next"
 
-# Prevent stale Service Worker / manifest caching
+[context.admin.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+[context.admin.functions]
+  directory = "apps/admin/netlify/functions"
+
+# Redirects
+
+# SEO: www.novagross.com → novagross.com (canonical)
+[[redirects]]
+  from = "https://www.novagross.com/*"
+  to = "https://novagross.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.novagross.com/*"
+  to = "https://novagross.com/:splat"
+  status = 301
+  force = true
+
+# Admin alt domain'e yönlendir
+[[redirects]]
+  from = "/admin/*"
+  to = "https://admin.novagross.com/:splat"
+  status = 301
+  force = true
+
+# Prevent stale Service Worker / manifest caching (can cause broken JS/CSS via old cached responses)
 [[headers]]
   for = "/sw.js"
   [headers.values]
@@ -26,6 +68,7 @@
   [headers.values]
     Cache-Control = "no-cache"
 
+# Prevent search engines from indexing non-page resources
 [[headers]]
   for = "/favicon.ico"
   [headers.values]

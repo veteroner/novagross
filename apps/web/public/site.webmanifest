@@ -1,7 +1,7 @@
 {
-  "name": "Trendikon",
-  "short_name": "Trendikon",
-  "description": "En kaliteli ürünler, en uygun fiyatlarla Trendikon'da!",
+  "name": "Novagross",
+  "short_name": "Novagross",
+  "description": "En kaliteli ürünler, en uygun fiyatlarla Novagross'da!",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

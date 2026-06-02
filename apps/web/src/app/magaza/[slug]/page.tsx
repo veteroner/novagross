@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   }
 
   return {
-    title: `${store.store_name} | Trendikon`,
+    title: `${store.store_name} | Novagross`,
     description: store.description || `${store.store_name} mağazası`,
   }
 }

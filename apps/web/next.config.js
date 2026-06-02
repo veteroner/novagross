@@ -22,7 +22,7 @@ const nextConfig = {
     instrumentationHook: true,
   },
   staticPageGenerationTimeout: 180, // 3 dakika (varsayılan 60 saniye)
-  transpilePackages: ['@novagross/ui', '@novagross/utils', '@novagross/database'],
+  transpilePackages: ['@nova-store/ui', '@nova-store/utils', '@nova-store/database'],
   
   // Webpack Optimizations
   webpack: (config, { isServer }) => {
@@ -44,7 +44,19 @@ const nextConfig = {
 
     return config
   },
-  
+
+  // SEO: www.novagross.com → novagross.com 301 redirect (canonical)
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.novagross.com' }],
+        destination: 'https://novagross.com/:path*',
+        permanent: true,
+      },
+    ]
+  },
+
   // Security Headers
   async headers() {
     return [
@@ -114,7 +126,7 @@ const nextConfig = {
               "frame-src 'self' https://www.youtube.com https://*.iyzipay.com https://*.bkm.com.tr",
               "object-src 'none'",
               "base-uri 'self'",
-              "form-action 'self' https://novagross.com https://www.novagross.com https://*.iyzipay.com https://*.bkm.com.tr https:",
+              "form-action 'self' https://trendikon.com https://www.trendikon.com https://*.iyzipay.com https://*.bkm.com.tr https:",
               "frame-ancestors 'self'",
               "upgrade-insecure-requests"
             ].join('; ')

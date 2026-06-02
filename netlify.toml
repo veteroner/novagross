@@ -3,7 +3,7 @@
 # Ana web sitesi konfigürasyonu
 [build]
   base = "/"
-  command = "pnpm install && turbo run build --filter @nova-store/web"
+  command = "pnpm install && turbo run build --filter @novagross/web"
   publish = "apps/web/.next"
 
 [build.environment]
@@ -18,7 +18,7 @@
 # Admin Panel için Context (subdomain)
 [context.admin]
   base = "/"
-  command = "turbo run build --filter @nova-store/admin"
+  command = "turbo run build --filter @novagross/admin"
   publish = "apps/admin/.next"
 
 [context.admin.environment]

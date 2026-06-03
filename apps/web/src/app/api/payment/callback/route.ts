@@ -209,18 +209,40 @@ export async function POST(request: NextRequest) {
       ? `coupon:${couponCode} | iyzico Payment ID: ${paymentId}`
       : `iyzico Payment ID: ${paymentId}`
 
-    const { error: orderUpdateError } = await db
-      .from('orders')
-      .update({
-        payment_status: 'paid',
-        status: 'pending',
-        notes: updatedNotes,
-      } as any)
-      .eq('id', orderId)
+    // SECURITY: Atomic claim — concurrent callback race koruması.
+    // Aynı order için 2 paralel callback çağrılırsa, sadece biri claim eder;
+    // diğeri false döner ve early-exit yapar (komisyon/email 2 kere işlenmez).
+    const { data: claimResult, error: claimError } = await (db as any).rpc(
+      'claim_order_for_payment',
+      {
+        p_order_id: orderId,
+        p_payment_id: paymentId,
+        p_notes: updatedNotes,
+      }
+    )
 
-    if (orderUpdateError) {
-      console.error('Order update error:', orderUpdateError)
-      return NextResponse.redirect(new URL('/odeme?error=order_update_failed', siteUrl), 303)
+    if (claimError) {
+      console.error('claim_order_for_payment error:', claimError)
+      // Fallback: legacy direct update (idempotency check üstte zaten var)
+      const { error: orderUpdateError } = await db
+        .from('orders')
+        .update({
+          payment_status: 'paid',
+          status: 'pending',
+          notes: updatedNotes,
+        } as any)
+        .eq('id', orderId)
+      if (orderUpdateError) {
+        console.error('Order update error:', orderUpdateError)
+        return NextResponse.redirect(new URL('/odeme?error=order_update_failed', siteUrl), 303)
+      }
+    } else if (claimResult === false) {
+      // Başka callback önce yakaladı — bu callback işlem yapmasın ama success sayfasına yönlendir
+      console.log('[iyzico Callback] Order already claimed by concurrent callback, redirect:', basketId)
+      return NextResponse.redirect(
+        new URL(`/siparis-basarili?order_id=${orderId}&order_number=${orderData.order_number}`, siteUrl),
+        303
+      )
     }
 
     // Increment coupon used_count if coupon was applied

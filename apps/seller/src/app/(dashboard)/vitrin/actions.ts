@@ -19,6 +19,20 @@ export type StorefrontInput = {
 export async function saveStorefront(input: StorefrontInput) {
   const { supabase, storeId } = await requireSeller('/vitrin')
 
+  // SECURITY: featured_product_ids içinde sadece kendi mağazasının ürünleri olabilir.
+  // (Saldırgan başka mağaza product_id'si koyarak kendi vitrininde başka satıcının
+  // ürününü reklam edebilir.)
+  let safeProductIds = (input.featured_product_ids ?? []).slice(0, 10)
+  if (safeProductIds.length > 0) {
+    const { data: ownProducts } = await supabase
+      .from('products')
+      .select('id')
+      .eq('store_id', storeId)
+      .in('id', safeProductIds)
+    const ownSet = new Set((ownProducts ?? []).map((p: any) => p.id))
+    safeProductIds = safeProductIds.filter((id) => ownSet.has(id))
+  }
+
   const row = {
     store_id: storeId,
     // SECURITY: javascript:/data:/file: scheme reject + sadece http(s) veya relative kabul
@@ -27,7 +41,7 @@ export async function saveStorefront(input: StorefrontInput) {
     hero_title: input.hero_title?.trim() || null,
     hero_subtitle: input.hero_subtitle?.trim() || null,
     about: input.about?.trim() || null,
-    featured_product_ids: (input.featured_product_ids ?? []).slice(0, 10),
+    featured_product_ids: safeProductIds,
     featured_category_ids: (input.featured_category_ids ?? []).slice(0, 5),
     theme_color: input.theme_color?.trim() || '#16A34A',
     is_published: input.is_published,

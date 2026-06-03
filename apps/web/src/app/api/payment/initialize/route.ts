@@ -284,11 +284,16 @@ export async function POST(request: NextRequest) {
       } as any)
     }
 
+    // SECURITY: Email spoofing engelleme — auth user'ın email'i kullanılır,
+    // checkout formundan gelen email order confirmation için kabul edilmez.
+    // (Saldırgan victim@example.com koyup victim'e spam yollayabilirdi)
+    const trustedEmail = user.email || customer.email
+
     // Create or update order BEFORE initializing payment, so callback can update it.
     const orderPayload = {
       user_id: user.id,
       order_number: basketId,
-      email: customer.email,
+      email: trustedEmail,
       phone: customer.phone,
       currency: 'TRY',
       status: 'pending',

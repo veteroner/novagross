@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { createClient } from '@novagross/database/client'
 import { notFound } from 'next/navigation'
 import { Card } from '@novagross/ui/card'
+import { safeExternalUrl } from '@novagross/utils'
 import StoreProducts from '@/components/store/StoreProducts'
 import StoreFollowButton from '@/components/store/StoreFollowButton'
 import StoreReviews from '@/components/store/StoreReviews'
@@ -124,18 +125,21 @@ export default async function StorePage({ params }: StorePageProps) {
               }
         }
       >
-        {(storefront?.banner_url || store.banner_url) && (
-          <a
-            href={storefront?.banner_link || `/magaza/${slug}`}
-            className="block w-full h-full"
-          >
-            <img
-              src={storefront?.banner_url || store.banner_url}
-              alt={storefront?.hero_title || store.store_name}
-              className="w-full h-full object-cover"
-            />
-          </a>
-        )}
+        {(storefront?.banner_url || store.banner_url) && (() => {
+          const safeBannerHref =
+            safeExternalUrl(storefront?.banner_link) || `/magaza/${slug}`
+          const safeBannerSrc =
+            safeExternalUrl(storefront?.banner_url || store.banner_url)
+          return safeBannerSrc ? (
+            <a href={safeBannerHref} className="block w-full h-full" rel="noopener noreferrer">
+              <img
+                src={safeBannerSrc}
+                alt={storefront?.hero_title || store.store_name}
+                className="w-full h-full object-cover"
+              />
+            </a>
+          ) : null
+        })()}
         <div className="absolute inset-0 bg-black bg-opacity-20" />
 
         {/* Hero text overlay */}

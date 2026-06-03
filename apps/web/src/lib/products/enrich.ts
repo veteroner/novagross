@@ -72,12 +72,9 @@ export async function enrichProducts(
       categoryIds.length > 0
         ? supabase.from('categories').select('id, name').in('id', categoryIds)
         : Promise.resolve({ data: [] }),
-      // Free-shipping coupons that target everyone (no min_amount or covered later)
-      supabase
-        .from('coupons')
-        .select('id, free_shipping, is_active, starts_at, expires_at, minimum_amount')
-        .eq('free_shipping', true)
-        .eq('is_active', true),
+      // SECURITY: Anon SELECT coupons engellendi (kupon kodu enumeration).
+      // Yerine has_free_shipping_coupon RPC ile sadece varlık bilgisi alıyoruz.
+      (supabase as any).rpc('has_free_shipping_coupon'),
       // Aktif sponsorlu reklamlar (sadece bu liste için)
       (supabase as any)
         .from('ad_campaigns')
@@ -104,12 +101,8 @@ export async function enrichProducts(
 
   const now = Date.now()
 
-  // Free shipping is "active" if any free-shipping coupon is currently usable.
-  const hasFreeShipping = ((freeShipRes.data ?? []) as any[]).some((c) => {
-    if (c.starts_at && new Date(c.starts_at).getTime() > now) return false
-    if (c.expires_at && new Date(c.expires_at).getTime() <= now) return false
-    return true
-  })
+  // RPC döner: bool (server-side hesaplandı). Sayıdan veriden bağımsız.
+  const hasFreeShipping = Boolean((freeShipRes as any)?.data ?? false)
 
   const activeCampaigns = ((campaignsRes.data ?? []) as any[]).filter((c) => {
     if (c.is_active === false) return false

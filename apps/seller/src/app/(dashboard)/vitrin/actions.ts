@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireSeller } from '@/lib/auth/requireSeller'
+import { safeExternalUrl } from '@novagross/utils'
 
 export type StorefrontInput = {
   banner_url?: string | null
@@ -20,8 +21,9 @@ export async function saveStorefront(input: StorefrontInput) {
 
   const row = {
     store_id: storeId,
-    banner_url: input.banner_url?.trim() || null,
-    banner_link: input.banner_link?.trim() || null,
+    // SECURITY: javascript:/data:/file: scheme reject + sadece http(s) veya relative kabul
+    banner_url: safeExternalUrl(input.banner_url),
+    banner_link: safeExternalUrl(input.banner_link),
     hero_title: input.hero_title?.trim() || null,
     hero_subtitle: input.hero_subtitle?.trim() || null,
     about: input.about?.trim() || null,

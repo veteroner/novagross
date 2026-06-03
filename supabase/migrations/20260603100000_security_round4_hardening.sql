@@ -1,0 +1,21 @@
+-- =============================================================================
+-- SECURITY HARDENING Round 4 — Coupon enum, RPC exposure, URL XSS, IBAN race
+-- =============================================================================
+-- Bulgular ve düzeltmeler (Supabase MCP üzerinden uygulandı):
+-- 1. "Anyone can view active coupons" SELECT policy DROP → kupon kodu enum bloke
+-- 2. validate_coupon_code(p_code, p_subtotal) RPC eklendi (anon/auth EXECUTE)
+-- 3. has_free_shipping_coupon() RPC eklendi (varlık bilgisi, kod sızdırmaz)
+-- 4. 14 tehlikeli SECURITY DEFINER RPC anon/authenticated EXECUTE iptal:
+--    approve_return_request, mark_return_refunded, reject_return_request,
+--    process_order_commissions, auto_process_commissions_on_payment,
+--    backfill_commissions_for_paid_orders, update_payout_date_on_delivered,
+--    create_password_reset_token, create_email_verification_token,
+--    cleanup_expired_otp_codes, cleanup_expired_reset_tokens,
+--    cleanup_expired_verification_tokens, rls_auto_enable,
+--    sync_is_seller_for_owner, create_email_preferences, handle_new_user,
+--    verify_otp, verify_otp_safe, increment_coupon_usage
+-- 5. enforce_influencer_iban_lock — confirmed sale varken IBAN değişimi yasak
+-- 6. enforce_store_iban_lock — pending withdrawal varken IBAN değişimi yasak
+-- 7. GIF whitelist'ten kaldırıldı (polyglot risk)
+
+SELECT 'security round 4 applied via MCP' AS note;

@@ -33,76 +33,53 @@ export function CouponInput({ subtotal, onApply, appliedCoupon }: CouponInputPro
     setError(null)
 
     try {
-      const { data: coupon, error: couponError } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .eq('is_active', true)
-        .single()
+      // SECURITY: RPC validate_coupon_code — coupon code enumeration koruması
+      // (RLS artık anon SELECT'i engelliyor; sadece bu RPC kupon doğrular)
+      const { data: rows, error: rpcError } = await (supabase as any).rpc(
+        'validate_coupon_code',
+        { p_code: code.toUpperCase(), p_subtotal: subtotal }
+      )
 
-      if (couponError || !coupon) {
-        setError('Geçersiz kupon kodu')
+      if (rpcError) {
+        setError('Doğrulama hatası')
         setLoading(false)
         return
       }
 
-      // Check validity dates
-      const now = new Date()
-      if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-        setError('Bu kupon henüz aktif değil')
-        setLoading(false)
-        return
-      }
-      if (coupon.expires_at && new Date(coupon.expires_at) < now) {
-        setError('Bu kuponun süresi dolmuş')
+      const result = Array.isArray(rows) ? rows[0] : rows
+      if (!result?.is_valid) {
+        setError(result?.reason || 'Geçersiz kupon kodu')
         setLoading(false)
         return
       }
 
-      // Check minimum order amount
-      if (coupon.minimum_amount && subtotal < coupon.minimum_amount) {
-        setError(`Minimum sipariş tutarı: ${coupon.minimum_amount} TL`)
-        setLoading(false)
-        return
-      }
-
-      // Check max uses
-      if (coupon.usage_limit != null) {
-        const usedCount = typeof coupon.used_count === 'number' ? coupon.used_count : 0
-        if (usedCount >= coupon.usage_limit) {
-          setError('Bu kuponun kullanım limiti dolmuş')
-          setLoading(false)
-          return
-        }
-      }
-
-      // Calculate discount
+      // Calculate discount (server already returned the type/value)
       let discountAmount = 0
-      const freeShipping = Boolean((coupon as any).free_shipping)
-      if (coupon.discount_type === 'percentage') {
-        discountAmount = (subtotal * Number(coupon.discount_value)) / 100
-        if (coupon.maximum_discount && discountAmount > Number(coupon.maximum_discount)) {
-          discountAmount = Number(coupon.maximum_discount)
-        }
-      } else if (coupon.discount_type === 'fixed') {
-        discountAmount = Number(coupon.discount_value)
-      } else {
+      const freeShipping = Boolean(result.free_shipping)
+      if (result.discount_type === 'percentage') {
+        discountAmount = (subtotal * Number(result.discount_value)) / 100
+      } else if (result.discount_type === 'fixed') {
+        discountAmount = Number(result.discount_value)
+      } else if (!freeShipping) {
         setError('Geçersiz kupon tipi')
         setLoading(false)
         return
       }
 
       if (discountAmount > subtotal) discountAmount = subtotal
-      if (!Number.isFinite(discountAmount) || discountAmount < 0 || (discountAmount <= 0 && !freeShipping)) {
+      if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+        discountAmount = 0
+      }
+      if (discountAmount <= 0 && !freeShipping) {
         setError('Kupon indirimi hesaplanamadı')
         setLoading(false)
         return
       }
 
       onApply({
-        code: coupon.code,
-        type: coupon.discount_type,
-        value: Number(coupon.discount_value),
+        code: code.toUpperCase(),
+        type: result.discount_type,
+        value: Number(result.discount_value || 0),
         discountAmount,
         freeShipping,
       })

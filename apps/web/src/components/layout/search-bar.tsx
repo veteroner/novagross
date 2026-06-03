@@ -45,6 +45,19 @@ export function SearchBar() {
         return
       }
 
+      // SECURITY: PostgREST .or() string interpolation injection vektörü.
+      // Virgül, parantez, yıldız ve tek tırnak filter syntax'ı kırar; bunları temizle.
+      const sanitized = query
+        .replace(/[,()*'"\\]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 100)
+
+      if (sanitized.length < 2) {
+        setResults([])
+        return
+      }
+
       setLoading(true)
       const { data, error } = await supabase
         .from('products')
@@ -55,7 +68,7 @@ export function SearchBar() {
           price,
           product_images(url)
         `)
-        .or(`name.ilike.%${query}%,description.ilike.%${query}%,brand.ilike.%${query}%`)
+        .or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%,brand.ilike.%${sanitized}%`)
         .eq('is_active', true)
         .eq('approval_status', 'approved')
         .limit(5)

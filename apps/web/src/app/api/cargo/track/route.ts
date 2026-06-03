@@ -3,11 +3,22 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { trackingNumber } = await request.json()
+    const { trackingNumber: rawTracking } = await request.json()
 
-    if (!trackingNumber || trackingNumber.trim().length === 0) {
+    const trackingNumber = typeof rawTracking === 'string' ? rawTracking.trim() : ''
+
+    if (!trackingNumber) {
       return NextResponse.json(
         { error: 'Takip numarası gereklidir' },
+        { status: 400 }
+      )
+    }
+
+    // SECURITY: PostgREST .or() string interpolation injection vektörü.
+    // Tracking numarası sadece alfanumerik + tire olabilir; aksi halde reddet.
+    if (!/^[A-Za-z0-9_-]{4,64}$/.test(trackingNumber)) {
+      return NextResponse.json(
+        { error: 'Geçersiz takip numarası formatı' },
         { status: 400 }
       )
     }

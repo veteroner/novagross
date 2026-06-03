@@ -44,10 +44,18 @@ export function UploadForm({ storeId }: { storeId: string }) {
       return
     }
 
+    // SECURITY: MIME + extension whitelist — sadece güvenli belge tipleri
+    const ALLOWED_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    const ALLOWED_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp']
+    const ext = (file.name.split('.').pop() || '').toLowerCase()
+    if (!ALLOWED_MIME.includes(file.type) || !ALLOWED_EXT.includes(ext)) {
+      setError('Sadece PDF, JPG, PNG, WebP dosyaları kabul edilir.')
+      return
+    }
+
     startTransition(async () => {
       try {
         const supabase = createClient()
-        const ext = file.name.split('.').pop() || 'bin'
         const path = `${storeId}/${Date.now()}_${Math.random()
           .toString(36)
           .slice(2)}.${ext}`

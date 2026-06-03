@@ -13,7 +13,11 @@ const RATE_LIMITS = {
   '/api/auth/generate-otp': { max: 3, windowMs: 300000 }, // 3 requests per 5 minutes
   '/api/auth/verify-otp': { max: 5, windowMs: 300000 }, // 5 attempts per 5 minutes
   '/api/auth/send-verification': { max: 3, windowMs: 300000 }, // 3 requests per 5 minutes
+  '/api/auth/forgot-password': { max: 3, windowMs: 300000 }, // 3 requests per 5 minutes — email enumeration
+  '/api/auth/reset-password': { max: 5, windowMs: 300000 }, // 5 attempts per 5 minutes — token bruteforce
+  '/api/auth/verify-email': { max: 5, windowMs: 300000 }, // 5 attempts per 5 minutes — token bruteforce
   '/api/email/send': { max: 5, windowMs: 60000 }, // 5 requests per minute
+  '/api/affiliate/click': { max: 30, windowMs: 60000 }, // 30 click logs per minute — click fraud prevention
 }
 
 function getRateLimitKey(ip: string, path: string): string {

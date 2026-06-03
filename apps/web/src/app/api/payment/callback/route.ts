@@ -229,6 +229,25 @@ export async function POST(request: NextRequest) {
             notes: `AMOUNT MISMATCH: paid=${paymentPrice}, expected=${orderTotal}`,
           } as any)
           .eq('id', orderData.id)
+
+        // SECURITY: Disputed order → rezerve stoğu release et (orphan engeli)
+        try {
+          const { data: dItems } = await db
+            .from('order_items')
+            .select('product_id, quantity')
+            .eq('order_id', orderData.id)
+          if (dItems && dItems.length > 0) {
+            const payload = dItems
+              .filter((i: any) => i.product_id && i.quantity > 0)
+              .map((i: any) => ({ product_id: i.product_id, quantity: i.quantity }))
+            if (payload.length > 0) {
+              await (db as any).rpc('release_stock_atomic', { p_items: payload })
+            }
+          }
+        } catch (e) {
+          console.error('[iyzico Callback] dispute stock release error:', e)
+        }
+
         return NextResponse.redirect(new URL('/odeme?error=amount_mismatch', siteUrl), 303)
       }
     }

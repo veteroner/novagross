@@ -183,6 +183,25 @@ export async function POST(request: NextRequest) {
       serverSubtotal += dbPrice * Number(item.quantity)
     }
 
+    // SECURITY: Atomic stock reservation (oversell race koruması)
+    // Eski yerine UPDATE WHERE stock>=qty pattern kullanır; yetersiz stokta hata.
+    // Ödeme başarısız olursa release_stock_atomic ile geri al (callback / timeout flow).
+    const stockPayload = (items as any[])
+      .filter((it) => typeof it.productId === 'string' && Number(it.quantity) > 0)
+      .map((it) => ({ product_id: it.productId, quantity: Number(it.quantity) }))
+
+    if (stockPayload.length > 0) {
+      const { error: stockError } = await (db as any).rpc('reserve_stock_atomic', {
+        p_items: stockPayload,
+      })
+      if (stockError) {
+        return NextResponse.json(
+          { error: stockError.message || 'Yetersiz stok' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Server-side coupon validation
     let serverDiscountAmount = 0
     if (couponCode) {

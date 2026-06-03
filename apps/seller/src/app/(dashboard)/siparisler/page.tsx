@@ -5,6 +5,7 @@ import { Card, CardContent } from '@novagross/ui'
 import { Button } from '@novagross/ui'
 import { ShoppingCart, Package, Truck, CheckCircle, XCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { safeExternalUrl } from '@novagross/utils'
 
 export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([])
@@ -274,12 +275,18 @@ export default function SellerOrders() {
                       {shipmentsByOrderId[orderItem.order.id].tracking_number && (
                         <div>Takip No: <span className="font-mono">{shipmentsByOrderId[orderItem.order.id].tracking_number}</span></div>
                       )}
-                      {shipmentsByOrderId[orderItem.order.id].tracking_url && (
-                        <a className="text-blue-600 underline" href={shipmentsByOrderId[orderItem.order.id].tracking_url} target="_blank" rel="noreferrer">Takip Linki</a>
-                      )}
-                      {shipmentsByOrderId[orderItem.order.id].shipping_label_url && (
-                        <div><a className="text-blue-600 underline" href={shipmentsByOrderId[orderItem.order.id].shipping_label_url} target="_blank" rel="noreferrer">Etiket (PDF)</a></div>
-                      )}
+                      {(() => {
+                        const tu = safeExternalUrl(shipmentsByOrderId[orderItem.order.id].tracking_url)
+                        return tu ? (
+                          <a className="text-blue-600 underline" href={tu} target="_blank" rel="noreferrer">Takip Linki</a>
+                        ) : null
+                      })()}
+                      {(() => {
+                        const lu = safeExternalUrl(shipmentsByOrderId[orderItem.order.id].shipping_label_url)
+                        return lu ? (
+                          <div><a className="text-blue-600 underline" href={lu} target="_blank" rel="noreferrer">Etiket (PDF)</a></div>
+                        ) : null
+                      })()}
                     </div>
                   </div>
                 )}

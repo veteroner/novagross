@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@novagross/ui'
-import { formatPrice, formatDate } from '@novagross/utils'
+import { formatPrice, formatDate, safeExternalUrl } from '@novagross/utils'
 import { ArrowLeft, Truck, Package, CheckCircle, MapPin } from 'lucide-react'
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -161,17 +161,20 @@ export default async function OrderDetailPage({
                 <p className="font-mono font-medium flex-1">{order.shipment[0].tracking_number}</p>
                 <CopyTrackingButton trackingNumber={order.shipment[0].tracking_number} />
               </div>
-              {order.shipment[0].tracking_url ? (
-                <Button variant="link" className="p-0 h-auto mt-1" asChild>
-                  <a href={order.shipment[0].tracking_url} target="_blank" rel="noopener noreferrer">
+              {(() => {
+                const safeHref = safeExternalUrl(order.shipment[0].tracking_url)
+                return safeHref ? (
+                  <Button variant="link" className="p-0 h-auto mt-1" asChild>
+                    <a href={safeHref} target="_blank" rel="noopener noreferrer">
+                      Kargo Takip →
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="link" className="p-0 h-auto mt-1">
                     Kargo Takip →
-                  </a>
-                </Button>
-              ) : (
-                <Button variant="link" className="p-0 h-auto mt-1">
-                  Kargo Takip →
-                </Button>
-              )}
+                  </Button>
+                )
+              })()}
             </div>
           )}
         </CardContent>

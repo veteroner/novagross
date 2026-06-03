@@ -172,6 +172,17 @@ export async function POST(request: NextRequest) {
     for (const item of items as any[]) {
       const dbProduct = productMap.get(item.productId)
       if (!dbProduct) continue
+      // SECURITY: quantity pozitif tamsayı olmalı (negatif quantity ile
+      // subtotal'ı düşürüp ucuz/bedava sipariş saldırısı engellendi)
+      const qty = Math.floor(Number(item.quantity))
+      if (!Number.isFinite(qty) || qty <= 0 || qty > 1000) {
+        return NextResponse.json(
+          { error: 'Geçersiz quantity. Pozitif tamsayı olmalı (1-1000).' },
+          { status: 400 }
+        )
+      }
+      item.quantity = qty
+
       const dbPrice = dbProduct.price
       const clientPrice = Number(item.price)
       // Allow a small tolerance for rounding (0.01 TL)
@@ -180,7 +191,15 @@ export async function POST(request: NextRequest) {
       }
       // Always use DB price — override client
       item.price = dbPrice
-      serverSubtotal += dbPrice * Number(item.quantity)
+      serverSubtotal += dbPrice * qty
+    }
+
+    // SECURITY: serverSubtotal pozitif olmalı (extra guard)
+    if (!Number.isFinite(serverSubtotal) || serverSubtotal <= 0) {
+      return NextResponse.json(
+        { error: 'Geçersiz sipariş toplamı' },
+        { status: 400 }
+      )
     }
 
     // SECURITY: Atomic stock reservation (oversell race koruması)

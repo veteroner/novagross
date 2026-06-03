@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Card } from '@novagross/ui/card'
 import { Badge } from '@novagross/ui/badge'
+import { safeExternalUrl } from '@novagross/utils'
 import { Package, MapPin, Clock, CheckCircle, XCircle } from 'lucide-react'
 
 export const metadata: Metadata = {
@@ -149,18 +150,21 @@ export default async function CargoTrackingPage({ params }: PageProps) {
           <Badge className={config.color}>{config.label}</Badge>
         </div>
         
-        {shipment.tracking_url && (
-          <div className="mt-4 pt-4 border-t">
-            <a
-              href={shipment.tracking_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline text-sm"
-            >
-              🔗 Kargo firması sitesinde takip et →
-            </a>
-          </div>
-        )}
+        {(() => {
+          const safeHref = safeExternalUrl(shipment.tracking_url)
+          return safeHref ? (
+            <div className="mt-4 pt-4 border-t">
+              <a
+                href={safeHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm"
+              >
+                🔗 Kargo firması sitesinde takip et →
+              </a>
+            </div>
+          ) : null
+        })()}
       </Card>
       
       {/* Shipment History */}

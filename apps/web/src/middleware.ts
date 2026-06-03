@@ -67,7 +67,8 @@ export async function middleware(request: NextRequest) {
       maxAge: 30 * 24 * 60 * 60, // 30 gün
       path: '/',
       sameSite: 'lax',
-      httpOnly: false, // checkout client tarafında okuyabilsin
+      httpOnly: true, // SECURITY: payment callback server-side okuyor; XSS sızıntısı engellendi
+      secure: true,
     })
     // Click tracking — fire-and-forget arka planda
     try {

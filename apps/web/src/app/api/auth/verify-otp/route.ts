@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { csrfProtection } from '@/lib/csrf';
 
 export const dynamic = 'force-dynamic';
+
+function hashOTP(userId: string, code: string): string {
+  return crypto.createHash('sha256').update(`${userId}|${code}`).digest('hex');
+}
 
 export async function POST(req: NextRequest) {
   // CSRF protection
@@ -24,12 +29,13 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Find valid OTP
-    const { data: otpRecord, error: otpError } = await supabase
+    // SECURITY: Hash karşılaştırma; plaintext code DB'de yok
+    const codeHash = hashOTP(userId, String(code));
+    const { data: otpRecord, error: otpError } = await (supabase as any)
       .from('otp_codes')
       .select('*')
       .eq('user_id', userId)
-      .eq('code', code)
+      .eq('code_hash', codeHash)
       .eq('purpose', purpose)
       .is('verified_at', null)
       .gt('expires_at', new Date().toISOString())

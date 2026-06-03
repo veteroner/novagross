@@ -8,6 +8,7 @@ import { Input } from '@novagross/ui'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { validateImageUpload, safeUploadPath } from '@novagross/utils'
 
 interface Category {
   id: string
@@ -90,11 +91,14 @@ export default function NewProductPage() {
     const imageUrls: string[] = []
 
     for (const file of images) {
-      const fileName = `${productId}/${Date.now()}-${file.name}`
+      // SECURITY: MIME/ext whitelist + safe filename (path traversal koruması)
+      const v = validateImageUpload(file)
+      if (!v.ok) throw new Error(v.error)
+      const fileName = safeUploadPath(productId, v.ext)
 
       const { error, data } = await supabase.storage
         .from('product-images')
-        .upload(fileName, file, { cacheControl: '3600', upsert: false })
+        .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: file.type })
 
       if (error) throw new Error(`Görsel yükleme hatası: ${error.message}`)
 

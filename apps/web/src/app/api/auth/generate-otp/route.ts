@@ -11,6 +11,13 @@ function generateOTP(): string {
   return crypto.randomInt(100000, 999999).toString();
 }
 
+// SECURITY: SHA-256(user_id || '|' || code). user_id binding sayesinde
+// aynı hash başka kullanıcıda kullanılamaz. Rainbow table riski yok (6 digit
+// + user_id salt + 10dk expiry + 5 deneme rate-limit).
+function hashOTP(userId: string, code: string): string {
+  return crypto.createHash('sha256').update(`${userId}|${code}`).digest('hex');
+}
+
 export async function POST(req: NextRequest) {
   // CSRF protection
   const csrfError = csrfProtection(req);
@@ -49,12 +56,15 @@ export async function POST(req: NextRequest) {
     const otpCode = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Store OTP in database
-    const { error: insertError } = await supabase
+    // SECURITY: Store HASH only, never plaintext. code field kalmaya devam ediyor
+    // (geriye uyumluluk için null) ama hash karşılaştırılacak.
+    const codeHash = hashOTP(userId, otpCode);
+    const { error: insertError } = await (supabase as any)
       .from('otp_codes')
       .insert({
         user_id: userId,
-        code: otpCode,
+        code: null,           // plaintext sakla yok artık
+        code_hash: codeHash,  // SHA-256(user_id||code)
         purpose,
         expires_at: expiresAt.toISOString(),
       });

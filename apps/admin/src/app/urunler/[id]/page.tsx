@@ -6,6 +6,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } f
 import { ArrowLeft, Upload, X, Loader2, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
+import { validateImageUpload, safeUploadPath } from '@novagross/utils'
 
 interface Category {
   id: string
@@ -177,12 +178,14 @@ export default function EditProductPage() {
     
     for (let i = 0; i < newImages.length; i++) {
       const file = newImages[i]
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${productId}/${Date.now()}_${i}.${fileExt}`
-      
+      // SECURITY: MIME/ext whitelist
+      const v = validateImageUpload(file)
+      if (!v.ok) throw new Error(v.error)
+      const fileName = safeUploadPath(productId, v.ext)
+
       const { data, error } = await supabase.storage
         .from('product-images')
-        .upload(fileName, file)
+        .upload(fileName, file, { contentType: file.type })
 
       if (error) {
         throw error

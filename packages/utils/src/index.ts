@@ -166,3 +166,75 @@ export function getBaseUrl(): string {
   const port = process.env.PORT ?? 3000
   return `http://localhost:${port}`
 }
+
+// =============================================================================
+// SECURITY: Upload validation helpers
+// =============================================================================
+
+export const ALLOWED_IMAGE_MIME = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+] as const
+
+export const ALLOWED_IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif'] as const
+
+export const ALLOWED_DOCUMENT_MIME = [
+  'application/pdf',
+  ...ALLOWED_IMAGE_MIME,
+] as const
+
+export const ALLOWED_DOCUMENT_EXT = [
+  'pdf',
+  ...ALLOWED_IMAGE_EXT,
+] as const
+
+export type ValidationResult =
+  | { ok: true; ext: string }
+  | { ok: false; error: string }
+
+/**
+ * Validate image upload — MIME + extension whitelist + size cap.
+ * Returns sanitized extension for safe filename use.
+ */
+export function validateImageUpload(file: File, maxBytes = 5 * 1024 * 1024): ValidationResult {
+  if (file.size > maxBytes) {
+    return { ok: false, error: `Görsel ${(maxBytes / 1024 / 1024).toFixed(0)} MB üstünde olamaz.` }
+  }
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  if (!(ALLOWED_IMAGE_MIME as readonly string[]).includes(file.type)) {
+    return { ok: false, error: 'Sadece JPG, PNG, WebP, GIF görseller kabul edilir.' }
+  }
+  if (!(ALLOWED_IMAGE_EXT as readonly string[]).includes(ext)) {
+    return { ok: false, error: 'Geçersiz dosya uzantısı.' }
+  }
+  return { ok: true, ext }
+}
+
+/**
+ * Validate document upload — broader whitelist (PDF + images).
+ */
+export function validateDocumentUpload(file: File, maxBytes = 10 * 1024 * 1024): ValidationResult {
+  if (file.size > maxBytes) {
+    return { ok: false, error: `Dosya ${(maxBytes / 1024 / 1024).toFixed(0)} MB üstünde olamaz.` }
+  }
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  if (!(ALLOWED_DOCUMENT_MIME as readonly string[]).includes(file.type)) {
+    return { ok: false, error: 'Sadece PDF, JPG, PNG, WebP dosyaları kabul edilir.' }
+  }
+  if (!(ALLOWED_DOCUMENT_EXT as readonly string[]).includes(ext)) {
+    return { ok: false, error: 'Geçersiz dosya uzantısı.' }
+  }
+  return { ok: true, ext }
+}
+
+/**
+ * Safe filename generator — random suffix + sanitized ext only.
+ * Prevents path traversal (../../etc) and unicode/control-char attacks.
+ */
+export function safeUploadPath(prefix: string, ext: string): string {
+  const safeExt = (ext || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'bin'
+  const rand = Math.random().toString(36).slice(2, 10)
+  return `${prefix}/${Date.now()}-${rand}.${safeExt}`
+}

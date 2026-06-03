@@ -6,6 +6,7 @@ import { Button } from '@novagross/ui'
 import { Input } from '@novagross/ui'
 import { Store, Save, Loader2, Image as ImageIcon, MapPin, Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { validateImageUpload, safeUploadPath } from '@novagross/utils'
 
 export default function StoreSettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -100,10 +101,13 @@ export default function StoreSettingsPage() {
 
       // Upload new logo if selected
       if (logoFile) {
-        const fileName = `stores/${storeId}/logo-${Date.now()}-${logoFile.name}`
+        // SECURITY: MIME/ext whitelist + safe filename
+        const v = validateImageUpload(logoFile, 2 * 1024 * 1024) // logo max 2 MB
+        if (!v.ok) throw new Error(v.error)
+        const fileName = safeUploadPath(`stores/${storeId}`, v.ext)
         const { error: uploadError, data } = await supabase.storage
           .from('store-assets')
-          .upload(fileName, logoFile, { cacheControl: '3600', upsert: true })
+          .upload(fileName, logoFile, { cacheControl: '3600', upsert: true, contentType: logoFile.type })
 
         if (uploadError) throw new Error(`Logo yükleme hatası: ${uploadError.message}`)
 

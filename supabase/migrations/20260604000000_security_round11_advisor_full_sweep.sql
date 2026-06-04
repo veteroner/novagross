@@ -1,0 +1,32 @@
+-- =============================================================================
+-- SECURITY HARDENING Round 11 — FULL ADVISOR SWEEP (en kapsamlı)
+-- =============================================================================
+-- Supabase security advisor: 5 ERROR + 121 WARN tarandı.
+--
+-- KRİTİK BULGULAR (gerçek leak — test edildi):
+-- 1. seller_cart_suggestions SECURITY DEFINER view → store-ownership filtresi YOKTU.
+--    Bir satıcı/anon TÜM platformun sepette bekleyen ürünlerini görebiliyordu
+--    (rakip istihbaratı). FIX: view'a auth.uid() store-ownership WHERE eklendi.
+--    Test: anon=0 satır, seller=sadece 1 (kendi) store görüyor.
+-- 2. active_sessions materialized view anon/authenticated'a açıktı.
+--    FIX: REVOKE SELECT FROM anon, authenticated (admin-only analytics).
+--
+-- DİĞER 5 ERROR (SECURITY DEFINER view) düzeltmeleri:
+-- 3. popular_products  → security_invoker = on (RLS-aware)
+-- 4. ad_campaign_stats → security_invoker = on
+-- 5. v_payout_status   → security_invoker = on (ödeme bilgisi RLS-aware)
+-- 6. influencer_stats  → security_invoker = on (kazanç RLS-aware)
+--
+-- WARN: function_search_path_mutable (55):
+-- 7. Extension-dışı tüm public fonksiyonlara SET search_path = public, pg_temp
+--    eklendi (search_path hijacking koruması). pg_trgm extension fonksiyonları
+--    dokunulmadı (extension membership). Kalan mutable non-extension: 0.
+--
+-- Kabul edilen düşük-risk WARN'lar (aksiyon gerektirmez):
+-- - rls_policy_always_true (affiliate_clicks, contact_messages INSERT):
+--   kasıtlı public form/click logging; middleware rate-limit ile korunuyor.
+-- - extension_in_public (pg_trgm): ürün arama bağımlılığı, taşımak riskli.
+-- - public_bucket_allows_listing (product-images): public bucket, düşük risk.
+-- - auth_leaked_password_protection: Supabase Auth dashboard ayarı (manuel).
+
+SELECT 'round 11 full advisor sweep applied via MCP' AS note;

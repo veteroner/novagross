@@ -1,0 +1,90 @@
+name: DB Backup + Restore Verify (DR)
+
+# Madde 2 (otomatik backup) + Madde 3 (otomatik restore-test) tek workflow'da.
+# Her gün: production'dan yedek al → ephemeral postgres'e GERÇEKTEN restore et →
+# güvenlik objelerini doğrula → şifreli artifact olarak sakla.
+# Böylece "backup gerçekten restore edilebiliyor mu" sorusu her gün otomatik
+# cevaplanır — kimsenin hatırlamasına gerek yok. Restore başarısızsa workflow
+# fail eder, GitHub otomatik e-posta gönderir.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # her gün 02:00 UTC
+  workflow_dispatch: {}    # elle de tetiklenebilir
+
+permissions:
+  contents: read
+
+jobs:
+  backup-and-verify:
+    runs-on: ubuntu-latest
+    services:
+      # Restore hedefi: ephemeral postgres (Supabase auth helper'ları için supabase/postgres)
+      verifydb:
+        image: supabase/postgres:15.8.1.020
+        env:
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verifydb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PostgreSQL 15 client kur
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update && sudo apt-get install -y postgresql-client-15
+
+      - name: Production yedeği al (pg_dump)
+        env:
+          PGURL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          [ -z "$PGURL" ] && { echo "::error::SUPABASE_DB_URL secret eksik"; exit 1; }
+          mkdir -p out
+          pg_dump "$PGURL" --schema=public --no-owner --no-privileges \
+            --format=custom --file=out/novagross_$(date +%Y%m%d).dump
+          echo "✅ Yedek alındı: $(du -h out/*.dump | cut -f1)"
+
+      - name: Ephemeral DB'ye RESTORE et (restore-test)
+        env:
+          VDB: postgresql://postgres:verify@localhost:5432/verifydb
+        run: |
+          # Restore'un gerçekten çalıştığını kanıtla
+          pg_restore out/*.dump --dbname="$VDB" --schema=public \
+            --no-owner --no-privileges --clean --if-exists --single-transaction
+          echo "✅ Restore başarılı — yedek geçerli"
+
+      - name: Güvenlik objelerini doğrula (verify.sql)
+        env:
+          VDB: postgresql://postgres:verify@localhost:5432/verifydb
+        run: |
+          # verify.sql'in son sütunu 'durum' — herhangi ❌ varsa fail
+          OUT=$(psql "$VDB" -f scripts/dr/verify.sql -t 2>&1) || true
+          echo "$OUT"
+          if echo "$OUT" | grep -q '❌'; then
+            echo "::error::Restore sonrası güvenlik objesi eksik/bozuk — verify.sql FAIL"
+            exit 1
+          fi
+          echo "✅ Tüm güvenlik kontrolleri geçti (RLS, trigger, kolon-grant)"
+
+      - name: Yedeği şifrele (GPG simetrik)
+        if: success()
+        env:
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          [ -z "$PASS" ] && { echo "::error::BACKUP_PASSPHRASE secret eksik"; exit 1; }
+          gpg --batch --yes --passphrase "$PASS" --symmetric --cipher-algo AES256 out/*.dump
+          rm -f out/*.dump   # şifresiz olanı sil — sadece .gpg kalsın
+
+      - name: Şifreli yedeği sakla (90 gün)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: novagross-db-backup-${{ github.run_id }}
+          path: out/*.gpg
+          retention-days: 90

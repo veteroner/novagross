@@ -1,0 +1,75 @@
+name: Schema Reproducibility (DR)
+
+# SECRET GEREKTİRMEZ. Tüm migration'ları sıfırdan boş bir postgres'e uygular.
+# Amaç: "Bir saldırgan şemayı silse, migration'lardan TAM geri kurulabilir mi?"
+# Bir tablo/trigger migration'a eklenmeyi unutulursa (return_requests gibi) bu
+# workflow FAIL eder ve PR'ı bloklar. Her push + haftalık çalışır.
+
+on:
+  push:
+    paths:
+      - 'supabase/migrations/**'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+  schedule:
+    - cron: '0 3 * * 1'   # her Pazartesi 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce-schema:
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: supabase/postgres:15.8.1.020
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: psql kur
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Tüm migration'ları sırayla uygula
+        env:
+          DB: postgresql://postgres:test@localhost:5432/testdb
+        run: |
+          set -e
+          # Supabase ortamını taklit et (auth/storage şemaları + roller)
+          psql "$DB" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS auth;" \
+            -c "CREATE SCHEMA IF NOT EXISTS storage;" \
+            -c "DO \$\$ BEGIN CREATE ROLE anon; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" \
+            -c "DO \$\$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" \
+            -c "DO \$\$ BEGIN CREATE ROLE service_role; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" || true
+
+          COUNT=0
+          for m in $(ls supabase/migrations/*.sql | sort); do
+            echo "→ $m"
+            psql "$DB" -v ON_ERROR_STOP=1 -f "$m"
+            COUNT=$((COUNT+1))
+          done
+          echo "✅ $COUNT migration sorunsuz uygulandı — şema %100 reproducible"
+
+      - name: Kritik tabloların varlığını doğrula
+        env:
+          DB: postgresql://postgres:test@localhost:5432/testdb
+        run: |
+          for t in stores products orders order_items return_requests withdrawal_requests \
+                   store_transactions customer_claims profiles coupons; do
+            EXISTS=$(psql "$DB" -tAc "SELECT to_regclass('public.$t') IS NOT NULL;")
+            if [ "$EXISTS" != "t" ]; then
+              echo "::error::Kritik tablo migration'larda eksik: $t"
+              exit 1
+            fi
+          done
+          echo "✅ Tüm kritik tablolar sıfırdan kurulabiliyor"

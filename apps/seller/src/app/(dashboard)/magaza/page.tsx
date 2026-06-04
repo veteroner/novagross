@@ -44,14 +44,21 @@ export default function StoreSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // SECURITY: Finansal kolonlar (iban, tax_number, bank_name, account_holder,
+      // company_name, tax_office) artık anon/authenticated SELECT'ten gizli.
+      // Public-safe kolonları normal select, finansalı owner-only RPC ile çek.
       const { data: store } = await supabase
         .from('stores')
-        .select('*')
+        .select('id, store_name, store_slug, description, logo_url, banner_url, phone, email, address, city, district')
         .eq('owner_id', user.id)
         .single()
 
       if (!store) return
       setStoreId(store.id)
+
+      // Finansal bilgiler owner-only RPC (get_my_store_payout_info)
+      const { data: payoutRows } = await (supabase as any).rpc('get_my_store_payout_info')
+      const payout = Array.isArray(payoutRows) ? payoutRows[0] : payoutRows
 
       setFormData({
         store_name: store.store_name || '',
@@ -64,12 +71,12 @@ export default function StoreSettingsPage() {
         address: store.address || '',
         city: store.city || '',
         district: store.district || '',
-        tax_number: store.tax_number || '',
-        tax_office: store.tax_office || '',
-        iban: store.iban || '',
-        company_name: store.company_name || '',
-        account_holder: store.account_holder || '',
-        bank_name: store.bank_name || '',
+        tax_number: payout?.tax_number || '',
+        tax_office: payout?.tax_office || '',
+        iban: payout?.iban || '',
+        company_name: payout?.company_name || '',
+        account_holder: payout?.account_holder || '',
+        bank_name: payout?.bank_name || '',
       })
 
       if (store.logo_url) setLogoPreview(store.logo_url)

@@ -1,0 +1,24 @@
+-- =============================================================================
+-- SECURITY Round 12 — KRİTİK: stores finansal kolon sızıntısı (canlı HTTP pentest)
+-- =============================================================================
+-- BULGU #36 (gerçek anon key ile canlı REST API saldırısında bulundu):
+--   PostgREST embedding ile anon:
+--     GET /rest/v1/products?select=stores(iban,tax_number,bank_name,account_holder...)
+--   ile TÜM satıcıların banka IBAN, vergi no, vergi dairesi, banka adı,
+--   hesap sahibi (şirket ünvanı), ciro bilgilerini çekebiliyordu.
+--   RLS satır-seviyesi olduğu için (satır görünür → tüm kolonlar görünür) bu
+--   bir kolon-seviyesi yetki sorunuydu.
+--
+-- DÜZELTME:
+-- 1. REVOKE SELECT ON stores FROM anon, authenticated (table-level)
+--    (column-level revoke table-level grant'i ezemediği için ilk deneme sızdı)
+-- 2. GRANT SELECT (public-safe kolonlar) ON stores TO anon, authenticated
+--    Gizli kalan: iban, tax_number, tax_office, bank_name, account_holder,
+--                 company_name, total_revenue, approved_by
+-- 3. get_my_store_payout_info() RPC — owner kendi finansalını güvenle okur
+-- 4. Frontend: seller magaza/page.tsx select('*') → safe cols + RPC
+--
+-- Admin etkilenmez: para-cekme withdrawal_requests snapshot'ı kullanır,
+-- weekly-payout service-role kullanır (column grant'ten muaf).
+
+SELECT 'round 12 stores column leak fixed' AS note;

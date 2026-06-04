@@ -126,7 +126,7 @@ const nextConfig = {
               "frame-src 'self' https://www.youtube.com https://*.iyzipay.com https://*.bkm.com.tr",
               "object-src 'none'",
               "base-uri 'self'",
-              "form-action 'self' https://trendikon.com https://www.trendikon.com https://*.iyzipay.com https://*.bkm.com.tr https:",
+              "form-action 'self' https://novagross.com https://www.novagross.com https://*.iyzipay.com https://*.bkm.com.tr https:",
               "frame-ancestors 'self'",
               "upgrade-insecure-requests"
             ].join('; ')

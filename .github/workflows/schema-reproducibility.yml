@@ -24,7 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       pg:
-        image: supabase/postgres:15.8.1.020
+        # Vanilla postgres: 'postgres' superuser public schema'ya tam yetkili.
+        # Supabase'e özgü auth/storage/roller bootstrap step'inde stub'lanır.
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: testdb
@@ -40,18 +42,36 @@ jobs:
       - name: psql kur
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
+      - name: Supabase ortamını stub'la (auth/storage/roller/extension)
+        env:
+          DB: postgresql://postgres:test@localhost:5432/testdb
+        run: |
+          psql "$DB" -v ON_ERROR_STOP=1 <<'SQL'
+          -- Extensions (migration'ların beklediği)
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          -- Roller
+          DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          -- Schema'lar
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE SCHEMA IF NOT EXISTS storage;
+          -- auth.* helper stub'ları (RLS policy CREATE'i için var olması yeter)
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;
+          CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT NULL::text $$;
+          CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
+          -- storage.foldername stub (storage policy migration'ları için)
+          CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(name, '/') $$;
+          SQL
+          echo "✅ Supabase ortamı stub'landı"
+
       - name: Tüm migration'ları sırayla uygula
         env:
           DB: postgresql://postgres:test@localhost:5432/testdb
         run: |
           set -e
-          # Supabase ortamını taklit et (auth/storage şemaları + roller)
-          psql "$DB" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS auth;" \
-            -c "CREATE SCHEMA IF NOT EXISTS storage;" \
-            -c "DO \$\$ BEGIN CREATE ROLE anon; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" \
-            -c "DO \$\$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" \
-            -c "DO \$\$ BEGIN CREATE ROLE service_role; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" || true
-
           COUNT=0
           for m in $(ls supabase/migrations/*.sql | sort); do
             echo "→ $m"

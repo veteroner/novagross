@@ -19,9 +19,9 @@ jobs:
   backup-and-verify:
     runs-on: ubuntu-latest
     services:
-      # Restore hedefi: ephemeral postgres (Supabase auth helper'ları için supabase/postgres)
+      # Restore hedefi: vanilla postgres (postgres superuser public'e tam yetkili)
       verifydb:
-        image: supabase/postgres:15.8.1.020
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: verify
           POSTGRES_DB: verifydb
@@ -39,6 +39,25 @@ jobs:
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update && sudo apt-get install -y postgresql-client-15
+
+      - name: Restore hedefini Supabase-uyumlu hale getir (stub)
+        env:
+          VDB: postgresql://postgres:verify@localhost:5432/verifydb
+        run: |
+          psql "$VDB" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          CREATE SCHEMA IF NOT EXISTS auth;
+          CREATE SCHEMA IF NOT EXISTS storage;
+          CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;
+          CREATE OR REPLACE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT NULL::text $$;
+          CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
+          CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(name, '/') $$;
+          SQL
 
       - name: Production yedeği al (pg_dump)
         env:

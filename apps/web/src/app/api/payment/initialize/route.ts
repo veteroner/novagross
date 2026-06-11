@@ -608,6 +608,23 @@ export async function POST(request: NextRequest) {
 
     if (result.status !== 'success') {
       console.error('iyzico error:', result)
+      // SECURITY: initialize başarısız → rezerve edilen stoğu HEMEN geri ver.
+      // Aksi halde başarısız siparişler stoğu bloke eder (timeout cleanup'ı yok).
+      try {
+        if (stockPayload.length > 0) {
+          await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+        }
+        await db
+          .from('orders')
+          .update({
+            payment_status: 'failed',
+            notes: `iyzico init failed: ${result.errorMessage ?? result.errorCode ?? 'unknown'}`,
+          } as any)
+          .eq('id', orderId)
+          .eq('payment_status', 'pending')
+      } catch (releaseErr) {
+        console.error('[payment init] stock release on iyzico fail error:', releaseErr)
+      }
       return NextResponse.json(
         { error: result.errorMessage || 'Ödeme başlatılamadı' },
         { status: 400 }

@@ -13,6 +13,7 @@ interface CartItem {
 interface CartState {
   items: CartItem[]
   isHydrated: boolean
+  lastSyncedUserId: string | null
   setHydrated: () => void
   addItem: (item: CartItem) => void
   removeItem: (productId: string, variantId: string | null) => void
@@ -20,6 +21,10 @@ interface CartState {
   clearCart: () => void
   getTotalItems: () => number
   getTotalPrice: () => number
+  // Login olduğunda DB ile birleştir (lokal + sunucu — quantity max).
+  // Kullanıcı yeni cihazdan girdiğinde sepeti geri yükler.
+  syncWithServer: (userId: string) => Promise<void>
+  setItems: (items: CartItem[]) => void
 }
 
 export const useCartStore = create<CartState>()(
@@ -27,8 +32,32 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
       isHydrated: false,
-      
+      lastSyncedUserId: null,
+
       setHydrated: () => set({ isHydrated: true }),
+
+      setItems: (items) => set({ items }),
+
+      syncWithServer: async (userId) => {
+        if (typeof window === 'undefined') return
+        // Aynı user için bu session'da zaten sync edildiyse atla
+        if (get().lastSyncedUserId === userId) return
+        try {
+          const res = await fetch('/api/cart/sync', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ items: get().items }),
+          })
+          if (!res.ok) return
+          const data = await res.json().catch(() => ({}))
+          if (Array.isArray(data?.items)) {
+            set({ items: data.items, lastSyncedUserId: userId })
+          }
+        } catch {
+          // Network/auth hatası — sessiz, local sepete dokunma
+        }
+      },
 
       addItem: (item) => {
         set((state) => {
@@ -64,7 +93,7 @@ export const useCartStore = create<CartState>()(
         }))
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], lastSyncedUserId: null }),
 
       getTotalItems: () => {
         return get().items.reduce((sum, item) => sum + item.quantity, 0)

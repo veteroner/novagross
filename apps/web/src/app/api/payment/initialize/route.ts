@@ -287,39 +287,44 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Validate: marketplace accounts require subMerchantKey on ALL items
+    // Marketplace: subMerchantKey varsa kullan, hiç yoksa basit ödeme (ana hesap)
+    // Sub-merchant kaydı yapılmadan da ödeme akışı çalışır (admin sonradan
+    // register-sub-merchants.js ile satıcıları register edip key'leri doldurur).
     const missingSubMerchantItems = basketItems.filter((bi: any) => !bi.subMerchantKey)
-    if (missingSubMerchantItems.length > 0) {
-      // Fallback: try to find any valid subMerchantKey from the batch
-      const fallbackKey = firstSubMerchantKey
-      if (fallbackKey) {
-        for (const bi of basketItems) {
-          if (!(bi as any).subMerchantKey) {
-            ;(bi as any).subMerchantKey = fallbackKey
-            ;(bi as any).subMerchantPrice = (bi as any).price // full amount to sub-merchant
-          }
+    const hasAnySubMerchant = firstSubMerchantKey !== null
+    if (missingSubMerchantItems.length > 0 && hasAnySubMerchant) {
+      // Karışık durum: bazı satıcılar register edilmiş bazıları değil
+      // → kayıtsız itemleri ilk register'lı sub-merchant'a yönlendir
+      for (const bi of basketItems) {
+        if (!(bi as any).subMerchantKey) {
+          ;(bi as any).subMerchantKey = firstSubMerchantKey
+          ;(bi as any).subMerchantPrice = (bi as any).price
         }
-      } else {
-        console.error('No subMerchantKey found for any product store')
-        return NextResponse.json(
-          { error: 'Mağaza alt üye işyeri kaydı bulunamadı. Lütfen site yöneticisiyle iletişime geçin.' },
-          { status: 400 }
-        )
       }
+    } else if (!hasAnySubMerchant) {
+      // Hiç sub-merchant yok → basit (non-marketplace) ödeme akışı
+      // basketItems'tan subMerchantKey/subMerchantPrice alanlarını temizle
+      for (const bi of basketItems) {
+        delete (bi as any).subMerchantKey
+        delete (bi as any).subMerchantPrice
+      }
+      console.warn('[payment] No sub-merchant keys; falling back to non-marketplace flow')
     }
 
     // Add shipping as basket item if exists
     if (shippingCost > 0) {
-      basketItems.push({
+      const shippingItem: any = {
         id: 'SHIPPING',
         name: 'Kargo Ücreti',
         category1: 'Kargo',
         itemType: 'VIRTUAL' as const,
         price: shippingCost.toFixed(2),
-        // Shipping goes to the first store's sub-merchant
-        subMerchantKey: firstSubMerchantKey!,
-        subMerchantPrice: shippingCost.toFixed(2),
-      } as any)
+      }
+      if (firstSubMerchantKey) {
+        shippingItem.subMerchantKey = firstSubMerchantKey
+        shippingItem.subMerchantPrice = shippingCost.toFixed(2)
+      }
+      basketItems.push(shippingItem)
     }
 
     // SECURITY: Email spoofing engelleme — auth user'ın email'i kullanılır,

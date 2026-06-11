@@ -77,7 +77,13 @@ jobs:
           CREATE TABLE IF NOT EXISTS storage.buckets (
             id text PRIMARY KEY,
             name text,
-            public boolean DEFAULT false
+            owner uuid,
+            public boolean DEFAULT false,
+            avif_autodetection boolean DEFAULT false,
+            file_size_limit bigint,
+            allowed_mime_types text[],
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
           );
           -- auth.* helper stub'ları (RLS policy CREATE'i için var olması yeter)
           CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;

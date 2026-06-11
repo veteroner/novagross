@@ -167,6 +167,7 @@ const NAV: NavGroup[] = [
     icon: Wallet,
     items: [
       { href: '/kazanclarim', label: 'Kazançlarım', icon: Wallet, description: 'Bakiye & ödemeler' },
+      { href: '/vergi', label: 'Vergi & Stopaj', icon: Wallet, description: 'Aylık %1 kesintiler & tevkifat belgesi' },
     ],
   },
   {

@@ -119,6 +119,9 @@ export async function POST(request: NextRequest) {
         })
 
         // SECURITY: Payment fail → reserved stoğu release et (orphan reservation engeli)
+        // SIRALAMA ÖNEMLİ: önce CLAIM (pending→failed atomik), stoğu yalnızca
+        // claim'i kazanan release eder. release_stale_pending_orders cron'u da
+        // aynı deseni kullanır — çift iade yarışı bu sayede imkansız.
         try {
           const failedBasketId = result.basketId as string | undefined
           if (failedBasketId) {
@@ -128,23 +131,29 @@ export async function POST(request: NextRequest) {
               .eq('order_number', failedBasketId)
               .single()
             if (failedOrder?.id) {
-              const { data: failedItems } = await db
-                .from('order_items')
-                .select('product_id, quantity')
-                .eq('order_id', failedOrder.id)
-              if (failedItems && failedItems.length > 0) {
-                const releasePayload = failedItems
-                  .filter((i: any) => i.product_id && i.quantity > 0)
-                  .map((i: any) => ({ product_id: i.product_id, quantity: i.quantity }))
-                if (releasePayload.length > 0) {
-                  await (db as any).rpc('release_stock_atomic', { p_items: releasePayload })
+              const { data: claimed } = await db
+                .from('orders')
+                .update({
+                  payment_status: 'failed',
+                  notes: `Payment failed: ${errorMessage}`,
+                } as any)
+                .eq('id', failedOrder.id)
+                .eq('payment_status', 'pending')
+                .select('id')
+              if (claimed && claimed.length > 0) {
+                const { data: failedItems } = await db
+                  .from('order_items')
+                  .select('product_id, quantity')
+                  .eq('order_id', failedOrder.id)
+                if (failedItems && failedItems.length > 0) {
+                  const releasePayload = failedItems
+                    .filter((i: any) => i.product_id && i.quantity > 0)
+                    .map((i: any) => ({ product_id: i.product_id, quantity: i.quantity }))
+                  if (releasePayload.length > 0) {
+                    await (db as any).rpc('release_stock_atomic', { p_items: releasePayload })
+                  }
                 }
               }
-              // Order'ı failed işaretle ki tekrar process olmasın
-              await db.from('orders').update({
-                payment_status: 'failed',
-                notes: `Payment failed: ${errorMessage}`,
-              }).eq('id', failedOrder.id).eq('payment_status', 'pending')
             }
           }
         } catch (releaseErr) {

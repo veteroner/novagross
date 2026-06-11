@@ -48,18 +48,23 @@ export default function EarningsPage() {
       if (!store) return
       setStoreId(store.id)
 
-      // Get store balance
+      // Get store balance — tablo adı 'store_balance' (tekil); 404'ün sebebi
+      // yanlış 'store_balances' çağrısıydı.
       const { data: balanceData } = await (supabase as any)
-        .from('store_balances')
-        .select('*')
+        .from('store_balance')
+        .select('available_balance, pending_balance, total_withdrawn')
         .eq('store_id', store.id)
-        .single()
+        .maybeSingle()
 
       if (balanceData) {
+        const available = Number(balanceData.available_balance || 0)
+        const pending = Number(balanceData.pending_balance || 0)
+        const withdrawn = Number(balanceData.total_withdrawn || 0)
         setBalance({
-          available: Number(balanceData.available_balance || balanceData.balance || 0),
-          pending: Number(balanceData.pending_balance || 0),
-          total_earned: Number(balanceData.total_earned || 0),
+          available,
+          pending,
+          // Toplam kazanç = mevcut + bekleyen + çekilmiş
+          total_earned: available + pending + withdrawn,
         })
       }
 

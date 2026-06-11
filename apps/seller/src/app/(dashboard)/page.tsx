@@ -42,9 +42,12 @@ export default function SellerDashboard() {
       if (!user) return
 
       // Get store info
+      // NOT select('*'): Round 12 column-level GRANT'leri iban/tax_number gibi
+      // finansal kolonlara authenticated SELECT vermiyor — '*' istenirse
+      // PostgREST 403 döner ve dashboard "Mağaza Bulunamadı" gösterirdi.
       const { data: store } = await supabase
         .from('stores')
-        .select('*')
+        .select('id, store_name, store_slug, status, logo_url, description, email, phone, city, district, commission_rate, rating, total_reviews, total_sales, created_at')
         .eq('owner_id', user.id)
         .single()
 

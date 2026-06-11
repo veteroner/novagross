@@ -609,12 +609,10 @@ export async function POST(request: NextRequest) {
     if (result.status !== 'success') {
       console.error('iyzico error:', result)
       // SECURITY: initialize başarısız → rezerve edilen stoğu HEMEN geri ver.
-      // Aksi halde başarısız siparişler stoğu bloke eder (timeout cleanup'ı yok).
+      // SIRALAMA: önce CLAIM (pending→failed atomik), sonra release —
+      // cron/callback ile çift iade yarışı imkansız olur.
       try {
-        if (stockPayload.length > 0) {
-          await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
-        }
-        await db
+        const { data: claimed } = await db
           .from('orders')
           .update({
             payment_status: 'failed',
@@ -622,6 +620,10 @@ export async function POST(request: NextRequest) {
           } as any)
           .eq('id', orderId)
           .eq('payment_status', 'pending')
+          .select('id')
+        if (claimed && claimed.length > 0 && stockPayload.length > 0) {
+          await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+        }
       } catch (releaseErr) {
         console.error('[payment init] stock release on iyzico fail error:', releaseErr)
       }

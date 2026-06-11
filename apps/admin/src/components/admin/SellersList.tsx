@@ -323,7 +323,7 @@ export function SellersList({ initialSellers }: SellersListProps) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex gap-2">
                       <Link
-                        href={`/magazalar/${seller.store_slug}`}
+                        href={`/saticilar/${seller.id}`}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         Görüntüle

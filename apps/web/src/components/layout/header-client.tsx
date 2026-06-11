@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ShoppingCart, User, Menu, X, LogOut, Heart } from 'lucide-react'
 import { Button } from '@novagross/ui'
@@ -22,8 +23,16 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [isSeller, setIsSeller] = useState<boolean>(false)
-  const { items, isHydrated } = useCartStore()
+  const { items, isHydrated, syncWithServer } = useCartStore()
   const { user, setUser, isHydrated: authHydrated } = useAuthStore()
+
+  // Kullanıcı login olunca sepeti DB ile birleştir (yeni cihaz/oturum senaryosu).
+  // syncWithServer aynı user için tek seferlik çalışır (cart-store içinde guard var).
+  useEffect(() => {
+    if (user?.id && isHydrated) {
+      void syncWithServer(user.id)
+    }
+  }, [user?.id, isHydrated, syncWithServer])
   const { items: favoriteItems, isHydrated: favoritesHydrated } = useFavoritesStore()
   
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
@@ -125,9 +134,16 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2" aria-label="Novagross Ana Sayfa">
-          <span className="text-xl font-bold">Novagross</span>
+        {/* Logo — public/logo.png (512x128, 4:1) */}
+        <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
+          <Image
+            src="/logo.png"
+            alt="Novagross"
+            width={160}
+            height={40}
+            priority
+            className="h-10 w-auto"
+          />
         </Link>
 
         {/* Navigation - Desktop */}

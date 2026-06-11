@@ -1,34 +1,23 @@
 # Novagross - Netlify Configuration
-
-# Ana web sitesi konfigürasyonu
-[build]
-  base = "/"
-  command = "pnpm install && turbo run build --filter @novagross/web"
-  publish = "apps/web/.next"
+#
+# Build cmd ve publish dir burada TANIMLI DEĞİL — her Netlify site
+# (novagross-web, novagross-admin, novagross-seller) kendi build_settings'ini
+# kullanır (UI/API config). Burada global plugin/env/redirect/header'lar var.
+#
+# Önceki versiyonda [build] section'ı default olarak apps/web/.next yayınlıyordu;
+# bu yüzden admin/seller site'larında web build çıktısı görünüyordu (publish
+# dir override edilmiyordu). Şimdi her site kendi publish'i ile çalışır.
 
 [build.environment]
   NODE_VERSION = "22"
   NPM_FLAGS = "--legacy-peer-deps"
   PNPM_VERSION = "9"
 
-# Next.js plugin
+# Next.js plugin (3 site için de geçerli)
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Admin Panel için Context (subdomain)
-[context.admin]
-  base = "/"
-  command = "turbo run build --filter @novagross/admin"
-  publish = "apps/admin/.next"
-
-[context.admin.environment]
-  NODE_VERSION = "22"
-  NPM_FLAGS = "--legacy-peer-deps"
-
-[context.admin.functions]
-  directory = "apps/admin/netlify/functions"
-
-# Redirects
+# Redirects (yalnızca web site için anlamlı; admin/seller'da etkisiz)
 
 # SEO: www.novagross.com → novagross.com (canonical)
 [[redirects]]
@@ -43,7 +32,7 @@
   status = 301
   force = true
 
-# Admin alt domain'e yönlendir
+# Admin alt domain'e yönlendir (web → admin)
 [[redirects]]
   from = "/admin/*"
   to = "https://admin.novagross.com/:splat"

@@ -79,6 +79,64 @@ export async function verifyExemption(storeId: string) {
   revalidatePath(`/saticilar/${storeId}`)
 }
 
+type StoreInfoInput = {
+  store_name: string | null
+  company_name: string | null
+  commission_rate: number | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  district: string | null
+  postal_code: string | null
+  bank_name: string | null
+  iban: string | null
+  account_holder: string | null
+}
+
+export async function updateStoreInfo(storeId: string, input: StoreInfoInput) {
+  await requireAdmin('/saticilar')
+
+  // Validasyon
+  if (!input.store_name || input.store_name.trim().length < 2) {
+    throw new Error('Mağaza adı en az 2 karakter olmalı.')
+  }
+  if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+    throw new Error('Geçersiz e-posta formatı.')
+  }
+  const iban = input.iban?.trim().toUpperCase().replace(/\s/g, '') || null
+  if (iban && !/^TR\d{24}$/.test(iban)) {
+    throw new Error('IBAN TR ile başlamalı ve 26 karakter olmalı (TR + 24 hane).')
+  }
+  const cr = input.commission_rate
+  if (cr !== null && cr !== undefined && (!Number.isFinite(cr) || cr < 0 || cr > 50)) {
+    throw new Error('Komisyon oranı 0–50 arasında olmalı.')
+  }
+
+  const supabase = createServiceRoleClient()
+  const { error } = await (supabase as any)
+    .from('stores')
+    .update({
+      store_name: input.store_name.trim(),
+      company_name: input.company_name?.trim() || null,
+      commission_rate: cr ?? null,
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      address: input.address?.trim() || null,
+      city: input.city?.trim() || null,
+      district: input.district?.trim() || null,
+      postal_code: input.postal_code?.trim() || null,
+      bank_name: input.bank_name?.trim() || null,
+      iban,
+      account_holder: input.account_holder?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', storeId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/saticilar/${storeId}`)
+}
+
 export async function revokeExemption(storeId: string) {
   await requireAdmin('/saticilar')
   const supabase = createServiceRoleClient()

@@ -7,6 +7,7 @@ import { Button } from '@novagross/ui';
 import { Input } from '@novagross/ui';
 import { Store, User, Mail, Phone, MapPin, FileText, CheckCircle } from 'lucide-react';
 import { KVKKConsent } from '@/components/kvkk-consent';
+import { AgreementCheckbox, allRequiredAccepted, type AgreementsState } from '@/components/agreements/agreement-checkbox';
 
 export default function BecomeSellerPage() {
   const router = useRouter();
@@ -14,6 +15,10 @@ export default function BecomeSellerPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [kvkkConsent, setKvkkConsent] = useState(false);
+  const [agreements, setAgreements] = useState<AgreementsState>({
+    pazaryeri_satici_sozlesmesi: false,
+    kvkk_aydinlatma: false,
+  });
   
   const [formData, setFormData] = useState({
     storeName: '',
@@ -41,6 +46,11 @@ export default function BecomeSellerPage() {
       return;
     }
 
+    if (!allRequiredAccepted(['pazaryeri_satici_sozlesmesi', 'kvkk_aydinlatma'], agreements)) {
+      setError('Pazaryeri Satıcı Sözleşmesi ve KVKK Aydınlatma Metni\'ni kabul etmelisiniz.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -55,6 +65,19 @@ export default function BecomeSellerPage() {
 
       if (!response.ok) {
         throw new Error(data.error || 'Bir hata oluştu');
+      }
+
+      // Sözleşme onaylarını yasal kanıt olarak logla
+      const acceptedTypes = Object.entries(agreements).filter(([, v]) => v).map(([k]) => k)
+      if (acceptedTypes.length > 0) {
+        const body: any = { agreements: acceptedTypes }
+        if (data?.application_id) body.store_application_id = data.application_id
+        await fetch('/api/agreements/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        }).catch(() => {})
       }
 
       setSuccess(true);
@@ -388,6 +411,21 @@ export default function BecomeSellerPage() {
                 variant="seller"
                 required
               />
+
+              <div className="space-y-2 border-t pt-4">
+                <AgreementCheckbox
+                  type="pazaryeri_satici_sozlesmesi"
+                  checked={!!agreements.pazaryeri_satici_sozlesmesi}
+                  onChange={(v) => setAgreements((s) => ({ ...s, pazaryeri_satici_sozlesmesi: v }))}
+                  disabled={loading}
+                />
+                <AgreementCheckbox
+                  type="kvkk_aydinlatma"
+                  checked={!!agreements.kvkk_aydinlatma}
+                  onChange={(v) => setAgreements((s) => ({ ...s, kvkk_aydinlatma: v }))}
+                  disabled={loading}
+                />
+              </div>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">

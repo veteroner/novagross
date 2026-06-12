@@ -57,14 +57,19 @@ export default async function SellerDocumentsPage() {
     (d) => d.expires_at && new Date(d.expires_at).getTime() < Date.now()
   ).length
 
-  // Signed URL'ler için listeyi hazırla
+  // Signed URL'ler için listeyi hazırla — bucket eksik/erişim hatasında
+  // tüm sayfa düşmesin diye her doc için tek tek try-catch.
   const signedByDoc = new Map<string, string | null>()
   await Promise.all(
     docs.map(async (d) => {
-      const { data: signed } = await (supabase as any).storage
-        .from('documents')
-        .createSignedUrl(d.file_url, 60 * 60)
-      signedByDoc.set(d.id, signed?.signedUrl ?? null)
+      try {
+        const { data: signed } = await (supabase as any).storage
+          .from('documents')
+          .createSignedUrl(d.file_url, 60 * 60)
+        signedByDoc.set(d.id, signed?.signedUrl ?? null)
+      } catch {
+        signedByDoc.set(d.id, null)
+      }
     })
   )
 

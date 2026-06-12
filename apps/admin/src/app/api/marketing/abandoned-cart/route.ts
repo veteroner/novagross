@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       .from('carts')
       .select(`
         *,
-        user:users(id, email, full_name),
+        user:profiles(id, email, first_name, last_name),
         items:cart_items(
           quantity,
           product:products(id, name, price, images)

@@ -75,7 +75,7 @@ export default function SellerDashboard() {
             id,
             status,
             created_at,
-            user:users(full_name, email)
+            user:profiles(first_name, last_name, email)
           ),
           product:products!inner(
             store_id,

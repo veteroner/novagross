@@ -47,6 +47,9 @@ function CheckoutContent() {
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
   const [paymentBasketId, setPaymentBasketId] = useState<string | null>(null)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
+  // Mesafeli Sözleşmeler Yönetmeliği m.5: Ön Bilgilendirme + MSS onayı şart
+  const [mssAccepted, setMssAccepted] = useState(false)
+  const [obfAccepted, setObfAccepted] = useState(false)
   const iframeRef = useRef<HTMLDivElement>(null)
   const { items, getTotalPrice, isHydrated } = useCartStore()
 
@@ -188,10 +191,11 @@ function CheckoutContent() {
 
   // Initialize iyzico checkout when reaching payment step
   useEffect(() => {
-    if (currentStep === 'payment' && !checkoutFormContent && !isProcessing) {
+    // Yasal onaylar tamamlanmadan iyzico initialize edilmez
+    if (currentStep === 'payment' && !checkoutFormContent && !isProcessing && mssAccepted && obfAccepted) {
       initializePayment()
     }
-  }, [currentStep])
+  }, [currentStep, mssAccepted, obfAccepted])
 
   // Render iyzico form when content is available
   useEffect(() => {
@@ -274,6 +278,20 @@ function CheckoutContent() {
       if (data.basketId) setPaymentBasketId(data.basketId)
       if (data.orderId) setPaymentOrderId(data.orderId)
       setNeedsAuth(false)
+
+      // Mesafeli Satış + Ön Bilgilendirme onaylarını yasal kanıt olarak kaydet
+      // (IP/UA/timestamp + order_id ile siparişle eşleşir).
+      if (data.orderId) {
+        await fetch('/api/agreements/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            agreements: ['mesafeli_satis', 'on_bilgilendirme'],
+            order_id: data.orderId,
+          }),
+        }).catch(() => {})
+      }
     } catch (error) {
       console.error('Payment initialization error:', error)
       setPaymentError(error instanceof Error ? error.message : 'Ödeme başlatılırken bir hata oluştu')
@@ -703,6 +721,47 @@ function CheckoutContent() {
                   <div className="flex items-center gap-2 p-4 bg-red-50 text-red-700 rounded-lg">
                     <AlertCircle className="h-5 w-5" />
                     <span>{paymentError}</span>
+                  </div>
+                )}
+
+                {/* Yasal onay alanı — iyzico form yüklenmeden önce gösterilir,
+                    onaylanınca initializePayment otomatik çalışır (effect deps). */}
+                {!checkoutFormContent && !needsAuth && (!mssAccepted || !obfAccepted) && (
+                  <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+                    <p className="text-sm font-medium">Ödemeyi başlatmadan önce onaylamanız gereken sözleşmeler:</p>
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={mssAccepted}
+                        onChange={(e) => setMssAccepted(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                      <span>
+                        <a href="/mesafeli-satis-sozlesmesi" target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline">
+                          Mesafeli Satış Sözleşmesi
+                        </a>
+                        &apos;ni okudum, anladım ve kabul ediyorum.
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={obfAccepted}
+                        onChange={(e) => setObfAccepted(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      />
+                      <span>
+                        <a href="/sozlesmeler/on-bilgilendirme-formu" target="_blank" rel="noopener noreferrer" className="text-orange-700 hover:underline">
+                          Ön Bilgilendirme Formu
+                        </a>
+                        &apos;nu okudum, satıcı/ürün/fiyat/teslimat/cayma hakkı hususlarında bilgilendirildim.
+                        <span className="text-red-500 ml-0.5">*</span>
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500">
+                      Bu sözleşmeler 6502 sayılı TKHK ve Mesafeli Sözleşmeler Yönetmeliği gereği zorunludur.
+                    </p>
                   </div>
                 )}
 

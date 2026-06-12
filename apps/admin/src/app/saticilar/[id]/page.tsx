@@ -5,6 +5,7 @@ import { ArrowLeft, Store as StoreIcon, Receipt, Wallet, Package } from 'lucide-
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { TaxEditor } from './tax-editor'
+import { StoreInfoEditor } from './store-info-editor'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,48 +162,26 @@ export default async function SellerDetailPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="text-sm space-y-2">
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Şirket ünvanı</dt>
-                <dd className="font-medium text-right">{store.company_name ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Komisyon oranı</dt>
-                <dd className="font-medium">%{Number(store.commission_rate ?? 15)}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">E-posta</dt>
-                <dd className="font-medium">{store.email ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Telefon</dt>
-                <dd className="font-medium">{store.phone ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Konum</dt>
-                <dd className="font-medium">
-                  {[store.district, store.city].filter(Boolean).join(', ') || '—'}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Banka</dt>
-                <dd className="font-medium">{store.bank_name ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">IBAN</dt>
-                <dd className="font-mono text-xs">{store.iban ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Hesap sahibi</dt>
-                <dd className="font-medium">{store.account_holder ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-gray-500">Kayıt tarihi</dt>
-                <dd className="font-medium">
-                  {new Date(store.created_at).toLocaleDateString('tr-TR')}
-                </dd>
-              </div>
-            </dl>
+            <StoreInfoEditor
+              storeId={store.id}
+              initial={{
+                store_name: store.store_name,
+                company_name: store.company_name,
+                commission_rate: store.commission_rate,
+                email: store.email,
+                phone: store.phone,
+                address: store.address,
+                city: store.city,
+                district: store.district,
+                postal_code: store.postal_code,
+                bank_name: store.bank_name,
+                iban: store.iban,
+                account_holder: store.account_holder,
+              }}
+            />
+            <p className="text-xs text-muted-foreground mt-3">
+              Kayıt tarihi: {new Date(store.created_at).toLocaleDateString('tr-TR')}
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -51,7 +51,7 @@ export default async function SellerDetailPage({
       company_name, tax_number, tax_office, taxpayer_type, kdv_rate,
       is_withholding_exempt, withholding_exempt_verified, withholding_exempt_verified_at,
       tradesman_certificate_url,
-      email, phone, city, district, iban, bank_name, account_holder,
+      email, phone, city, district, address, postal_code, iban, bank_name, account_holder,
       total_sales, total_revenue, rating, total_reviews,
       owner:owner_id ( id, email, first_name, last_name, phone )
     `)

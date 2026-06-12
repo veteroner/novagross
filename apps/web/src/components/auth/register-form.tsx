@@ -6,6 +6,7 @@ import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagr
 import { createClient } from '@/lib/supabase/client'
 import { translateAuthError } from '@/lib/auth-errors'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
+import { AgreementCheckbox, allRequiredAccepted, type AgreementsState } from '@/components/agreements/agreement-checkbox'
 
 export function RegisterForm() {
   const router = useRouter()
@@ -21,6 +22,15 @@ export function RegisterForm() {
     password: '',
     confirmPassword: '',
   })
+  const [agreements, setAgreements] = useState<AgreementsState>({
+    uyelik_sozlesmesi: false,
+    kvkk_aydinlatma: false,
+    acik_riza: false, // opsiyonel
+  })
+  const requiredAgreements: ('uyelik_sozlesmesi' | 'kvkk_aydinlatma')[] = [
+    'uyelik_sozlesmesi',
+    'kvkk_aydinlatma',
+  ]
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,6 +46,12 @@ export function RegisterForm() {
 
     if (formData.password.length < 6) {
       setError('Şifre en az 6 karakter olmalıdır')
+      setIsLoading(false)
+      return
+    }
+
+    if (!allRequiredAccepted(requiredAgreements, agreements)) {
+      setError('Üyelik Sözleşmesi ve KVKK Aydınlatma Metni\'ni kabul etmeniz gerekir.')
       setIsLoading(false)
       return
     }
@@ -65,6 +81,18 @@ export function RegisterForm() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: data.user.id }),
         });
+        // Sözleşme onaylarını yasal kanıt olarak kaydet (IP + UA + zaman damgası)
+        const acceptedTypes = Object.entries(agreements)
+          .filter(([, v]) => v)
+          .map(([k]) => k)
+        if (acceptedTypes.length > 0) {
+          await fetch('/api/agreements/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ agreements: acceptedTypes }),
+          }).catch(() => {})
+        }
       }
 
       setSuccess(true)
@@ -234,17 +262,29 @@ export function RegisterForm() {
             </div>
           </div>
 
-          <div className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              id="terms"
-              className="mt-1"
-              required
+          <div className="space-y-2 border-t pt-4">
+            <AgreementCheckbox
+              type="uyelik_sozlesmesi"
+              checked={!!agreements.uyelik_sozlesmesi}
+              onChange={(v) => setAgreements((s) => ({ ...s, uyelik_sozlesmesi: v }))}
+              disabled={isLoading}
             />
-            <label htmlFor="terms" className="text-sm text-muted-foreground">
-              <a href="/kullanim-kosullari" className="text-primary hover:underline">Kullanım koşullarını</a> ve{' '}
-              <a href="/gizlilik-politikasi" className="text-primary hover:underline">gizlilik politikasını</a> okudum ve kabul ediyorum.
-            </label>
+            <AgreementCheckbox
+              type="kvkk_aydinlatma"
+              checked={!!agreements.kvkk_aydinlatma}
+              onChange={(v) => setAgreements((s) => ({ ...s, kvkk_aydinlatma: v }))}
+              disabled={isLoading}
+            />
+            <AgreementCheckbox
+              type="acik_riza"
+              checked={!!agreements.acik_riza}
+              onChange={(v) => setAgreements((s) => ({ ...s, acik_riza: v }))}
+              disabled={isLoading}
+            />
+            <p className="text-xs text-muted-foreground pt-1">
+              <span className="text-red-500">*</span> İşaretli sözleşmeler zorunludur.
+              Pazarlama açık rızası opsiyoneldir, sonra ayarlardan değiştirilebilir.
+            </p>
           </div>
 
           <Button type="submit" className="w-full" isLoading={isLoading}>

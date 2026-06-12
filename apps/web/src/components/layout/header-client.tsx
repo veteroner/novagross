@@ -137,7 +137,7 @@ export function Header() {
         {/* Logo — public/logo.png (512x128, 4:1) */}
         <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
           <Image
-            src="/logo.png"
+            src="/logo.webp"
             alt="Novagross"
             width={160}
             height={40}

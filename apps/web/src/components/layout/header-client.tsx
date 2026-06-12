@@ -133,17 +133,15 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-24 items-center justify-between">
-        {/* Logo — public/logo.webp. Header h-24 (96px), logo h-20 (80px)
-            ile içindeki yazı net okunur (logo.webp 512x128, 4:1 aspect). */}
+      <div className="container flex h-44 items-center justify-between">
         <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
           <Image
             src="/logo.webp"
             alt="Novagross"
-            width={480}
-            height={120}
+            width={640}
+            height={160}
             priority
-            className="h-20 w-auto"
+            className="h-40 w-auto"
           />
         </Link>
 

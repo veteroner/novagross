@@ -65,7 +65,7 @@ export default function Sidebar() {
     <>
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <img src="/logo.webp" alt="Novagross" className="h-8 w-auto" />
+          <img src="/logo.webp" alt="Novagross" className="h-12 w-auto" />
           <div>
             <p className="text-sm font-semibold">Satıcı Paneli</p>
             <p className="text-xs text-muted-foreground truncate max-w-[160px]">

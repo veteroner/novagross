@@ -337,9 +337,9 @@ export default function TopNav() {
     <header className="bg-white border-b sticky top-0 z-40">
       {/* Brand bar */}
       <div className="border-b">
-        <div className="max-w-screen-2xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-screen-2xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 min-w-0">
-            <img src="/logo.webp" alt={BRAND_NAME} className="h-9 w-auto" />
+            <img src="/logo.webp" alt={BRAND_NAME} className="h-12 w-auto" />
             <span className="text-sm text-gray-500 font-medium truncate">
               {storeName || 'Satıcı Paneli'}
             </span>

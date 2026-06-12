@@ -133,16 +133,17 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        {/* Logo — public/logo.png (512x128, 4:1) */}
+      <div className="container flex h-20 items-center justify-between">
+        {/* Logo — public/logo.webp. Header h-20 (80px), logo h-14 (56px)
+            ile içindeki yazı okunabilir hale gelir (Hepsiburada tarzı). */}
         <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
           <Image
             src="/logo.webp"
             alt="Novagross"
-            width={160}
-            height={40}
+            width={336}
+            height={84}
             priority
-            className="h-10 w-auto"
+            className="h-14 w-auto"
           />
         </Link>
 

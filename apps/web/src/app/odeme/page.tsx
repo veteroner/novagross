@@ -10,6 +10,7 @@ import { ChevronRight, CreditCard, Truck, MapPin, Check, AlertCircle, Loader2, S
 import { createClient } from '@/lib/supabase/client'
 import { useShippingConfig, calculateShippingCost } from '@/hooks/use-shipping-config'
 import { CouponInput } from '@/components/cart/coupon-input'
+import { AddressPicker } from '@/components/address/address-picker'
 
 type CheckoutStep = 'address' | 'shipping' | 'payment' | 'confirmation'
 
@@ -78,6 +79,14 @@ function CheckoutContent() {
     city: '',
     district: '',
     postalCode: '',
+    // Yapılandırılmış adres alanları (AddressPicker'dan gelir)
+    neighborhood: '',
+    buildingNo: '',
+    floor: '',
+    apartmentNo: '',
+    addressDescription: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
     // Shipping
     shippingMethod: 'standard',
   })
@@ -139,17 +148,23 @@ function CheckoutContent() {
   }, [])
 
   const fillFormFromAddress = (address: SavedAddress) => {
+    const m = ((address as any).metadata || {}) as Record<string, any>
     setFormData(prev => ({
       ...prev,
       firstName: address.first_name,
       lastName: address.last_name,
       phone: address.phone,
-      address: address.address_line2 
-        ? `${address.address_line1} ${address.address_line2}`
-        : address.address_line1,
+      address: address.address_line1 || '',
       city: address.city,
       district: address.district,
       postalCode: address.postal_code || '',
+      neighborhood: String(m.neighborhood ?? ''),
+      buildingNo: String(m.building_no ?? ''),
+      floor: String(m.floor ?? ''),
+      apartmentNo: String(m.apartment_no ?? ''),
+      addressDescription: String(m.description ?? address.address_line2 ?? ''),
+      latitude: typeof m.latitude === 'number' ? m.latitude : null,
+      longitude: typeof m.longitude === 'number' ? m.longitude : null,
     }))
   }
 
@@ -327,13 +342,31 @@ function CheckoutContent() {
               first_name: formData.firstName.trim(),
               last_name: formData.lastName.trim(),
               phone: formData.phone.trim(),
-              address_line1: formData.address.trim(),
+              // Yapılandırılmış adresi tek satıra formatlayıp address_line1'e yaz
+              address_line1: [
+                formData.address.trim(),
+                formData.buildingNo ? `No: ${formData.buildingNo}` : '',
+                formData.floor ? `K: ${formData.floor}` : '',
+                formData.apartmentNo ? `D: ${formData.apartmentNo}` : '',
+                formData.neighborhood ? `${formData.neighborhood} Mah.` : '',
+              ].filter(Boolean).join(' '),
+              address_line2: formData.addressDescription.trim() || null,
               city: formData.city.trim(),
               district: formData.district.trim(),
               postal_code: formData.postalCode.trim() || null,
               is_default: isFirst,
               address_type: 'both',
-            })
+              // Yapılandırılmış alanlar + harita koordinatları metadata'da
+              metadata: {
+                neighborhood: formData.neighborhood || null,
+                building_no: formData.buildingNo || null,
+                floor: formData.floor || null,
+                apartment_no: formData.apartmentNo || null,
+                description: formData.addressDescription || null,
+                latitude: formData.latitude,
+                longitude: formData.longitude,
+              },
+            } as any)
             .select()
             .single()
 
@@ -576,46 +609,35 @@ function CheckoutContent() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium">Adres</label>
-                      <textarea
-                        className="w-full min-h-[100px] px-3 py-2 border rounded-md text-sm"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        placeholder="Mahalle, sokak, bina no, daire no..."
-                        autoComplete="street-address"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">İl</label>
-                        <Input
-                          value={formData.city}
-                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          placeholder="İstanbul"
-                          autoComplete="address-level1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">İlçe</label>
-                        <Input
-                          value={formData.district}
-                          onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                          placeholder="Kadıköy"
-                          autoComplete="address-level2"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Posta Kodu</label>
-                        <Input
-                          value={formData.postalCode}
-                          onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                          placeholder="34000"
-                          autoComplete="postal-code"
-                        />
-                      </div>
-                    </div>
+                    <AddressPicker
+                      value={{
+                        city: formData.city,
+                        district: formData.district,
+                        neighborhood: formData.neighborhood,
+                        address: formData.address,
+                        building_no: formData.buildingNo,
+                        floor: formData.floor,
+                        apartment_no: formData.apartmentNo,
+                        description: formData.addressDescription,
+                        postal_code: formData.postalCode,
+                        latitude: formData.latitude,
+                        longitude: formData.longitude,
+                      }}
+                      onChange={(v) => setFormData({
+                        ...formData,
+                        city: v.city,
+                        district: v.district,
+                        neighborhood: v.neighborhood,
+                        address: v.address,
+                        buildingNo: v.building_no,
+                        floor: v.floor,
+                        apartmentNo: v.apartment_no,
+                        addressDescription: v.description,
+                        postalCode: v.postal_code,
+                        latitude: v.latitude ?? null,
+                        longitude: v.longitude ?? null,
+                      })}
+                    />
 
                     {/* Save Address Option */}
                     <div className="border-t pt-4 space-y-3">

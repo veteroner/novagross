@@ -112,6 +112,18 @@ export async function updateStoreInfo(storeId: string, input: StoreInfoInput) {
   if (cr !== null && cr !== undefined && (!Number.isFinite(cr) || cr < 0 || cr > 50)) {
     throw new Error('Komisyon oranı 0–50 arasında olmalı.')
   }
+  // TR cep telefonu: +90 ile veya 0 ile başlayıp 10 hane gelsin
+  const phoneRaw = input.phone?.trim().replace(/\s/g, '') || null
+  let phone: string | null = null
+  if (phoneRaw) {
+    const m = phoneRaw.match(/^(?:\+?90|0)?(\d{10})$/)
+    if (!m) throw new Error('Telefon TR formatında olmalı (örn +905XXXXXXXXX, 10 hane).')
+    phone = `+90${m[1]}`
+  }
+  const postalRaw = input.postal_code?.trim() || null
+  if (postalRaw && !/^\d{5}$/.test(postalRaw)) {
+    throw new Error('Posta kodu 5 haneli olmalı.')
+  }
 
   const supabase = createServiceRoleClient()
   const { error } = await (supabase as any)
@@ -121,11 +133,11 @@ export async function updateStoreInfo(storeId: string, input: StoreInfoInput) {
       company_name: input.company_name?.trim() || null,
       commission_rate: cr ?? null,
       email: input.email?.trim() || null,
-      phone: input.phone?.trim() || null,
+      phone,
       address: input.address?.trim() || null,
       city: input.city?.trim() || null,
       district: input.district?.trim() || null,
-      postal_code: input.postal_code?.trim() || null,
+      postal_code: postalRaw,
       bank_name: input.bank_name?.trim() || null,
       iban,
       account_holder: input.account_holder?.trim() || null,

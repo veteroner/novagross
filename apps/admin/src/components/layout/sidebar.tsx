@@ -50,6 +50,8 @@ const menuItems: MenuItem[] = [
   { href: '/siparisler', label: 'Siparişler', icon: ShoppingCart },
   { href: '/kategoriler', label: 'Kategoriler', icon: Tag },
   { href: '/banners', label: 'Bannerlar', icon: ImageIcon },
+  { href: '/kampanya-rozetleri', label: 'Kampanya Rozetleri', icon: ImageIcon },
+  { href: '/promo-grid', label: 'Promo Grid', icon: ImageIcon },
   { href: '/musteriler', label: 'Müşteriler', icon: Users },
   { href: '/aboneler', label: 'E-posta Aboneleri', icon: Mail },
   { href: '/email-logs', label: 'E-posta Logları', icon: Mail },

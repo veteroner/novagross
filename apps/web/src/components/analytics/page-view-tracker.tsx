@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 function createSessionId() {
   try {
@@ -65,10 +66,13 @@ function getOS(): string {
  * Tracks page views and sends analytics data to the backend
  */
 export function PageViewTracker() {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
   useEffect(() => {
     const sessionId = getSessionId()
     const startTime = Date.now()
-    
+
     // Track page view
     const trackPageView = async () => {
       try {
@@ -98,7 +102,11 @@ export function PageViewTracker() {
     }
     
     trackPageView()
-    
+
+    // Heartbeat: sekme açık kaldığı sürece her 60 sn'de bir tekrar kayıt at,
+    // böylece kullanıcı sayfada beklerken "anlık trafik"te canlı görünür (5 dk pencere).
+    const heartbeat = setInterval(trackPageView, 60000)
+
     // Track page exit
     const trackPageExit = async () => {
       const pageViewId = sessionStorage.getItem('current_page_view_id')
@@ -133,10 +141,13 @@ export function PageViewTracker() {
     window.addEventListener('pagehide', trackPageExit)
     
     return () => {
+      clearInterval(heartbeat)
       window.removeEventListener('beforeunload', trackPageExit)
       window.removeEventListener('pagehide', trackPageExit)
     }
-  }, [])
+    // Her route değişiminde yeniden çalışır (SPA navigasyonu da kaydedilir)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams])
   
   return null
 }

@@ -5,6 +5,22 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, Badge, Button, Input } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
 import { MapPin, Plus, Edit, Trash2, X, Check, Loader2 } from 'lucide-react'
+import { AddressPicker, EMPTY_ADDRESS, type AddressValue } from '@/components/address/address-picker'
+
+// AddressPicker (yapısal) → addresses tablosu (address_line1/line2) eşlemesi
+function composeAddressLines(a: AddressValue) {
+  const line1 = [
+    a.neighborhood ? `${a.neighborhood} Mah.` : '',
+    a.address,
+    a.building_no ? `No: ${a.building_no}` : '',
+  ].filter(Boolean).join(' ').trim()
+  const line2 = [
+    a.floor ? `Kat: ${a.floor}` : '',
+    a.apartment_no ? `Daire: ${a.apartment_no}` : '',
+    a.description,
+  ].filter(Boolean).join(' ').trim()
+  return { line1, line2 }
+}
 
 interface Address {
   id: string
@@ -46,6 +62,7 @@ export default function AddressesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [addressValue, setAddressValue] = useState<AddressValue>(EMPTY_ADDRESS)
 
   const fetchAddresses = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -77,6 +94,7 @@ export default function AddressesPage() {
 
   const openAddForm = () => {
     setFormData(EMPTY_FORM)
+    setAddressValue(EMPTY_ADDRESS)
     setEditingId(null)
     setShowForm(true)
     setError(null)
@@ -96,6 +114,15 @@ export default function AddressesPage() {
       is_default: address.is_default || false,
       address_type: address.address_type || 'both',
     })
+    // Mevcut kayıt → picker: il/ilçe/posta net; sokak satırı 'address' alanına gelir
+    setAddressValue({
+      ...EMPTY_ADDRESS,
+      city: address.city || '',
+      district: address.district || '',
+      address: address.address_line1 || '',
+      description: address.address_line2 || '',
+      postal_code: address.postal_code || '',
+    })
     setEditingId(address.id)
     setShowForm(true)
     setError(null)
@@ -105,6 +132,7 @@ export default function AddressesPage() {
     setShowForm(false)
     setEditingId(null)
     setFormData(EMPTY_FORM)
+    setAddressValue(EMPTY_ADDRESS)
     setError(null)
   }
 
@@ -113,9 +141,10 @@ export default function AddressesPage() {
     if (!formData.first_name.trim()) return 'Ad gerekli'
     if (!formData.last_name.trim()) return 'Soyad gerekli'
     if (!formData.phone.trim()) return 'Telefon gerekli'
-    if (!formData.address_line1.trim()) return 'Adres gerekli'
-    if (!formData.city.trim()) return 'İl gerekli'
-    if (!formData.district.trim()) return 'İlçe gerekli'
+    if (!addressValue.city.trim()) return 'İl seçin'
+    if (!addressValue.district.trim()) return 'İlçe seçin'
+    if (!addressValue.address.trim()) return 'Cadde / Sokak gerekli'
+    if (!addressValue.building_no.trim()) return 'Bina no gerekli'
     return null
   }
 
@@ -136,17 +165,18 @@ export default function AddressesPage() {
         return
       }
 
+      const { line1, line2 } = composeAddressLines(addressValue)
       const addressData = {
         user_id: user.id,
         title: formData.title.trim(),
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         phone: formData.phone.trim(),
-        address_line1: formData.address_line1.trim(),
-        address_line2: formData.address_line2.trim() || null,
-        city: formData.city.trim(),
-        district: formData.district.trim(),
-        postal_code: formData.postal_code.trim() || null,
+        address_line1: line1,
+        address_line2: line2 || null,
+        city: addressValue.city.trim(),
+        district: addressValue.district.trim(),
+        postal_code: addressValue.postal_code.trim() || null,
         is_default: formData.is_default,
         address_type: formData.address_type,
       }
@@ -314,50 +344,9 @@ export default function AddressesPage() {
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Adres</label>
-              <textarea
-                className="w-full min-h-[80px] px-3 py-2 border rounded-md text-sm"
-                value={formData.address_line1}
-                onChange={(e) => handleChange('address_line1', e.target.value)}
-                placeholder="Mahalle, sokak, bina no, daire no..."
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Adres Detayı (Opsiyonel)</label>
-              <Input
-                value={formData.address_line2}
-                onChange={(e) => handleChange('address_line2', e.target.value)}
-                placeholder="Kat, daire, vb."
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm font-medium">İl</label>
-                <Input
-                  value={formData.city}
-                  onChange={(e) => handleChange('city', e.target.value)}
-                  placeholder="İstanbul"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">İlçe</label>
-                <Input
-                  value={formData.district}
-                  onChange={(e) => handleChange('district', e.target.value)}
-                  placeholder="Kadıköy"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Posta Kodu</label>
-                <Input
-                  value={formData.postal_code}
-                  onChange={(e) => handleChange('postal_code', e.target.value)}
-                  placeholder="34000"
-                />
-              </div>
+            {/* İl/ilçe listeden seçim + konumla otomatik doldurma */}
+            <div className="border rounded-lg p-3 bg-muted/30">
+              <AddressPicker value={addressValue} onChange={setAddressValue} />
             </div>
 
             <div className="flex items-center gap-4">

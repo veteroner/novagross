@@ -7,6 +7,7 @@ import { Input } from '@novagross/ui'
 import { Store, Save, Loader2, Image as ImageIcon, MapPin, Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { validateImageUpload, safeUploadPath } from '@novagross/utils'
+import { PROVINCES, findDistricts } from '@/lib/turkey-locations'
 
 export default function StoreSettingsPage() {
   const [loading, setLoading] = useState(true)
@@ -257,11 +258,26 @@ export default function StoreSettingsPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">İl</label>
-                <Input value={formData.city} onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))} placeholder="İstanbul" />
+                <select
+                  value={formData.city}
+                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value, district: '' }))}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">İl seçin…</option>
+                  {PROVINCES.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">İlçe</label>
-                <Input value={formData.district} onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))} placeholder="Kadıköy" />
+                <select
+                  value={formData.district}
+                  onChange={(e) => setFormData(prev => ({ ...prev, district: e.target.value }))}
+                  disabled={!formData.city}
+                  className="w-full border rounded-md px-3 py-2 text-sm bg-white disabled:bg-gray-100"
+                >
+                  <option value="">{formData.city ? 'İlçe seçin…' : 'Önce il seçin'}</option>
+                  {findDistricts(formData.city).map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                </select>
               </div>
             </div>
           </CardContent>

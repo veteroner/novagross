@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Button } from '@novagross/ui'
 import { Loader2, Save, Pencil, X } from 'lucide-react'
 import { updateStoreInfo } from './actions'
+import { PROVINCES, findDistricts } from '@/lib/turkey-locations'
 
 type StoreInfo = {
   store_name: string | null
@@ -85,8 +86,30 @@ export function StoreInfoEditor({
         <Field label="E-posta" type="email" value={f.email} set={(v) => setField('email', v)} disabled={isPending} />
         <Field label="Telefon" value={f.phone} set={(v) => setField('phone', v)} disabled={isPending} />
         <Field label="Adres" value={f.address} set={(v) => setField('address', v)} disabled={isPending} full />
-        <Field label="İlçe" value={f.district} set={(v) => setField('district', v)} disabled={isPending} />
-        <Field label="İl" value={f.city} set={(v) => setField('city', v)} disabled={isPending} />
+        <label className="block">
+          <span className="text-gray-600 text-xs">İl</span>
+          <select
+            value={f.city ?? ''}
+            onChange={(e) => setF((prev) => ({ ...prev, city: e.target.value, district: '' }))}
+            disabled={isPending}
+            className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white"
+          >
+            <option value="">İl seçin…</option>
+            {PROVINCES.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-gray-600 text-xs">İlçe</span>
+          <select
+            value={f.district ?? ''}
+            onChange={(e) => setField('district', e.target.value)}
+            disabled={isPending || !f.city}
+            className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white disabled:bg-gray-100"
+          >
+            <option value="">{f.city ? 'İlçe seçin…' : 'Önce il seçin'}</option>
+            {findDistricts(f.city ?? '').map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+          </select>
+        </label>
         <Field label="Posta kodu" value={f.postal_code} set={(v) => setField('postal_code', v)} disabled={isPending} />
         <Field label="Banka" value={f.bank_name} set={(v) => setField('bank_name', v)} disabled={isPending} />
         <Field label="IBAN" value={f.iban} set={(v) => setField('iban', v?.toString().toUpperCase().replace(/\s/g, ''))} disabled={isPending} mono full />

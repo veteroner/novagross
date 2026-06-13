@@ -156,7 +156,7 @@ export function Header() {
           </Link>
           {mounted && authHydrated && user && isSeller ? (
             <a
-              href={(process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.novagross.com') + '/seller/dashboard'}
+              href={process.env.NEXT_PUBLIC_SELLER_URL || 'https://seller.novagross.com'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm px-1"
@@ -260,7 +260,7 @@ export function Header() {
             </Link>
             {mounted && authHydrated && user && isSeller ? (
               <a
-                href={(process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.novagross.com') + '/seller/dashboard'}
+                href={process.env.NEXT_PUBLIC_SELLER_URL || 'https://seller.novagross.com'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block px-4 py-2 hover:bg-muted rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"

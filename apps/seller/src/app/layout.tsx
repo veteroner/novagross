@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { SessionGuard } from '@/components/session-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body className="min-h-screen bg-background font-sans antialiased">
+        <SessionGuard />
         {children}
       </body>
     </html>

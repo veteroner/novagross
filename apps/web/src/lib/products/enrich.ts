@@ -59,7 +59,7 @@ export async function enrichProducts(
         .select('product_id, rank')
         .in('product_id', productIds),
       storeIds.length > 0
-        ? supabase.from('stores').select('id, status').in('id', storeIds)
+        ? supabase.from('stores').select('id, status, ad_balance').in('id', storeIds)
         : Promise.resolve({ data: [] }),
       storeIds.length > 0
         ? (supabase as any)
@@ -79,7 +79,7 @@ export async function enrichProducts(
       // Aktif sponsorlu reklamlar (sadece bu liste için)
       (supabase as any)
         .from('ad_campaigns')
-        .select('id, product_ids, ad_type, status, is_active, starts_at, ends_at, keywords')
+        .select('id, store_id, product_ids, ad_type, status, is_active, starts_at, ends_at, keywords')
         .eq('status', 'approved')
         .eq('is_active', true)
         .in('ad_type', ['sponsored_product', 'sponsored_brand']),
@@ -91,8 +91,10 @@ export async function enrichProducts(
   }
 
   const verifiedStoreIds = new Set<string>()
+  const storesWithAdBalance = new Set<string>()
   for (const s of (storesRes.data ?? []) as any[]) {
     if (s.status === 'active') verifiedStoreIds.add(s.id)
+    if (Number(s.ad_balance ?? 0) > 0) storesWithAdBalance.add(s.id)
   }
 
   const categoryNameById = new Map<string, string>()
@@ -121,6 +123,8 @@ export async function enrichProducts(
   for (const ad of ((adsRes.data ?? []) as any[])) {
     if (ad.starts_at && new Date(ad.starts_at).getTime() > now) continue
     if (ad.ends_at && new Date(ad.ends_at).getTime() <= now) continue
+    // Reklam bakiyesi olmayan mağazanın kampanyası gösterilmez
+    if (ad.store_id && !storesWithAdBalance.has(ad.store_id)) continue
 
     // Keyword match: arama sorgusu kampanya keyword'leriyle örtüşüyorsa da sponsored say
     const adKeywords: string[] = Array.isArray(ad.keywords)

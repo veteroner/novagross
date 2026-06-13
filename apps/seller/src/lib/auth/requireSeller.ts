@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { isTwoFactorEnabled, verifyToken, TWO_FA_COOKIE } from './two-factor'
 
 export type SellerResult = {
   supabase: Awaited<ReturnType<typeof createClient>>
@@ -41,6 +43,15 @@ export async function requireSeller(redirectTo: string = '/'): Promise<SellerRes
 
   if (!store) {
     redirect('/login?error=no_store')
+  }
+
+  // 2FA zorunluluğu (kill-switch ile kontrol edilir)
+  if (isTwoFactorEnabled()) {
+    const cookieStore = await cookies()
+    const token = cookieStore.get(TWO_FA_COOKIE)?.value
+    if (!verifyToken(token, user.id)) {
+      redirect(`/login?step=2fa&redirect=${encodeURIComponent(redirectTo)}`)
+    }
   }
 
   return {

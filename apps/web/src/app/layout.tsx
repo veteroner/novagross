@@ -9,6 +9,7 @@ import { ProgressBar } from '@/components/layout/progress-bar'
 import { CookieConsent } from '@/components/cookie-consent'
 import { ToastContainer } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/accessibility/skip-to-content'
+import { SessionGuard } from '@/components/auth/session-guard'
 import { generateMetadata as genMetadata } from '@/lib/metadata'
 import { getSiteUrlObject } from '@/lib/site-url'
 
@@ -82,6 +83,7 @@ export default function RootLayout({
       <body className={`${inter.className} overflow-x-hidden`}>
         <ProgressBar />
         <SkipToContent />
+        <SessionGuard />
         <Providers>
           <div className="flex min-h-screen flex-col">
             <Header />

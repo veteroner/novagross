@@ -6,6 +6,8 @@ import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { TaxEditor } from './tax-editor'
 import { StoreInfoEditor } from './store-info-editor'
+import { SellerIncentives } from './seller-incentives'
+import { Megaphone } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +49,7 @@ export default async function SellerDetailPage({
   const { data: store } = await (supabase as any)
     .from('stores')
     .select(`
-      id, store_name, store_slug, status, created_at, commission_rate,
+      id, store_name, store_slug, status, created_at, commission_rate, ad_balance,
       company_name, tax_number, tax_office, taxpayer_type, kdv_rate,
       is_withholding_exempt, withholding_exempt_verified, withholding_exempt_verified_at,
       tradesman_certificate_url,
@@ -73,7 +75,7 @@ export default async function SellerDetailPage({
     }
   }
 
-  const [{ data: balance }, { data: receipts }, { count: productCount }] = await Promise.all([
+  const [{ data: balance }, { data: receipts }, { count: productCount }, { data: giftCoupons }] = await Promise.all([
     (supabase as any)
       .from('store_balance')
       .select('available_balance, pending_balance, total_withdrawn')
@@ -92,6 +94,12 @@ export default async function SellerDetailPage({
       .from('products')
       .select('id', { count: 'exact', head: true })
       .eq('store_id', id),
+    (supabase as any)
+      .from('seller_gift_coupons')
+      .select('id, amount, remaining_amount, type, title, status, expires_at, created_at')
+      .eq('store_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ])
 
   const receiptList = (receipts ?? []) as any[]
@@ -185,6 +193,22 @@ export default async function SellerDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Reklam bakiyesi & hediye kuponları */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Megaphone className="h-4 w-4" /> Reklam Bakiyesi & Hediye Kuponları
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SellerIncentives
+            storeId={store.id}
+            adBalance={Number(store.ad_balance ?? 0)}
+            coupons={(giftCoupons ?? []) as any}
+          />
+        </CardContent>
+      </Card>
 
       {/* Stopaj geçmişi */}
       <Card>

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     // Kampanya bilgisini al (bid_per_click, daily_budget, total_spent)
     const { data: campaign } = await supabase
       .from('ad_campaigns')
-      .select('id, bid_per_click, daily_budget, total_spent, is_active')
+      .select('id, store_id, bid_per_click, daily_budget, total_spent, is_active')
       .eq('id', campaign_id)
       .maybeSingle()
 
@@ -78,6 +78,16 @@ export async function POST(req: NextRequest) {
       }
 
       await supabase.from('ad_campaigns').update(updatePayload as any).eq('id', campaign_id)
+
+      // Reklam bakiyesinden düş (atomik) — bakiye biterse RPC kampanyaları durdurur
+      if (campaign.store_id) {
+        await (supabase as any).rpc('debit_ad_balance', {
+          p_store_id: campaign.store_id,
+          p_amount: cost,
+          p_campaign_id: campaign_id,
+          p_description: 'Tıklama ücreti',
+        })
+      }
     }
 
     return NextResponse.json({ ok: true })

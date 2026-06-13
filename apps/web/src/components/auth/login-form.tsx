@@ -15,6 +15,7 @@ export function LoginForm() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [remember, setRemember] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -36,6 +37,12 @@ export function LoginForm() {
         setError(translateAuthError(error.message))
         return
       }
+
+      // Oturum süresi politikası: beni hatırla → 2 gün, değilse 2 saat (idle)
+      try {
+        localStorage.setItem('_ng_remember', remember ? '1' : '0')
+        localStorage.setItem('_ng_last_activity', String(Date.now()))
+      } catch {}
 
       const redirectToRaw = searchParams.get('redirect')
       const redirectTo = redirectToRaw && redirectToRaw.startsWith('/') ? redirectToRaw : '/'
@@ -141,6 +148,16 @@ export function LoginForm() {
               </button>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Beni hatırla (2 gün açık kal)
+          </label>
 
           <Button type="submit" className="w-full" isLoading={isLoading}>
             Giriş Yap

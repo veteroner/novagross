@@ -20,6 +20,8 @@ import {
   Wallet,
   LogOut,
   Mail,
+  Megaphone,
+  Percent,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -78,6 +80,8 @@ const menuItems: MenuItem[] = [
   },
   { href: '/odemeler', label: 'Ödemeler', icon: Wallet },
   { href: '/kuponlar', label: 'Kuponlar', icon: Ticket },
+  { href: '/reklamlar', label: 'Reklamlar', icon: Megaphone },
+  { href: '/komisyon-kampanyalari', label: 'Komisyon Kampanyaları', icon: Percent },
   { href: '/yorumlar', label: 'Yorumlar', icon: MessageSquare, counter: 'pendingReviews' },
   { href: '/raporlar', label: 'Raporlar', icon: BarChart3 },
   { href: '/ayarlar', label: 'Ayarlar', icon: Settings },

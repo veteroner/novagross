@@ -149,6 +149,76 @@ export async function updateStoreInfo(storeId: string, input: StoreInfoInput) {
   revalidatePath(`/saticilar/${storeId}`)
 }
 
+// ============ Reklam bakiyesi & hediye kuponu ============
+
+export async function grantAdBalance(
+  storeId: string,
+  amount: number,
+  description: string
+) {
+  const { userId } = await requireAdmin('/saticilar')
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Tutar pozitif olmalı.')
+  }
+  if (amount > 100000) {
+    throw new Error('Tek seferde en fazla 100.000 ₺ tanımlanabilir.')
+  }
+
+  const supabase = createServiceRoleClient()
+  const { error } = await (supabase as any).rpc('credit_ad_balance', {
+    p_store_id: storeId,
+    p_amount: amount,
+    p_type: 'admin_grant',
+    p_description: description?.trim() || 'Admin tarafından reklam bakiyesi tanımlandı',
+    p_created_by: userId,
+  })
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/saticilar/${storeId}`)
+}
+
+export async function createGiftCoupon(
+  storeId: string,
+  input: { amount: number; type: 'commission_credit' | 'ad_credit'; title: string; expiresAt: string | null }
+) {
+  const { userId } = await requireAdmin('/saticilar')
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new Error('Tutar pozitif olmalı.')
+  }
+  if (!['commission_credit', 'ad_credit'].includes(input.type)) {
+    throw new Error('Geçersiz kupon türü.')
+  }
+
+  const supabase = createServiceRoleClient()
+
+  // ad_credit ise doğrudan reklam bakiyesine yansıt
+  if (input.type === 'ad_credit') {
+    const { error: creditErr } = await (supabase as any).rpc('credit_ad_balance', {
+      p_store_id: storeId,
+      p_amount: input.amount,
+      p_type: 'gift',
+      p_description: input.title?.trim() || 'Hediye reklam kredisi',
+      p_created_by: userId,
+    })
+    if (creditErr) throw new Error(creditErr.message)
+  }
+
+  const { error } = await (supabase as any).from('seller_gift_coupons').insert({
+    store_id: storeId,
+    amount: input.amount,
+    remaining_amount: input.type === 'ad_credit' ? 0 : input.amount, // ad_credit anında kullanıldı sayılır
+    type: input.type,
+    title: input.title?.trim() || (input.type === 'commission_credit' ? 'Komisyon hediye kuponu' : 'Reklam hediye kredisi'),
+    status: input.type === 'ad_credit' ? 'used' : 'active',
+    expires_at: input.expiresAt || null,
+    created_by: userId,
+    used_at: input.type === 'ad_credit' ? new Date().toISOString() : null,
+  })
+  if (error) throw new Error(error.message)
+
+  revalidatePath(`/saticilar/${storeId}`)
+}
+
 export async function revokeExemption(storeId: string) {
   await requireAdmin('/saticilar')
   const supabase = createServiceRoleClient()

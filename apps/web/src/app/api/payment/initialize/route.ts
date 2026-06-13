@@ -266,6 +266,28 @@ export async function POST(request: NextRequest) {
                request.headers.get('x-real-ip') || 
                '127.0.0.1'
 
+    // Komisyon indirimli kampanya opt-in'leri: ürün başına indirimli komisyon oranı
+    const discountedRateByProduct = new Map<string, number>()
+    try {
+      const nowIso = new Date().toISOString()
+      const { data: ccp } = await db
+        .from('commission_campaign_products')
+        .select('product_id, commission_campaigns!inner(discounted_commission_rate, is_active, starts_at, ends_at)')
+        .in('product_id', productIds)
+      for (const row of (ccp ?? []) as any[]) {
+        const camp = row.commission_campaigns
+        if (!camp || camp.is_active === false) continue
+        if (camp.starts_at && camp.starts_at > nowIso) continue
+        if (camp.ends_at && camp.ends_at <= nowIso) continue
+        const rate = Number(camp.discounted_commission_rate)
+        const prev = discountedRateByProduct.get(row.product_id)
+        // En düşük komisyon satıcı lehine uygulanır
+        if (prev === undefined || rate < prev) discountedRateByProduct.set(row.product_id, rate)
+      }
+    } catch (e) {
+      console.error('[payment] commission campaign lookup error:', e)
+    }
+
     // Prepare basket items for iyzico (marketplace: subMerchantKey + subMerchantPrice required)
     let firstSubMerchantKey: string | null = null
     const basketItems = items.map((item: any) => {
@@ -273,7 +295,7 @@ export async function POST(request: NextRequest) {
       const subMerchantKey = productInfo?.subMerchantKey ?? null
       if (subMerchantKey && !firstSubMerchantKey) firstSubMerchantKey = subMerchantKey
       const itemTotal = Number((item.price * item.quantity).toFixed(2))
-      const commissionRate = productInfo?.commissionRate ?? 0
+      const commissionRate = discountedRateByProduct.get(item.productId) ?? (productInfo?.commissionRate ?? 0)
       // subMerchantPrice = amount transferred to sub-merchant (after commission)
       const subMerchantPrice = Number((itemTotal * (1 - commissionRate / 100)).toFixed(2))
       return {

@@ -1,13 +1,19 @@
 import { Card, PageHeader, EmptyState, StatCard } from '@novagross/ui'
-import { Megaphone, Eye, MousePointerClick, DollarSign } from 'lucide-react'
+import { Megaphone, Eye, MousePointerClick, DollarSign, Wallet } from 'lucide-react'
 import { requireSeller } from '@/lib/auth/requireSeller'
 import { AdCampaignForm } from './ad-campaign-form'
 import { CampaignRow } from './campaign-row'
+import { AdBalancePanel } from './ad-balance-panel'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SellerAdsPage() {
+export default async function SellerAdsPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined }
+}) {
   const { supabase, storeId } = await requireSeller('/reklam')
+  const topupStatus = typeof searchParams?.topup === 'string' ? searchParams.topup : undefined
 
   const [statsRes, productsRes, categoriesRes] = await Promise.all([
     (supabase as any)
@@ -31,6 +37,24 @@ export default async function SellerAdsPage() {
     .from('ad_campaigns')
     .select('id, is_active, rejection_reason, starts_at, ends_at')
     .eq('store_id', storeId)
+
+  // Reklam bakiyesi, hediye kuponları ve son hareketler
+  const [storeRes, couponsRes, txRes] = await Promise.all([
+    (supabase as any).from('stores').select('ad_balance').eq('id', storeId).maybeSingle(),
+    (supabase as any)
+      .from('seller_gift_coupons')
+      .select('id, amount, remaining_amount, type, title, status, expires_at')
+      .eq('store_id', storeId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false }),
+    (supabase as any)
+      .from('ad_balance_transactions')
+      .select('id, amount, type, description, balance_after, created_at')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ])
+  const adBalance = Number(storeRes.data?.ad_balance ?? 0)
 
   const extraMap = new Map<string, any>(
     (campaignsExtra ?? []).map((c: any) => [c.id, c])
@@ -64,6 +88,13 @@ export default async function SellerAdsPage() {
       <PageHeader
         title="Reklam Kampanyaları"
         description="Sponsorlu ürün, marka ve kategori reklamları ile ürünlerinizi öne çıkarın. Reklamlar admin onayından geçer."
+      />
+
+      <AdBalancePanel
+        adBalance={adBalance}
+        coupons={(couponsRes.data ?? []) as any}
+        transactions={(txRes.data ?? []) as any}
+        topupStatus={topupStatus}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

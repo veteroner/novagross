@@ -3,7 +3,6 @@ import dynamic from 'next/dynamic'
 import { FeaturedProducts } from '@/components/product/featured-products'
 import { CategoryGrid } from '@/components/home/category-grid'
 import { DynamicBanner } from '@/components/home/dynamic-banner'
-import { CampaignBadges } from '@/components/home/campaign-badges'
 import { PromoGrid } from '@/components/home/promo-grid'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateOrganizationSchema, generateWebSiteSchema } from '@/lib/structured-data'
@@ -17,9 +16,6 @@ export default function HomePage() {
       <JsonLd data={generateWebSiteSchema()} />
 
       <div className="flex flex-col gap-8 pb-8">
-        {/* Kampanya rozetleri — header altı */}
-        <CampaignBadges />
-
         {/* Hero Banner */}
         <DynamicBanner />
 

@@ -4,6 +4,7 @@ import { Card, CardContent, Button } from '@novagross/ui'
 import { formatPrice, calculateDiscount } from '@novagross/utils'
 import { Heart, Star, Zap, BadgeCheck, ShoppingBag, Flame, Sparkles, Truck } from 'lucide-react'
 import { AddToCartQuickButton } from '@/components/product/add-to-cart-quick-button'
+import { AdTracker } from '@/components/product/ad-tracker'
 
 export type ProductCardData = {
   id: string
@@ -105,7 +106,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
     ? product.price * (1 - product.coupon_percent / 100)
     : null
 
-  return (
+  const card = (
     <Card className="group overflow-hidden flex flex-col">
       {/* Top coupon strip — Hepsi tarzı turuncu bant */}
       {couponLine && (
@@ -276,4 +277,14 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       </CardContent>
     </Card>
   )
+
+  if (product.is_sponsored && product.ad_campaign_id) {
+    return (
+      <AdTracker campaignId={product.ad_campaign_id} productId={product.id}>
+        {card}
+      </AdTracker>
+    )
+  }
+
+  return card
 }

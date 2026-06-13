@@ -133,7 +133,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-40 items-center justify-between">
+      <div className="container flex h-24 md:h-28 items-center justify-between">
         <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
           <Image
             src="/logo.webp"
@@ -141,7 +141,8 @@ export function Header() {
             width={640}
             height={160}
             priority
-            className="h-40 w-auto"
+            unoptimized
+            className="h-20 md:h-24 w-auto max-w-[70vw]"
           />
         </Link>
 

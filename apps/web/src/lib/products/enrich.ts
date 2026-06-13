@@ -39,7 +39,8 @@ function pickPrimaryImage(images: RawProduct['product_images']): string | null {
  */
 export async function enrichProducts(
   supabase: Supabase,
-  products: RawProduct[]
+  products: RawProduct[],
+  searchQuery?: string
 ): Promise<ProductCardData[]> {
   if (products.length === 0) return []
 
@@ -78,7 +79,7 @@ export async function enrichProducts(
       // Aktif sponsorlu reklamlar (sadece bu liste için)
       (supabase as any)
         .from('ad_campaigns')
-        .select('id, product_ids, ad_type, status, is_active, starts_at, ends_at')
+        .select('id, product_ids, ad_type, status, is_active, starts_at, ends_at, keywords')
         .eq('status', 'approved')
         .eq('is_active', true)
         .in('ad_type', ['sponsored_product', 'sponsored_brand']),
@@ -111,14 +112,33 @@ export async function enrichProducts(
     return true
   })
 
-  // Sponsorlu reklamı olan ürünleri map'le
+  // Sponsorlu reklamı olan ürünleri map'le + keyword matching
   const sponsoredByProduct = new Map<string, string>()
+  const queryTerms = searchQuery
+    ? searchQuery.toLowerCase().split(/\s+/).filter(Boolean)
+    : []
+
   for (const ad of ((adsRes.data ?? []) as any[])) {
     if (ad.starts_at && new Date(ad.starts_at).getTime() > now) continue
     if (ad.ends_at && new Date(ad.ends_at).getTime() <= now) continue
+
+    // Keyword match: arama sorgusu kampanya keyword'leriyle örtüşüyorsa da sponsored say
+    const adKeywords: string[] = Array.isArray(ad.keywords)
+      ? (ad.keywords as string[]).map((k: string) => k.toLowerCase())
+      : []
+    const keywordMatch =
+      queryTerms.length > 0 &&
+      adKeywords.length > 0 &&
+      queryTerms.some((term) => adKeywords.some((kw) => kw.includes(term) || term.includes(kw)))
+
     if (Array.isArray(ad.product_ids)) {
       for (const pid of ad.product_ids) {
-        if (productIds.includes(pid)) sponsoredByProduct.set(pid, ad.id)
+        if (productIds.includes(pid)) {
+          // Keyword match olan kampanya daha güçlü — üzerine yazma
+          if (keywordMatch || !sponsoredByProduct.has(pid)) {
+            sponsoredByProduct.set(pid, ad.id)
+          }
+        }
       }
     }
   }

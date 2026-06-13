@@ -410,6 +410,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Conversion tracking: hangi ürünler sponsorlu kampanyadan geldi?
+    try {
+      const { data: orderItems } = await db
+        .from('order_items')
+        .select('product_id, total')
+        .eq('order_id', orderId)
+
+      if (orderItems && orderItems.length > 0) {
+        const productIds = (orderItems as any[]).map((i) => i.product_id).filter(Boolean)
+        const { data: activeCampaigns } = await db
+          .from('ad_campaigns')
+          .select('id, product_ids')
+          .eq('status', 'approved')
+          .eq('is_active', true)
+          .in('ad_type', ['sponsored_product', 'sponsored_brand'])
+
+        if (activeCampaigns && activeCampaigns.length > 0) {
+          const conversionEvents: any[] = []
+          for (const item of orderItems as any[]) {
+            const campaign = (activeCampaigns as any[]).find(
+              (c) => Array.isArray(c.product_ids) && c.product_ids.includes(item.product_id)
+            )
+            if (campaign) {
+              conversionEvents.push({
+                campaign_id: campaign.id,
+                product_id: item.product_id,
+                event_type: 'conversion',
+                cost: 0,
+                metadata: { order_id: orderId, order_item_value: item.total },
+              })
+            }
+          }
+          if (conversionEvents.length > 0) {
+            await db.from('ad_events').insert(conversionEvents)
+          }
+        }
+      }
+    } catch (convErr) {
+      console.error('[Payment Callback] Conversion tracking error:', convErr)
+    }
+
     // Try to clear cart (best-effort; may fail if callback has no session)
     const { data: auth } = await supabase.auth.getUser()
     const user = auth.user

@@ -119,7 +119,13 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
   const totalCount = count ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PRODUCTS_PER_PAGE))
 
-  const cards = await enrichProducts(supabase as any, products as any)
+  const enriched = await enrichProducts(supabase as any, products as any, q || undefined)
+
+  // Sponsored ürünler listenin başına gelir (sadece ilk sayfada göster, sonrakilerde karışmasın)
+  const cards =
+    page === 1
+      ? [...enriched.filter((p) => p.is_sponsored), ...enriched.filter((p) => !p.is_sponsored)]
+      : enriched
 
   return (
     <div>

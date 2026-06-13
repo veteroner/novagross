@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         updatePayload.is_active = false
       }
 
-      await supabase.from('ad_campaigns').update(updatePayload).eq('id', campaign_id)
+      await supabase.from('ad_campaigns').update(updatePayload as any).eq('id', campaign_id)
     }
 
     return NextResponse.json({ ok: true })

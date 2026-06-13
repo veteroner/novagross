@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'iyzico API kimlik bilgileri eksik' }, { status: 500 })
   }
 
-  const service = createServiceRoleClient()
+  const service: any = createServiceRoleClient()
   const cutoff = new Date(Date.now() - AUTO_APPROVE_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: items, error } = await service

@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const supabase = createServiceRoleClient()
+  const supabase: any = createServiceRoleClient()
   const { data, error } = await supabase
     .from('campaign_badges')
     .select('id, title, icon, bg_color, link, sort_order')

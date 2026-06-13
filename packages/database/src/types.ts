@@ -14,6 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_campaigns: {
+        Row: {
+          id: string
+          store_id: string
+          name: string
+          ad_type: 'sponsored_product' | 'sponsored_brand' | 'sponsored_category'
+          product_ids: string[] | null
+          brand_keyword: string | null
+          daily_budget: number
+          bid_per_click: number
+          total_spent: number
+          keywords: string[] | null
+          category_ids: string[] | null
+          starts_at: string | null
+          ends_at: string | null
+          is_active: boolean
+          status: 'pending' | 'approved' | 'rejected' | 'paused' | 'expired'
+          rejection_reason: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          store_id: string
+          name: string
+          ad_type: 'sponsored_product' | 'sponsored_brand' | 'sponsored_category'
+          product_ids?: string[] | null
+          brand_keyword?: string | null
+          daily_budget?: number
+          bid_per_click?: number
+          total_spent?: number
+          keywords?: string[] | null
+          category_ids?: string[] | null
+          starts_at?: string | null
+          ends_at?: string | null
+          is_active?: boolean
+          status?: 'pending' | 'approved' | 'rejected' | 'paused' | 'expired'
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          store_id?: string
+          name?: string
+          ad_type?: 'sponsored_product' | 'sponsored_brand' | 'sponsored_category'
+          product_ids?: string[] | null
+          brand_keyword?: string | null
+          daily_budget?: number
+          bid_per_click?: number
+          total_spent?: number
+          keywords?: string[] | null
+          category_ids?: string[] | null
+          starts_at?: string | null
+          ends_at?: string | null
+          is_active?: boolean
+          status?: 'pending' | 'approved' | 'rejected' | 'paused' | 'expired'
+          rejection_reason?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ad_events: {
+        Row: {
+          id: string
+          campaign_id: string
+          product_id: string | null
+          event_type: 'impression' | 'click' | 'conversion'
+          cost: number
+          user_id: string | null
+          session_id: string | null
+          metadata: Record<string, unknown> | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          product_id?: string | null
+          event_type: 'impression' | 'click' | 'conversion'
+          cost?: number
+          user_id?: string | null
+          session_id?: string | null
+          metadata?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          product_id?: string | null
+          event_type?: 'impression' | 'click' | 'conversion'
+          cost?: number
+          user_id?: string | null
+          session_id?: string | null
+          metadata?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       addresses: {
         Row: {
           address_line1: string

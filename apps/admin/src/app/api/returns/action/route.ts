@@ -2,8 +2,117 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { queueEmail } from '@/lib/email/queue'
+import { cargoService } from '@novagross/cargo'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const RETURN_CARRIER = 'mng' as const
+
+/**
+ * İade kargosu oluştur: müşteri ürünü mağazaya geri gönderir.
+ * Gönderici = müşteri (sipariş teslimat adresi), Alıcı = mağaza.
+ * Best-effort: hata olursa return_shipment_error'a yazılır, talep akışı bozulmaz.
+ */
+async function generateReturnShipment(service: any, requestId: string): Promise<void> {
+  try {
+    const { data: req } = await service
+      .from('return_requests')
+      .select('id, return_tracking_number, store_id, order_id, quantity, order_items(name)')
+      .eq('id', requestId)
+      .maybeSingle()
+
+    if (!req || req.return_tracking_number) return // zaten üretilmiş
+
+    const { data: order } = await service
+      .from('orders')
+      .select('order_number, email, shipping_address')
+      .eq('id', req.order_id)
+      .maybeSingle()
+
+    const { data: store } = await service
+      .from('stores')
+      .select('store_name, address, city, district, phone')
+      .eq('id', req.store_id)
+      .maybeSingle()
+
+    const ship = (order?.shipping_address as any) || {}
+
+    if (!store?.address || !store?.city) {
+      await service
+        .from('return_requests')
+        .update({ return_shipment_error: 'Mağaza adresi eksik, iade kargosu oluşturulamadı' })
+        .eq('id', requestId)
+      return
+    }
+
+    const mngReady = Boolean(process.env.MNG_CLIENT_ID && process.env.MNG_CLIENT_SECRET)
+    if (!mngReady) {
+      await service
+        .from('return_requests')
+        .update({ return_shipment_error: 'MNG API kimlik bilgileri yok' })
+        .eq('id', requestId)
+      return
+    }
+
+    const result = await cargoService.createShipment(RETURN_CARRIER, {
+      // Gönderici = müşteri
+      senderName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
+      senderAddress: ship.address_line1 || '',
+      senderCity: ship.city || '',
+      senderDistrict: ship.district || '',
+      senderPhone: ship.phone || '',
+      // Alıcı = mağaza
+      receiverName: store.store_name,
+      receiverAddress: store.address,
+      receiverCity: store.city,
+      receiverDistrict: store.district || '',
+      receiverPhone: store.phone || '',
+      receiverEmail: '',
+
+      weight: 1,
+      pieceCount: req.quantity || 1,
+      paymentType: 'RECEIVER', // iade kargo bedeli mağazaya
+      serviceType: 'STANDARD',
+      description: `İADE - Sipariş #${order?.order_number || ''} - ${req.order_items?.name || ''}`,
+      invoiceNumber: `IADE-${req.id.slice(0, 8)}`,
+    })
+
+    if (result.success && result.trackingNumber) {
+      let barcode: string | null = null
+      const bc = await cargoService.getBarcode(RETURN_CARRIER, result.trackingNumber)
+      if (bc.success && bc.barcodeBase64) barcode = bc.barcodeBase64
+
+      await service
+        .from('return_requests')
+        .update({
+          return_carrier_code: RETURN_CARRIER,
+          return_tracking_number: result.trackingNumber,
+          return_tracking_url: `https://www.mngkargo.com.tr/gonderi-takip?code=${result.trackingNumber}`,
+          return_label_url: result.labelUrl || null,
+          return_barcode_data: barcode,
+          return_shipment_created_at: new Date().toISOString(),
+          return_shipment_error: null,
+        })
+        .eq('id', requestId)
+    } else {
+      await service
+        .from('return_requests')
+        .update({ return_shipment_error: result.error || 'İade kargosu oluşturulamadı' })
+        .eq('id', requestId)
+    }
+  } catch (e: any) {
+    console.error('[return shipment] error', e)
+    try {
+      await service
+        .from('return_requests')
+        .update({ return_shipment_error: e?.message || 'Beklenmeyen hata' })
+        .eq('id', requestId)
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,6 +154,12 @@ export async function POST(req: NextRequest) {
       })
       if (error) throw new Error(error.message)
       result = data
+      // Onaylandı → müşterinin ürünü geri gönderebilmesi için iade kargosu üret (best-effort)
+      await generateReturnShipment(service, requestId)
+    } else if (action === 'create_return_label') {
+      // İade kargosu üretimini manuel tekrar dene
+      await generateReturnShipment(service, requestId)
+      result = { regenerated: true }
     } else if (action === 'reject') {
       if (!rejectionReason || rejectionReason.length < 5) {
         return NextResponse.json(

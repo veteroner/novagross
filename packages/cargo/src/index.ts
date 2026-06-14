@@ -5,6 +5,7 @@
 
 import { yurticiKargo, type YurticiShipmentRequest, type YurticiShipmentResponse } from './yurtici'
 import { arasKargo, type ArasShipmentRequest, type ArasShipmentResponse } from './aras'
+import { mngKargo, type MngShipmentRequest, type MngShipmentResponse } from './mng'
 
 export type CargoProvider = 'yurtici' | 'aras' | 'mng' | 'ptt' | 'surat'
 
@@ -83,9 +84,10 @@ export class CargoService {
           return await this.createArasShipment(data)
         
         case 'mng':
+          return await this.createMngShipment(data)
+
         case 'ptt':
         case 'surat':
-          // TODO: Implement when APIs are available
           return {
             success: false,
             provider,
@@ -113,6 +115,26 @@ export class CargoService {
   }
   
   /**
+   * Get printable barcode/label for a shipment (base64).
+   * Yalnızca destekleyen sağlayıcılar (MNG) için döner.
+   */
+  async getBarcode(
+    provider: CargoProvider,
+    trackingNumber: string
+  ): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
+    try {
+      switch (provider) {
+        case 'mng':
+          return await mngKargo.getBarcode(trackingNumber)
+        default:
+          return { success: false, error: `${provider.toUpperCase()} barkod entegrasyonu yok` }
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Barkod alınamadı' }
+    }
+  }
+
+  /**
    * Track shipment
    */
   async trackShipment(
@@ -137,7 +159,11 @@ export class CargoService {
           }
         }
         
-        case 'mng':
+        case 'mng': {
+          const result = await mngKargo.trackShipment(trackingNumber)
+          return { ...result, provider: 'mng' }
+        }
+
         case 'ptt':
         case 'surat':
           return {
@@ -186,8 +212,10 @@ export class CargoService {
         
         case 'aras':
           return await arasKargo.cancelShipment(trackingNumber)
-        
+
         case 'mng':
+          return await mngKargo.cancelShipment(trackingNumber)
+
         case 'ptt':
         case 'surat':
           return {
@@ -243,10 +271,7 @@ export class CargoService {
         case 'mng':
         case 'ptt':
         case 'surat':
-          return {
-            success: false,
-            error: `${provider.toUpperCase()} fiyat hesaplama entegrasyonu henüz aktif değil`,
-          }
+          return { success: false, error: `${provider.toUpperCase()} fiyat hesaplama entegrasyonu henüz aktif değil` }
         
         default:
           return {
@@ -282,6 +307,31 @@ export class CargoService {
     }
   }
   
+  private async createMngShipment(data: UnifiedShipmentRequest): Promise<UnifiedShipmentResponse> {
+    const request: MngShipmentRequest = {
+      senderName: data.senderName,
+      senderAddress: data.senderAddress,
+      senderCity: data.senderCity,
+      senderDistrict: data.senderDistrict,
+      senderPhone: data.senderPhone,
+      receiverName: data.receiverName,
+      receiverAddress: data.receiverAddress,
+      receiverCity: data.receiverCity,
+      receiverDistrict: data.receiverDistrict,
+      receiverPhone: data.receiverPhone,
+      receiverEmail: data.receiverEmail,
+      weight: data.weight,
+      pieceCount: data.pieceCount || 1,
+      paymentType: data.paymentType,
+      serviceType: data.serviceType,
+      description: data.description,
+      invoiceNumber: data.invoiceNumber,
+      invoiceValue: data.invoiceValue,
+    }
+    const result = await mngKargo.createShipment(request)
+    return { ...result, provider: 'mng' }
+  }
+
   private async createArasShipment(
     data: UnifiedShipmentRequest
   ): Promise<UnifiedShipmentResponse> {
@@ -309,4 +359,6 @@ export type {
   YurticiShipmentResponse,
   ArasShipmentRequest,
   ArasShipmentResponse,
+  MngShipmentRequest,
+  MngShipmentResponse,
 }

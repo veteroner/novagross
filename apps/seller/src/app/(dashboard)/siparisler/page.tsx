@@ -59,7 +59,7 @@ export default function SellerOrders() {
       if (orderIds.length > 0) {
         const { data: shipments } = await supabase
           .from('order_shipments')
-          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,carrier_id,method_id')
+          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,provider_code,carrier_id,method_id')
           .in('order_id', orderIds)
 
         const next: Record<string, any> = {}
@@ -107,6 +107,11 @@ export default function SellerOrders() {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Kargo oluşturulamadı')
 
+      // Gerçek kargo API'si hata verip mock'a düştüyse satıcıyı bilgilendir
+      if (data?.cargoApiResult?.error) {
+        alert(`Uyarı: ${data.cargoApiResult.error}\nGönderi geçici takip numarasıyla oluşturuldu.`)
+      }
+
       setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
       setShippingFormOpenForOrderId(null)
       await fetchOrders()
@@ -115,6 +120,34 @@ export default function SellerOrders() {
     } finally {
       setShippingSubmittingForOrderId(null)
     }
+  }
+
+  const printBarcode = (orderId: string) => {
+    const shipment = shipmentsByOrderId[orderId]
+    if (!shipment) return
+    // Önce gerçek barkod (base64), yoksa etiket PDF'i
+    const barcode = shipment.barcode_data as string | undefined
+    const labelUrl = shipment.shipping_label_url as string | undefined
+    const tn = shipment.tracking_number || ''
+
+    if (labelUrl && /^https?:\/\//.test(labelUrl) && !labelUrl.includes('example.com')) {
+      window.open(labelUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (!barcode) {
+      alert('Bu gönderi için yazdırılabilir barkod bulunmuyor.')
+      return
+    }
+    const isPdf = barcode.startsWith('JVBER') // base64 PDF imzası
+    const src = isPdf ? `data:application/pdf;base64,${barcode}` : `data:image/png;base64,${barcode}`
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(
+      isPdf
+        ? `<iframe src="${src}" style="width:100%;height:100vh;border:0" onload="this.contentWindow.print()"></iframe>`
+        : `<body style="text-align:center;font-family:sans-serif"><h3>Takip No: ${tn}</h3><img src="${src}" style="max-width:100%" onload="window.print()"/></body>`
+    )
+    w.document.close()
   }
 
   const markDelivered = async (orderId: string) => {
@@ -282,9 +315,17 @@ export default function SellerOrders() {
                         ) : null
                       })()}
                       {(() => {
-                        const lu = safeExternalUrl(shipmentsByOrderId[orderItem.order.id].shipping_label_url)
-                        return lu ? (
-                          <div><a className="text-blue-600 underline" href={lu} target="_blank" rel="noreferrer">Etiket (PDF)</a></div>
+                        const s = shipmentsByOrderId[orderItem.order.id]
+                        const hasBarcode = Boolean(s.barcode_data)
+                        const lu = safeExternalUrl(s.shipping_label_url)
+                        const hasRealLabel = lu && !String(s.shipping_label_url).includes('example.com')
+                        return hasBarcode || hasRealLabel ? (
+                          <button
+                            onClick={() => printBarcode(orderItem.order.id)}
+                            className="mt-1 inline-flex items-center gap-1 text-blue-600 underline"
+                          >
+                            🖨️ Kargo Barkodu Yazdır
+                          </button>
                         ) : null
                       })()}
                     </div>

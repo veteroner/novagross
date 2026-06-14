@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { notFound } from 'next/navigation'
 import { ReturnActions } from './ReturnActions'
+import { ReturnShipmentInfo } from './ReturnShipmentInfo'
 
 export const dynamic = 'force-dynamic'
 
@@ -270,6 +271,16 @@ export default async function ReturnDetailPage({ params }: { params: { id: strin
             ) : null}
           </CardContent>
         </Card>
+      ) : null}
+
+      {r.status === 'approved' || r.status === 'refunded' ? (
+        <ReturnShipmentInfo
+          requestId={r.id}
+          carrierCode={r.return_carrier_code}
+          trackingNumber={r.return_tracking_number}
+          trackingUrl={r.return_tracking_url}
+          error={r.return_shipment_error}
+        />
       ) : null}
 
       {r.status === 'rejected' ? (

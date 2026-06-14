@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '@novagross/ui'
 import { formatDate, formatPrice } from '@novagross/utils'
 import { createClient } from '@/lib/supabase/server'
+import { ReturnLabelButton } from './ReturnLabelButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,11 @@ export default async function MyReturnsPage({
       created_at,
       reviewed_at,
       refunded_at,
+      return_carrier_code,
+      return_tracking_number,
+      return_tracking_url,
+      return_label_url,
+      return_barcode_data,
       orders (
         order_number
       ),
@@ -125,6 +131,27 @@ export default async function MyReturnsPage({
                       <p className="text-green-700">
                         <strong>İade tarihi:</strong> {formatDate(r.refunded_at)}
                       </p>
+                    ) : null}
+
+                    {/* İade kargosu — onaylandıysa müşteri ürünü bu barkodla geri gönderir */}
+                    {(r.status === 'approved' || r.status === 'refunded') &&
+                    r.return_tracking_number ? (
+                      <div className="mt-2 rounded border border-orange-200 bg-orange-50 p-3">
+                        <p className="font-medium text-orange-800">📦 İade Kargo Bilgisi</p>
+                        <p className="text-xs text-orange-700 mt-1">
+                          Ürünü aşağıdaki barkodla en yakın{' '}
+                          {(r.return_carrier_code || 'MNG').toUpperCase()} şubesine teslim edin.
+                        </p>
+                        <p className="text-sm mt-1">
+                          Takip No:{' '}
+                          <span className="font-mono">{r.return_tracking_number}</span>
+                        </p>
+                        <ReturnLabelButton
+                          trackingNumber={r.return_tracking_number}
+                          barcodeData={r.return_barcode_data}
+                          labelUrl={r.return_label_url}
+                        />
+                      </div>
                     ) : null}
                   </div>
                 </CardContent>

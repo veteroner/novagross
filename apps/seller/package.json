@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@novagross/cargo": "workspace:*",
     "@novagross/database": "workspace:*",
     "@novagross/ui": "workspace:*",
     "@novagross/utils": "workspace:*",

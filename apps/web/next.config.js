@@ -23,7 +23,7 @@ const nextConfig = {
     instrumentationHook: true,
   },
   staticPageGenerationTimeout: 180, // 3 dakika (varsayılan 60 saniye)
-  transpilePackages: ['@novagross/ui', '@novagross/utils', '@novagross/database'],
+  transpilePackages: ['@novagross/ui', '@novagross/utils', '@novagross/database', '@novagross/cargo'],
   
   // Webpack Optimizations
   webpack: (config, { isServer }) => {

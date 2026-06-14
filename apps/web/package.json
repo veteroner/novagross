@@ -12,6 +12,7 @@
     "check:contrast": "node scripts/check-color-contrast.ts"
   },
   "dependencies": {
+    "@novagross/cargo": "workspace:*",
     "@novagross/database": "workspace:*",
     "@novagross/ui": "workspace:*",
     "@novagross/utils": "workspace:*",

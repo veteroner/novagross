@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { cargoService, type CargoProvider } from '@novagross/cargo'
+
+export const runtime = 'nodejs'
 
 type ShipmentStatus =
   | 'pending'
@@ -10,6 +13,8 @@ type ShipmentStatus =
   | 'delivered'
   | 'failed'
   | 'returned'
+
+const REAL_PROVIDERS: CargoProvider[] = ['mng', 'aras', 'yurtici']
 
 function generateMockTrackingNumber(orderNumber?: string) {
   const base = (orderNumber || 'NS').replace(/[^A-Z0-9]/gi, '').slice(-6)
@@ -22,7 +27,15 @@ function buildTrackingUrl(template: string | null | undefined, trackingNumber: s
   return template.replace('{tracking_number}', encodeURIComponent(trackingNumber))
 }
 
-async function assertSellerOwnsOrder(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, orderId: string) {
+function mngConfigured() {
+  return Boolean(process.env.MNG_CLIENT_ID && process.env.MNG_CLIENT_SECRET)
+}
+
+async function assertSellerOwnsOrder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  orderId: string
+) {
   const { data: store, error: storeError } = await supabase
     .from('stores')
     .select('id')
@@ -50,7 +63,6 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     const {
       carrierId,
       methodId,
-      provider = 'mock',
       weight = 1,
       pieceCount = 1,
       createLabel = true,
@@ -63,7 +75,6 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
 
     const { data: auth } = await supabase.auth.getUser()
     const user = auth.user
-
     if (!user) {
       return NextResponse.json({ error: 'Giriş yapmanız gerekiyor' }, { status: 401 })
     }
@@ -76,7 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_number, subtotal, shipping_cost, status')
+      .select('id, order_number, subtotal, shipping_cost, status, email, shipping_address')
       .eq('id', orderId)
       .single()
 
@@ -94,19 +105,84 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       return NextResponse.json({ error: 'Bu sipariş zaten kargoya verilmiş' }, { status: 400 })
     }
 
+    // Kargo firması kodu (mng/aras/yurtici) — gerçek API çağrısı için gerekli
     const { data: carrier } = await supabase
       .from('shipping_carriers')
-      .select('tracking_url_template')
+      .select('code, tracking_url_template')
       .eq('id', carrierId)
       .maybeSingle()
 
+    const carrierCode = (carrier?.code || '').toLowerCase() as CargoProvider
+
     let trackingNumber: string | null = null
     let labelUrl: string | null = null
+    let barcodeData: string | null = null
+    let providerCode = 'mock'
+    let cargoError: string | null = null
 
     if (createLabel) {
-      const tn = manualTrackingNumber || generateMockTrackingNumber(order.order_number)
-      trackingNumber = tn
-      labelUrl = `https://example.com/mock-labels/${encodeURIComponent(tn)}.pdf`
+      const useRealApi =
+        REAL_PROVIDERS.includes(carrierCode) && (carrierCode !== 'mng' || mngConfigured())
+
+      if (useRealApi && !manualTrackingNumber) {
+        // Gönderici = mağaza adresi
+        const { data: store } = await supabase
+          .from('stores')
+          .select('store_name, address, city, district, phone')
+          .eq('id', ownership.storeId!)
+          .maybeSingle()
+
+        const ship = (order.shipping_address as any) || {}
+
+        if (!store?.address || !store?.city) {
+          cargoError = 'Mağaza adresi eksik. Ayarlar > Mağaza Bilgileri’nden adres girin.'
+        } else if (!ship.address_line1 || !ship.city) {
+          cargoError = 'Sipariş teslimat adresi eksik.'
+        } else {
+          const result = await cargoService.createShipment(carrierCode, {
+            senderName: store.store_name,
+            senderAddress: store.address,
+            senderCity: store.city,
+            senderDistrict: store.district || '',
+            senderPhone: store.phone || '',
+
+            receiverName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
+            receiverAddress: ship.address_line1,
+            receiverCity: ship.city,
+            receiverDistrict: ship.district || '',
+            receiverPhone: ship.phone || '',
+            receiverEmail: order.email || ship.email || '',
+
+            weight: Number(weight || 1),
+            pieceCount: Number(pieceCount || 1),
+            paymentType: 'SENDER',
+            serviceType: 'STANDARD',
+
+            description: `Novagross Sipariş #${order.order_number}`,
+            invoiceNumber: order.order_number,
+            invoiceValue: Number(order.subtotal || 0),
+          })
+
+          if (result.success && result.trackingNumber) {
+            trackingNumber = result.trackingNumber
+            labelUrl = result.labelUrl || null
+            providerCode = carrierCode
+            // Yazdırılabilir barkod (MNG)
+            const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
+            if (bc.success && bc.barcodeBase64) barcodeData = bc.barcodeBase64
+          } else {
+            cargoError = result.error || 'Kargo firması gönderi oluşturamadı'
+          }
+        }
+      }
+
+      // Gerçek API kullanılmadıysa / başarısızsa: manuel takip no veya mock üret
+      if (!trackingNumber) {
+        trackingNumber = manualTrackingNumber || generateMockTrackingNumber(order.order_number)
+        if (providerCode === 'mock' && !manualTrackingNumber) {
+          labelUrl = null
+        }
+      }
     }
 
     const trackingUrl = trackingNumber
@@ -123,7 +199,9 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         p_region: 'all',
       })
       if (data !== null && data !== undefined) shippingCost = Number(data)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const status: ShipmentStatus = trackingNumber ? 'shipped' : 'preparing'
 
@@ -137,6 +215,8 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       package_weight: Number(weight || 1),
       shipping_cost: shippingCost,
       shipping_label_url: labelUrl,
+      barcode_data: barcodeData,
+      provider_code: providerCode,
       shipped_at: trackingNumber ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     }
@@ -145,7 +225,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     if (existingShipment?.id) {
       const { data, error } = await supabase
         .from('order_shipments')
-        .update(shipmentData)
+        .update(shipmentData as any)
         .eq('id', existingShipment.id)
         .select()
         .single()
@@ -154,7 +234,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     } else {
       const { data, error } = await supabase
         .from('order_shipments')
-        .insert(shipmentData)
+        .insert(shipmentData as any)
         .select()
         .single()
       if (error) throw error
@@ -166,10 +246,15 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         shipment_id: shipment.id,
         status,
         location: 'Sistem',
-        description: provider === 'mock' ? 'Mock kargo kaydı oluşturuldu' : 'Kargo kaydı oluşturuldu',
+        description:
+          providerCode === 'mock'
+            ? 'Kargo kaydı oluşturuldu (manuel/mock)'
+            : `${carrierCode.toUpperCase()} gönderisi oluşturuldu`,
         timestamp: new Date().toISOString(),
       })
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     await supabase
       .from('orders')
@@ -180,7 +265,11 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       })
       .eq('id', orderId)
 
-    return NextResponse.json({ success: true, shipment, cargoApiResult: { trackingNumber, labelUrl } })
+    return NextResponse.json({
+      success: true,
+      shipment,
+      cargoApiResult: { trackingNumber, labelUrl, barcode: Boolean(barcodeData), providerCode, error: cargoError },
+    })
   } catch (error: any) {
     console.error('Create shipment error:', error)
     return NextResponse.json({ error: error.message || 'Kargo bilgisi kaydedilemedi' }, { status: 500 })
@@ -268,7 +357,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
         description,
         timestamp: new Date().toISOString(),
       })
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const orderStatus = nextStatus === 'delivered' ? 'delivered' : nextStatus === 'shipped' ? 'shipped' : null
     if (orderStatus) {

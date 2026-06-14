@@ -1,4 +1,5 @@
 import TopNav from '@/components/layout/top-nav'
+import { SellerSupportWidget } from '@/components/support/chat-widget'
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
       <main className="flex-1">
         <div className="max-w-screen-2xl mx-auto px-6 py-8">{children}</div>
       </main>
+      <SellerSupportWidget />
     </div>
   )
 }

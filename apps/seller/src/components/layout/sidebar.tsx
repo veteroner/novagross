@@ -18,6 +18,7 @@ import {
   X,
   Megaphone,
   Percent,
+  Headphones,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -30,6 +31,7 @@ const menuItems = [
   { href: '/komisyon-kampanyalari', label: 'Komisyon Kampanyaları', icon: Percent },
   { href: '/kazanclarim', label: 'Kazançlarım', icon: Wallet },
   { href: '/mesajlar', label: 'Mesajlar', icon: MessageSquare },
+  { href: '/destek', label: 'Destek', icon: Headphones },
   { href: '/magaza', label: 'Mağaza Ayarları', icon: Store },
   { href: '/profil', label: 'Profil', icon: User },
   { href: '/ayarlar', label: 'Ayarlar', icon: Settings },

@@ -10,6 +10,7 @@ import { CookieConsent } from '@/components/cookie-consent'
 import { ToastContainer } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/accessibility/skip-to-content'
 import { SessionGuard } from '@/components/auth/session-guard'
+import { SupportChatWidget } from '@/components/support/chat-widget'
 import { generateMetadata as genMetadata } from '@/lib/metadata'
 import { getSiteUrlObject } from '@/lib/site-url'
 
@@ -100,6 +101,7 @@ export default function RootLayout({
           <WebVitalsReporter />
           <WebVitals />
           <PageViewTracker />
+          <SupportChatWidget />
           <PWAInstallPrompt />
           <PushNotificationPrompt />
           <PWAInstaller />

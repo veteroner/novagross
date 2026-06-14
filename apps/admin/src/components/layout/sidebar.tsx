@@ -22,6 +22,7 @@ import {
   Mail,
   Megaphone,
   Percent,
+  Headphones,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -65,6 +66,7 @@ const menuItems: MenuItem[] = [
     icon: MessageSquare,
     counter: 'newMessages',
   },
+  { href: '/destek-talepleri', label: 'Destek Talepleri', icon: Headphones },
   { href: '/saticilar', label: 'Satıcılar', icon: Store },
   {
     href: '/saticilar/basvurular',

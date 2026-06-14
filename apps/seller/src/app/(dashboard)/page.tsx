@@ -74,6 +74,7 @@ export default function SellerDashboard() {
           order:orders!inner(
             id,
             status,
+            payment_status,
             created_at,
             user:profiles(first_name, last_name, email)
           ),
@@ -83,6 +84,8 @@ export default function SellerDashboard() {
           )
         `)
         .eq('product.store_id', store.id)
+        // Yalnızca ödenmiş siparişler istatistiklere/ciroya dahil
+        .eq('order.payment_status', 'paid')
         .order('created_at', { ascending: false })
 
       const totalOrders = orders?.length || 0

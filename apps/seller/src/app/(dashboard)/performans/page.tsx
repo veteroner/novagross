@@ -65,8 +65,9 @@ export default async function SellerPerformancePage() {
   ] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id, created_at, order_id, total')
+      .select('id, created_at, order_id, total, order:orders!inner(payment_status)')
       .eq('store_id', storeId)
+      .eq('order.payment_status', 'paid')
       .gte('created_at', last30),
     supabase
       .from('orders')

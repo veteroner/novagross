@@ -40,9 +40,11 @@ export default function SellerOrders() {
         .from('order_items')
         .select(`
           id, quantity, price, name, total,
-          order:orders!inner(id, order_number, status, created_at, total, email, phone, shipping_address)
+          order:orders!inner(id, order_number, status, payment_status, created_at, total, email, phone, shipping_address)
         `)
         .eq('store_id', store.id)
+        // Yalnızca ödemesi tamamlanmış siparişler satıcıya düşer
+        .eq('order.payment_status', 'paid')
         .order('created_at', { ascending: false })
 
       setOrders(orderItems || [])

@@ -33,9 +33,11 @@ export default async function SellerReportsPage() {
     .from('order_items')
     .select(
       `product_id, quantity, total,
-       product:product_id ( id, name, slug )`
+       product:product_id ( id, name, slug ),
+       order:orders!inner(payment_status)`
     )
     .eq('store_id', storeId)
+    .eq('order.payment_status', 'paid')
     .gte('created_at', last30)
 
   const productAggMap = new Map<

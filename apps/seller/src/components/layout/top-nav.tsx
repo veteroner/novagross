@@ -228,8 +228,9 @@ async function fetchCounters(
       : Promise.resolve({ count: 0 } as any),
     supabase
       .from('order_items')
-      .select('id', { count: 'exact', head: true })
-      .eq('store_id', storeId),
+      .select('id, order:orders!inner(id)', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .eq('order.payment_status', 'paid'),
     (supabase as any)
       .from('seller_cart_suggestions')
       .select('product_id', { count: 'exact', head: true })

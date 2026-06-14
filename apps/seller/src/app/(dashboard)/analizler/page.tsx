@@ -50,9 +50,10 @@ export default function SellerAnalytics() {
         .select(`
           id, quantity, price, created_at,
           product:products!inner(id, name, store_id),
-          order:orders!inner(id, status, created_at)
+          order:orders!inner(id, status, payment_status, created_at)
         `)
         .eq('product.store_id', store.id)
+        .eq('order.payment_status', 'paid')
 
       if (!orderItems || orderItems.length === 0) {
         setLoading(false)

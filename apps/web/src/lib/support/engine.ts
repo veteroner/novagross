@@ -139,7 +139,7 @@ export async function runSupportEngine(
       parsed = JSON.parse(text)
     } catch {
       // JSON parse edilemezse düz metni reply olarak kullan
-      return { ...fallback(text || 'Talebinizi aldım.'), escalate: false }
+      return { ...conversationalFallback(messages, ctx), reply: text || 'Talebinizi aldım.', escalate: false }
     }
 
     return {

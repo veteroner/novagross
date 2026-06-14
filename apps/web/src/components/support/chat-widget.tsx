@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, X, Send, Loader2, Headphones } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 
@@ -20,15 +21,27 @@ export function SupportChatWidget() {
   const [ticketId, setTicketId] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [orderNumber, setOrderNumber] = useState('')
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Oturum durumunu kontrol et
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user)
+    })
+  }, [])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, loading])
 
+  const emailMissing = isLoggedIn === false && !email.trim()
+  const canSend = !loading && input.trim() && !emailMissing
+
   const send = async () => {
     const text = input.trim()
-    if (!text || loading) return
+    if (!text || loading || emailMissing) return
     const next = [...messages, { role: 'user' as const, content: text }]
     setMessages(next)
     setInput('')
@@ -73,6 +86,7 @@ export function SupportChatWidget() {
       {/* Panel */}
       {open && (
         <div className="fixed bottom-5 right-5 z-[60] w-[92vw] max-w-sm h-[70vh] max-h-[560px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border">
+          {/* Başlık */}
           <div className="flex items-center justify-between px-4 py-3 text-white" style={{ backgroundColor: '#FF6000' }}>
             <div className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5" />
@@ -84,22 +98,47 @@ export function SupportChatWidget() {
             <button onClick={() => setOpen(false)} aria-label="Kapat"><X className="h-5 w-5" /></button>
           </div>
 
-          {/* Opsiyonel iletişim alanları */}
-          <div className="px-3 py-2 border-b bg-gray-50 grid grid-cols-2 gap-2">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="E-posta (opsiyonel)"
-              className="text-xs border rounded px-2 py-1.5"
-            />
-            <input
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="Sipariş no (varsa)"
-              className="text-xs border rounded px-2 py-1.5"
-            />
-          </div>
+          {/* İletişim bilgileri — üye değilse e-posta zorunlu */}
+          {isLoggedIn === false && (
+            <div className="px-3 py-2 border-b bg-orange-50 space-y-1.5">
+              <p className="text-[11px] text-orange-700 font-medium">
+                Size dönüş yapabilmemiz için e-posta adresinizi girin.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="E-posta *"
+                    type="email"
+                    className={`w-full text-xs border rounded px-2 py-1.5 ${
+                      emailMissing ? 'border-orange-400 bg-orange-50' : 'border-gray-300'
+                    }`}
+                  />
+                </div>
+                <input
+                  value={orderNumber}
+                  onChange={(e) => setOrderNumber(e.target.value)}
+                  placeholder="Sipariş no (varsa)"
+                  className="text-xs border rounded px-2 py-1.5 border-gray-300"
+                />
+              </div>
+            </div>
+          )}
 
+          {/* Üye girişi yapılmışsa sipariş no alanı göster */}
+          {isLoggedIn === true && (
+            <div className="px-3 py-2 border-b bg-gray-50">
+              <input
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                placeholder="Sipariş numaranız varsa buraya yazın"
+                className="w-full text-xs border rounded px-2 py-1.5 border-gray-300"
+              />
+            </div>
+          )}
+
+          {/* Mesajlar */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -121,6 +160,7 @@ export function SupportChatWidget() {
             )}
           </div>
 
+          {/* Mesaj yazma */}
           <div className="p-2 border-t flex items-end gap-2">
             <textarea
               value={input}
@@ -132,13 +172,14 @@ export function SupportChatWidget() {
                 }
               }}
               rows={1}
-              placeholder="Mesajınızı yazın…"
-              className="flex-1 resize-none border rounded-lg px-3 py-2 text-sm max-h-24"
+              placeholder={emailMissing ? 'Önce e-posta adresinizi girin…' : 'Mesajınızı yazın…'}
+              disabled={emailMissing}
+              className="flex-1 resize-none border rounded-lg px-3 py-2 text-sm max-h-24 disabled:bg-gray-100 disabled:text-gray-400"
             />
             <button
               onClick={send}
-              disabled={loading || !input.trim()}
-              className="rounded-lg p-2 text-white disabled:opacity-50"
+              disabled={!canSend}
+              className="rounded-lg p-2 text-white disabled:opacity-40"
               style={{ backgroundColor: '#FF6000' }}
               aria-label="Gönder"
             >

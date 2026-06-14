@@ -71,6 +71,8 @@ export default function OrdersPage() {
       const { data } = await supabase
         .from('orders')
         .select('id, order_number, status, payment_status, total, created_at, email')
+        // Yalnızca ödemesi tamamlanmış gerçek siparişler listelenir
+        .eq('payment_status', 'paid')
         .order('created_at', { ascending: false })
         .limit(500)
       if (cancelled) return

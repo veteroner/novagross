@@ -1,8 +1,15 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { MapPin, Navigation, Loader2, X } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { MapPin, Navigation, Loader2, X, Map as MapIcon } from 'lucide-react'
 import { PROVINCES, findDistricts } from '@/lib/turkey-locations'
+
+// Leaflet yalnızca tarayıcıda — SSR kapalı
+const MapPicker = dynamic(
+  () => import('./map-picker').then((m) => m.MapPicker),
+  { ssr: false, loading: () => <div className="w-full h-64 rounded-md border bg-gray-50 flex items-center justify-center text-sm text-gray-400">Harita yükleniyor…</div> }
+)
 
 export type AddressValue = {
   city: string         // İl
@@ -39,7 +46,46 @@ export function AddressPicker({ value, onChange, disabled }: Props) {
   const [geoError, setGeoError] = useState<string | null>(null)
   const districts = useMemo(() => findDistricts(value.city), [value.city])
 
+  const [showMap, setShowMap] = useState(false)
+
   const set = (k: keyof AddressValue, v: any) => onChange({ ...value, [k]: v })
+
+  // Koordinattan adresi çöz ve alanları doldur (hem "konumumu kullan" hem harita iğnesi)
+  const applyReverseGeocode = (latitude: number, longitude: number) => {
+    startGeoTransition(async () => {
+      try {
+        const res = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=tr`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) throw new Error('reverse geocode hata')
+        const j = await res.json()
+        const city = String(j.principalSubdivision || '').trim()
+        const district = String(j.locality || j.city || '').trim()
+        const neighborhood = String(
+          j.localityInfo?.administrative?.find?.((a: any) => a.adminLevel === 6)?.name || ''
+        ).trim()
+        const street = [j.localityInfo?.administrative?.find?.((a: any) => a.adminLevel === 8)?.name, '']
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        onChange({
+          ...value,
+          city: city || value.city,
+          district: district || value.district,
+          neighborhood: neighborhood || value.neighborhood,
+          address: street || value.address,
+          postal_code: String(j.postcode || j.localityInfo?.postcode || value.postal_code || ''),
+          latitude,
+          longitude,
+        })
+      } catch {
+        // Reverse geocode başarısızsa en azından koordinatı sakla
+        onChange({ ...value, latitude, longitude })
+        setGeoError('Konumdan adres detayı alınamadı; il/ilçeyi listeden seçebilirsiniz.')
+      }
+    })
+  }
 
   const useMyLocation = () => {
     setGeoError(null)
@@ -47,43 +93,12 @@ export function AddressPicker({ value, onChange, disabled }: Props) {
       setGeoError('Tarayıcınız konum servisini desteklemiyor.')
       return
     }
+    setShowMap(true)
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords
-        startGeoTransition(async () => {
-          try {
-            const res = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=tr`,
-              { cache: 'no-store' }
-            )
-            if (!res.ok) throw new Error('reverse geocode hata')
-            const j = await res.json()
-            // BigDataCloud TR field eşleştirmesi
-            const city = String(j.principalSubdivision || '').trim()
-            // ilçe = locality veya city, district name
-            const district = String(j.locality || j.city || '').trim()
-            const neighborhood = String(
-              j.localityInfo?.administrative?.find?.((a: any) => a.adminLevel === 6)?.name || ''
-            ).trim()
-            const street = [j.localityInfo?.administrative?.find?.((a: any) => a.adminLevel === 8)?.name, ''].filter(Boolean).join(' ').trim()
-            onChange({
-              ...value,
-              city,
-              district,
-              neighborhood,
-              address: street || value.address,
-              postal_code: String(j.postcode || j.localityInfo?.postcode || value.postal_code || ''),
-              latitude,
-              longitude,
-            })
-          } catch (e: any) {
-            setGeoError('Konumdan adres alınamadı, lütfen elle seçin.')
-          }
-        })
-      },
+      (pos) => applyReverseGeocode(pos.coords.latitude, pos.coords.longitude),
       (err) => {
-        if (err.code === 1) setGeoError('Konum izni reddedildi. Tarayıcı ayarlarından izin verebilirsiniz.')
-        else setGeoError('Konum alınamadı.')
+        if (err.code === 1) setGeoError('Konum izni reddedildi. Tarayıcı ayarlarından izin verebilir veya haritadan seçebilirsiniz.')
+        else setGeoError('Konum alınamadı, haritadan seçebilirsiniz.')
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     )
@@ -91,15 +106,34 @@ export function AddressPicker({ value, onChange, disabled }: Props) {
 
   return (
     <div className="space-y-3 text-sm">
-      <button
-        type="button"
-        onClick={useMyLocation}
-        disabled={disabled || geoLoading}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100 disabled:opacity-50"
-      >
-        {geoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
-        Konumumu kullan (il/ilçe/mahalle otomatik dolsun)
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={useMyLocation}
+          disabled={disabled || geoLoading}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100 disabled:opacity-50"
+        >
+          {geoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
+          Konumumu kullan
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowMap((s) => !s)}
+          disabled={disabled}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50"
+        >
+          <MapIcon className="h-4 w-4" />
+          {showMap ? 'Haritayı gizle' : 'Haritadan seç'}
+        </button>
+      </div>
+
+      {showMap && (
+        <div className="space-y-1">
+          <MapPicker lat={value.latitude ?? null} lng={value.longitude ?? null} onPick={applyReverseGeocode} />
+          <p className="text-xs text-gray-500">Haritada iğneyi sürükleyin veya konuma tıklayın; adres otomatik dolar.</p>
+        </div>
+      )}
+
       {geoError && <p className="text-xs text-red-600">{geoError}</p>}
       {value.latitude != null && value.longitude != null && (
         <p className="text-xs text-green-700 flex items-center gap-1">

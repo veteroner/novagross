@@ -123,7 +123,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob: https://www.facebook.com",
               "font-src 'self' data: https://cdn.iyzipay.com https://*.iyzipay.com",
-              "connect-src 'self' https://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://www.facebook.com https://*.iyzipay.com https://*.sentry.io https://*.hotjar.com https://*.hotjar.io",
+              "connect-src 'self' https://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://www.facebook.com https://*.iyzipay.com https://*.sentry.io https://*.hotjar.com https://*.hotjar.io https://api.bigdatacloud.net https://nominatim.openstreetmap.org",
               "frame-src 'self' https://www.youtube.com https://*.iyzipay.com https://*.bkm.com.tr",
               "object-src 'none'",
               "base-uri 'self'",

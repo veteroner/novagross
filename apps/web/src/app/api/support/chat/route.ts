@@ -94,8 +94,10 @@ export async function POST(req: NextRequest) {
       .eq('id', ticket.id)
 
     // Escalation: ilk kez yönlendir + e-posta
+    // En az 2 kullanıcı mesajı olmalı ki gerçek bir sorun olduğundan emin olalım
+    const userMsgCount = messages.filter((m) => m.role === 'user').length
     const alreadyEscalated = ticket.route_to === 'both' || ticket.status === 'in_progress'
-    if (result.escalate && !alreadyEscalated) {
+    if (result.escalate && !alreadyEscalated && userMsgCount >= 2) {
       let routeTo: 'admin' | 'both' = 'admin'
       let storeId: string | null = ticket.store_id || null
       let sellerEmail: string | null = null

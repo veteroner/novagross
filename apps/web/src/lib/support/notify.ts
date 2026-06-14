@@ -76,7 +76,16 @@ export async function sendTicketNotifications(opts: {
     )
   }
 
-  await Promise.allSettled(jobs)
+  const results = await Promise.allSettled(jobs)
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[support notify] email ${i} failed:`, r.reason)
+    } else if (r.value?.error) {
+      console.error(`[support notify] email ${i} resend error:`, JSON.stringify(r.value.error))
+    } else {
+      console.log(`[support notify] email ${i} sent:`, r.value?.data?.id)
+    }
+  })
 }
 
 export async function sendCustomerAck(ticket: TicketLike) {

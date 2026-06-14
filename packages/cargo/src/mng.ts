@@ -1,6 +1,18 @@
 /**
- * MNG Kargo (DHL eCommerce Apizone) Client
- * OAuth2 client_credentials + Plus Command / Plus Query / Barcode Command APIs
+ * MNG Kargo API Client — GERÇEK gateway (api.mngkargo.com.tr / IBM API Connect)
+ *
+ * Auth: her istekte X-IBM-Client-Id + X-IBM-Client-Secret header.
+ *       POST /mngapi/api/token { customerNumber, password, identityType } → JWT (Bearer).
+ * Sipariş: Plus Command /createDetailedOrder
+ * Takip:   Plus Query /getShipmentByBarcode/{barcode}
+ * Barkod:  Barcode Command /createbarcode
+ * Şehir/ilçe kodu: CBS Info /getcities, /getdistricts/{cityCode}
+ *
+ * Gerekli env:
+ *   MNG_CLIENT_ID, MNG_CLIENT_SECRET           → X-IBM header (apizone uygulama anahtarları)
+ *   MNG_CUSTOMER_NUMBER, MNG_CUSTOMER_PASSWORD → MNG kargo müşteri hesabı (token için)
+ *   MNG_CUSTOMER_ID                            → shipper customerId (MNG müşteri no, integer)
+ *   MNG_BASE_URL (ops, default https://api.mngkargo.com.tr)
  */
 
 export interface MngShipmentRequest {
@@ -25,8 +37,6 @@ export interface MngShipmentRequest {
   description?: string
   invoiceNumber?: string
   invoiceValue?: number
-
-  // Sipariş referansı (marketplace order ID)
   referenceNumber?: string
 }
 
@@ -45,56 +55,86 @@ export interface MngTrackingResponse {
   status: string
   statusDescription: string
   currentLocation?: string
-  history: Array<{
-    date: string
-    time?: string
-    location: string
-    status: string
-    description: string
-  }>
+  history: Array<{ date: string; time?: string; location: string; status: string; description: string }>
   estimatedDelivery?: string
+}
+
+type CodeRec = { code: number; name: string }
+
+function trUpper(s: string): string {
+  return (s || '').replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr-TR').trim()
 }
 
 export class MngKargoClient {
   private clientId: string
   private clientSecret: string
+  private customerNumber: string
+  private customerPassword: string
+  private customerId: number
   private baseUrl: string
   private tokenCache: { token: string; expiresAt: number } | null = null
+  private cityCache: CodeRec[] | null = null
+  private districtCache = new Map<number, CodeRec[]>()
 
   constructor() {
-    this.clientId = process.env.MNG_CLIENT_ID!
-    this.clientSecret = process.env.MNG_CLIENT_SECRET!
-    this.baseUrl = process.env.MNG_BASE_URL || 'https://sandbox.mngkargo.com.tr'
+    this.clientId = process.env.MNG_CLIENT_ID || ''
+    this.clientSecret = process.env.MNG_CLIENT_SECRET || ''
+    this.customerNumber = process.env.MNG_CUSTOMER_NUMBER || ''
+    this.customerPassword = process.env.MNG_CUSTOMER_PASSWORD || ''
+    this.customerId = Number(process.env.MNG_CUSTOMER_ID || 0)
+    this.baseUrl = process.env.MNG_BASE_URL || 'https://api.mngkargo.com.tr'
+  }
 
-    if (!this.clientId || !this.clientSecret) {
-      console.warn('[mng] MNG_CLIENT_ID veya MNG_CLIENT_SECRET eksik')
+  /** Entegrasyon için zorunlu kimlik bilgileri tam mı? */
+  isConfigured(): { ok: boolean; missing: string[] } {
+    const missing: string[] = []
+    if (!this.clientId) missing.push('MNG_CLIENT_ID')
+    if (!this.clientSecret) missing.push('MNG_CLIENT_SECRET')
+    if (!this.customerNumber) missing.push('MNG_CUSTOMER_NUMBER')
+    if (!this.customerPassword) missing.push('MNG_CUSTOMER_PASSWORD')
+    if (!this.customerId) missing.push('MNG_CUSTOMER_ID')
+    return { ok: missing.length === 0, missing }
+  }
+
+  private ibmHeaders(): Record<string, string> {
+    return {
+      'X-IBM-Client-Id': this.clientId,
+      'X-IBM-Client-Secret': this.clientSecret,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
     }
   }
 
   private async getToken(): Promise<string | null> {
     const now = Date.now()
-    if (this.tokenCache && this.tokenCache.expiresAt > now + 30_000) {
-      return this.tokenCache.token
-    }
+    if (this.tokenCache && this.tokenCache.expiresAt > now + 30_000) return this.tokenCache.token
     try {
-      const res = await fetch(`${this.baseUrl}/consumer-api/token`, {
+      const res = await fetch(`${this.baseUrl}/mngapi/api/token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
+        headers: this.ibmHeaders(),
+        body: JSON.stringify({
+          customerNumber: this.customerNumber,
+          password: this.customerPassword,
+          identityType: 1,
         }),
       })
+      const text = await res.text()
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        console.error('[mng] token error', res.status, txt)
+        console.error('[mng] token error', res.status, text.slice(0, 300))
         return null
       }
-      const data = await res.json()
-      const token = data.access_token as string
-      const expiresIn = (data.expires_in as number) || 3600
-      this.tokenCache = { token, expiresAt: now + expiresIn * 1000 }
+      let data: any = {}
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = { jwt: text }
+      }
+      const token = data.jwt || data.token || data.access_token || (typeof data === 'string' ? data : '')
+      if (!token) {
+        console.error('[mng] token response beklenmeyen biçim', text.slice(0, 200))
+        return null
+      }
+      this.tokenCache = { token, expiresAt: now + 55 * 60 * 1000 }
       return token
     } catch (e) {
       console.error('[mng] token fetch error', e)
@@ -102,96 +142,144 @@ export class MngKargoClient {
     }
   }
 
-  private async api(method: string, path: string, body?: unknown) {
+  private async authedFetch(path: string, init: RequestInit & { method: string }) {
     const token = await this.getToken()
-    if (!token) throw new Error('MNG kimlik doğrulama başarısız')
+    if (!token) throw new Error('MNG kimlik doğrulama başarısız (token alınamadı)')
     const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: body ? JSON.stringify(body) : undefined,
+      ...init,
+      headers: { ...this.ibmHeaders(), Authorization: `Bearer ${token}`, ...(init.headers || {}) },
     })
     const text = await res.text()
+    let data: any
     try {
-      const json = JSON.parse(text)
-      return { ok: res.ok, status: res.status, data: json }
+      data = JSON.parse(text)
     } catch {
-      return { ok: res.ok, status: res.status, data: text }
+      data = text
     }
+    return { ok: res.ok, status: res.status, data }
+  }
+
+  /** CBS Info: şehir adı → integer kod */
+  private async resolveCityCode(cityName: string): Promise<number | null> {
+    if (!this.cityCache) {
+      const { ok, data } = await this.authedFetch('/mngapi/api/cbsinfoapi/getcities', { method: 'GET' })
+      if (!ok || !Array.isArray(data)) return null
+      this.cityCache = data.map((c: any) => ({ code: Number(c.code ?? c.cityCode ?? c.id), name: trUpper(c.name ?? c.cityName ?? '') }))
+    }
+    const target = trUpper(cityName)
+    return this.cityCache.find((c) => c.name === target)?.code ?? null
+  }
+
+  /** CBS Info: ilçe adı → integer kod */
+  private async resolveDistrictCode(cityCode: number, districtName: string): Promise<number | null> {
+    let list = this.districtCache.get(cityCode)
+    if (!list) {
+      const { ok, data } = await this.authedFetch(`/mngapi/api/cbsinfoapi/getdistricts/${cityCode}`, { method: 'GET' })
+      if (!ok || !Array.isArray(data)) return null
+      list = data.map((d: any) => ({ code: Number(d.code ?? d.districtCode ?? d.id), name: trUpper(d.name ?? d.districtName ?? '') }))
+      this.districtCache.set(cityCode, list)
+    }
+    const target = trUpper(districtName)
+    return list.find((d) => d.name === target)?.code ?? null
   }
 
   async createShipment(data: MngShipmentRequest): Promise<MngShipmentResponse> {
+    const cfg = this.isConfigured()
+    if (!cfg.ok) {
+      return { success: false, error: `MNG entegrasyonu için eksik ayar: ${cfg.missing.join(', ')}`, errorCode: 'NOT_CONFIGURED' }
+    }
     try {
+      const recvCityCode = await this.resolveCityCode(data.receiverCity)
+      if (!recvCityCode) return { success: false, error: `Alıcı şehri MNG koduna çevrilemedi: ${data.receiverCity}`, errorCode: 'CITY_NOT_FOUND' }
+      const recvDistrictCode = await this.resolveDistrictCode(recvCityCode, data.receiverDistrict)
+
+      const reference = trUpper((data.referenceNumber || data.invoiceNumber || `NG${Date.now()}`).replace(/[^A-Za-z0-9]/g, ''))
+      const kg = Math.max(1, Math.ceil(data.weight || 1))
+      const desi = Math.max(1, Math.ceil((data.weight || 1) * 3))
+
       const payload = {
-        referenceNo: data.referenceNumber || data.invoiceNumber || '',
-        sender: {
-          name: data.senderName,
-          address: data.senderAddress,
-          city: data.senderCity,
-          district: data.senderDistrict,
-          phone: data.senderPhone,
+        order: {
+          referenceId: reference,
+          barcode: reference,
+          isCOD: 0,
+          codAmount: 0,
+          shipmentServiceType: data.serviceType === 'EXPRESS' ? 7 : 1, // 1=STANDART, 7=GÜNİÇİ
+          packagingType: 4, // KOLİ
+          content: (data.description || 'Sipariş').slice(0, 50),
+          smsPreference1: 1,
+          smsPreference2: 1,
+          smsPreference3: 0,
+          paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
+          deliveryType: 1, // ADRESE_TESLİM
+          description: (data.description || '').slice(0, 100),
         },
-        receiver: {
-          name: data.receiverName,
+        orderPieceList: Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
+          barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
+          desi,
+          kg,
+          content: (data.description || 'Sipariş').slice(0, 50),
+        })),
+        shipper: {
+          customerId: this.customerId,
+        },
+        recipient: {
+          cityCode: recvCityCode,
+          districtCode: recvDistrictCode ?? 0,
           address: data.receiverAddress,
-          city: data.receiverCity,
-          district: data.receiverDistrict,
-          phone: data.receiverPhone,
+          fullName: data.receiverName,
+          mobilePhoneNumber: (data.receiverPhone || '').replace(/\D/g, ''),
           email: data.receiverEmail || '',
         },
-        pieces: data.pieceCount || 1,
-        weight: data.weight,
-        paymentType: data.paymentType === 'RECEIVER' ? 'ALICI' : 'GONDEREN',
-        serviceType: data.serviceType === 'EXPRESS' ? 'EXPRESS' : 'STANDART',
-        description: data.description || '',
-        invoiceNo: data.invoiceNumber || '',
-        invoiceValue: data.invoiceValue || 0,
       }
 
-      const { ok, data: result } = await this.api(
-        'POST',
-        '/consumer-api/plus-command/v1/order/marketplace',
-        payload
-      )
+      const { ok, data: result } = await this.authedFetch('/mngapi/api/pluscmdapi/createDetailedOrder', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
 
-      if (ok && result?.trackingNo) {
-        return {
-          success: true,
-          trackingNumber: result.trackingNo,
-          barcode: result.barcode,
-          labelUrl: result.labelUrl,
-        }
+      const errMsg = this.extractError(result)
+      if (ok && !errMsg) {
+        return { success: true, trackingNumber: reference, barcode: reference }
       }
-
-      return {
-        success: false,
-        error: result?.message || result?.errorDescription || 'Sipariş oluşturulamadı',
-        errorCode: result?.errorCode,
-      }
+      return { success: false, error: errMsg || 'MNG sipariş oluşturulamadı', errorCode: 'CREATE_FAILED' }
     } catch (e: any) {
       console.error('[mng] createShipment error', e)
       return { success: false, error: e.message || 'API bağlantı hatası' }
     }
   }
 
-  async trackShipment(trackingNumber: string): Promise<MngTrackingResponse> {
+  /** Yazdırılabilir barkod (base64) */
+  async getBarcode(reference: string): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
+    if (!this.isConfigured().ok) return { success: false, error: 'MNG yapılandırılmamış' }
     try {
-      const { ok, data: result } = await this.api(
-        'GET',
-        `/consumer-api/plus-query/v1/order/status?trackingNo=${encodeURIComponent(trackingNumber)}`
-      )
+      const { ok, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
+        method: 'POST',
+        body: JSON.stringify({ barcode: trUpper(reference), referenceId: trUpper(reference) }),
+      })
+      const b64 = (data && (data.barcode || data.barcodeData || data.base64 || data.content)) || (typeof data === 'string' ? data : null)
+      if (ok && b64) return { success: true, barcodeBase64: b64 }
+      return { success: false, error: this.extractError(data) || 'Barkod alınamadı' }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  }
 
-      if (ok && result?.status) {
-        const movements: any[] = result.movements || result.history || []
+  async trackShipment(barcode: string): Promise<MngTrackingResponse> {
+    try {
+      const { ok, data } = await this.authedFetch(
+        `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(trUpper(barcode))}`,
+        { method: 'GET' }
+      )
+      if (ok && data && !this.extractError(data)) {
+        const rec = Array.isArray(data) ? data[0] : data
+        const movements: any[] = rec?.movements || rec?.history || rec?.shipmentMovements || []
         return {
           success: true,
-          trackingNumber,
-          status: result.status,
-          statusDescription: result.statusDescription || result.status,
-          currentLocation: result.currentLocation,
-          estimatedDelivery: result.estimatedDelivery,
+          trackingNumber: barcode,
+          status: rec?.statusCode || rec?.status || 'unknown',
+          statusDescription: rec?.statusDescription || rec?.status || '',
+          currentLocation: rec?.currentLocation || rec?.lastBranch,
+          estimatedDelivery: rec?.estimatedDelivery,
           history: movements.map((m: any) => ({
             date: m.date || m.eventDate || '',
             time: m.time || m.eventTime,
@@ -201,55 +289,37 @@ export class MngKargoClient {
           })),
         }
       }
-
-      return {
-        success: false,
-        trackingNumber,
-        status: 'error',
-        statusDescription: (result as any)?.message || 'Takip bilgisi alınamadı',
-        history: [],
-      }
+      return { success: false, trackingNumber: barcode, status: 'error', statusDescription: this.extractError(data) || 'Takip bilgisi alınamadı', history: [] }
     } catch (e: any) {
-      console.error('[mng] trackShipment error', e)
-      return {
-        success: false,
-        trackingNumber,
-        status: 'error',
-        statusDescription: e.message || 'API bağlantı hatası',
-        history: [],
-      }
+      return { success: false, trackingNumber: barcode, status: 'error', statusDescription: e.message || 'API bağlantı hatası', history: [] }
     }
   }
 
-  async cancelShipment(trackingNumber: string): Promise<{ success: boolean; message: string }> {
+  async cancelShipment(barcode: string): Promise<{ success: boolean; message: string }> {
     try {
-      const { ok, data: result } = await this.api(
-        'POST',
-        '/consumer-api/plus-command/v1/order/cancel',
-        { trackingNo: trackingNumber }
-      )
-      return {
-        success: ok,
-        message: (result as any)?.message || (ok ? 'Kargo iptal edildi' : 'İptal başarısız'),
-      }
+      const { ok, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/cancelshipment', {
+        method: 'POST',
+        body: JSON.stringify({ barcode: trUpper(barcode), referenceId: trUpper(barcode) }),
+      })
+      const err = this.extractError(data)
+      return { success: ok && !err, message: err || (ok ? 'Kargo iptal edildi' : 'İptal başarısız') }
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
     }
   }
 
-  async getBarcode(trackingNumber: string): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
-    try {
-      const { ok, data: result } = await this.api(
-        'GET',
-        `/consumer-api/barcode-command/v1/barcode?trackingNo=${encodeURIComponent(trackingNumber)}`
-      )
-      if (ok && (result as any)?.barcode) {
-        return { success: true, barcodeBase64: (result as any).barcode }
-      }
-      return { success: false, error: (result as any)?.message || 'Barkod alınamadı' }
-    } catch (e: any) {
-      return { success: false, error: e.message }
+  /** MNG yanıtından hata mesajı çıkar (ProblemDetails / array / message alanları) */
+  private extractError(data: any): string | null {
+    if (!data) return null
+    if (typeof data === 'string') return /error|hata|invalid|fail/i.test(data) ? data.slice(0, 200) : null
+    if (data.errors || data.errorCode || data.isSuccess === false || data.success === false || (typeof data.status === 'number' && data.status >= 400)) {
+      return String(data.detail || data.errorMessage || data.title || data.message || 'İşlem başarısız')
     }
+    if (Array.isArray(data)) {
+      const failed = data.find((r: any) => r && (r.isSuccess === false || r.success === false || r.errorMessage))
+      if (failed) return String(failed.errorMessage || failed.message || 'İşlem başarısız')
+    }
+    return null
   }
 }
 

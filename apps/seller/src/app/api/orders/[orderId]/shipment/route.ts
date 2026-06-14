@@ -16,19 +16,9 @@ type ShipmentStatus =
 
 const REAL_PROVIDERS: CargoProvider[] = ['mng', 'aras', 'yurtici']
 
-function generateMockTrackingNumber(orderNumber?: string) {
-  const base = (orderNumber || 'NS').replace(/[^A-Z0-9]/gi, '').slice(-6)
-  const rand = Math.random().toString(36).toUpperCase().slice(2, 8)
-  return `MOCK-${base}-${rand}`
-}
-
 function buildTrackingUrl(template: string | null | undefined, trackingNumber: string) {
   if (!template) return null
   return template.replace('{tracking_number}', encodeURIComponent(trackingNumber))
-}
-
-function mngConfigured() {
-  return Boolean(process.env.MNG_CLIENT_ID && process.env.MNG_CLIENT_SECRET)
 }
 
 async function assertSellerOwnsOrder(
@@ -117,15 +107,15 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     let trackingNumber: string | null = null
     let labelUrl: string | null = null
     let barcodeData: string | null = null
-    let providerCode = 'mock'
-    let cargoError: string | null = null
+    let providerCode = carrierCode || 'manual'
 
     if (createLabel) {
-      const useRealApi =
-        REAL_PROVIDERS.includes(carrierCode) && (carrierCode !== 'mng' || mngConfigured())
-
-      if (useRealApi && !manualTrackingNumber) {
-        // Gönderici = mağaza adresi
+      if (manualTrackingNumber && String(manualTrackingNumber).trim()) {
+        // Manuel takip no (PTT/Sürat gibi API'siz firmalar ya da elle giriş)
+        trackingNumber = String(manualTrackingNumber).trim()
+        providerCode = carrierCode || 'manual'
+      } else if (REAL_PROVIDERS.includes(carrierCode)) {
+        // Gerçek kargo API'si ile gönderi oluştur — MOCK YOK, başarısızsa net hata
         const { data: store } = await supabase
           .from('stores')
           .select('store_name, address, city, district, phone')
@@ -135,53 +125,58 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         const ship = (order.shipping_address as any) || {}
 
         if (!store?.address || !store?.city) {
-          cargoError = 'Mağaza adresi eksik. Ayarlar > Mağaza Bilgileri’nden adres girin.'
-        } else if (!ship.address_line1 || !ship.city) {
-          cargoError = 'Sipariş teslimat adresi eksik.'
-        } else {
-          const result = await cargoService.createShipment(carrierCode, {
-            senderName: store.store_name,
-            senderAddress: store.address,
-            senderCity: store.city,
-            senderDistrict: store.district || '',
-            senderPhone: store.phone || '',
-
-            receiverName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
-            receiverAddress: ship.address_line1,
-            receiverCity: ship.city,
-            receiverDistrict: ship.district || '',
-            receiverPhone: ship.phone || '',
-            receiverEmail: order.email || ship.email || '',
-
-            weight: Number(weight || 1),
-            pieceCount: Number(pieceCount || 1),
-            paymentType: 'SENDER',
-            serviceType: 'STANDARD',
-
-            description: `Novagross Sipariş #${order.order_number}`,
-            invoiceNumber: order.order_number,
-            invoiceValue: Number(order.subtotal || 0),
-          })
-
-          if (result.success && result.trackingNumber) {
-            trackingNumber = result.trackingNumber
-            labelUrl = result.labelUrl || null
-            providerCode = carrierCode
-            // Yazdırılabilir barkod (MNG)
-            const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
-            if (bc.success && bc.barcodeBase64) barcodeData = bc.barcodeBase64
-          } else {
-            cargoError = result.error || 'Kargo firması gönderi oluşturamadı'
-          }
+          return NextResponse.json(
+            { error: 'Mağaza adresi eksik. Ayarlar > Mağaza Bilgileri’nden adres girin.' },
+            { status: 422 }
+          )
         }
-      }
-
-      // Gerçek API kullanılmadıysa / başarısızsa: manuel takip no veya mock üret
-      if (!trackingNumber) {
-        trackingNumber = manualTrackingNumber || generateMockTrackingNumber(order.order_number)
-        if (providerCode === 'mock' && !manualTrackingNumber) {
-          labelUrl = null
+        if (!ship.address_line1 || !ship.city) {
+          return NextResponse.json({ error: 'Sipariş teslimat adresi eksik.' }, { status: 422 })
         }
+
+        const result = await cargoService.createShipment(carrierCode, {
+          senderName: store.store_name,
+          senderAddress: store.address,
+          senderCity: store.city,
+          senderDistrict: store.district || '',
+          senderPhone: store.phone || '',
+
+          receiverName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
+          receiverAddress: ship.address_line1,
+          receiverCity: ship.city,
+          receiverDistrict: ship.district || '',
+          receiverPhone: ship.phone || '',
+          receiverEmail: order.email || ship.email || '',
+
+          weight: Number(weight || 1),
+          pieceCount: Number(pieceCount || 1),
+          paymentType: 'SENDER',
+          serviceType: 'STANDARD',
+
+          description: `Novagross Sipariş #${order.order_number}`,
+          invoiceNumber: order.order_number,
+          invoiceValue: Number(order.subtotal || 0),
+        })
+
+        if (!result.success || !result.trackingNumber) {
+          // Sahte veri üretme — gerçek hatayı satıcıya göster
+          return NextResponse.json(
+            { error: result.error || `${carrierCode.toUpperCase()} gönderi oluşturamadı` },
+            { status: 502 }
+          )
+        }
+
+        trackingNumber = result.trackingNumber
+        labelUrl = result.labelUrl || null
+        providerCode = carrierCode
+        const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
+        if (bc.success && bc.barcodeBase64) barcodeData = bc.barcodeBase64
+      } else {
+        // API'siz firma seçildi ve takip no girilmedi
+        return NextResponse.json(
+          { error: 'Bu kargo firması API ile entegre değil. Lütfen takip numarasını manuel girin.' },
+          { status: 400 }
+        )
       }
     }
 
@@ -246,10 +241,9 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         shipment_id: shipment.id,
         status,
         location: 'Sistem',
-        description:
-          providerCode === 'mock'
-            ? 'Kargo kaydı oluşturuldu (manuel/mock)'
-            : `${carrierCode.toUpperCase()} gönderisi oluşturuldu`,
+        description: REAL_PROVIDERS.includes(carrierCode)
+          ? `${carrierCode.toUpperCase()} gönderisi oluşturuldu`
+          : 'Kargo kaydı oluşturuldu (manuel takip no)',
         timestamp: new Date().toISOString(),
       })
     } catch {
@@ -268,7 +262,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     return NextResponse.json({
       success: true,
       shipment,
-      cargoApiResult: { trackingNumber, labelUrl, barcode: Boolean(barcodeData), providerCode, error: cargoError },
+      cargoApiResult: { trackingNumber, labelUrl, barcode: Boolean(barcodeData), providerCode },
     })
   } catch (error: any) {
     console.error('Create shipment error:', error)

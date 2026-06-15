@@ -212,6 +212,10 @@ export class MngKargoClient {
           paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
           deliveryType: 1, // ADRESE_TESLİM
           description: (data.description || '').slice(0, 100),
+          // MNG bu alanları boş string ister (yoksa 26029 reddeder)
+          marketPlaceShortCode: '',
+          marketPlaceSaleCode: '',
+          pudoId: '',
         },
         orderPieceList: Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
           barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
@@ -248,13 +252,19 @@ export class MngKargoClient {
     }
   }
 
-  /** Yazdırılabilir barkod (base64) */
-  async getBarcode(reference: string): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
+  /** Yazdırılabilir barkod (base64). createbarcode { referenceId, orderPieceList:[{barcode,desi,kg}] } ister. */
+  async getBarcode(
+    reference: string,
+    pieces?: Array<{ barcode: string; desi: number; kg: number; content?: string }>
+  ): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
     if (!this.isConfigured().ok) return { success: false, error: 'MNG yapılandırılmamış' }
     try {
+      const ref = trUpper(reference)
+      const orderPieceList =
+        pieces && pieces.length > 0 ? pieces : [{ barcode: ref, desi: 1, kg: 1, content: '' }]
       const { ok, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
         method: 'POST',
-        body: JSON.stringify({ barcode: trUpper(reference), referenceId: trUpper(reference) }),
+        body: JSON.stringify({ referenceId: ref, orderPieceList }),
       })
       const b64 = (data && (data.barcode || data.barcodeData || data.base64 || data.content)) || (typeof data === 'string' ? data : null)
       if (ok && b64) return { success: true, barcodeBase64: b64 }
@@ -297,9 +307,9 @@ export class MngKargoClient {
 
   async cancelShipment(barcode: string): Promise<{ success: boolean; message: string }> {
     try {
-      const { ok, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/cancelshipment', {
+      const { ok, data } = await this.authedFetch('/mngapi/api/pluscmdapi/cancelOrderDelivery', {
         method: 'POST',
-        body: JSON.stringify({ barcode: trUpper(barcode), referenceId: trUpper(barcode) }),
+        body: JSON.stringify({ referenceId: trUpper(barcode), description: 'Sipariş iptali' }),
       })
       const err = this.extractError(data)
       return { success: ok && !err, message: err || (ok ? 'Kargo iptal edildi' : 'İptal başarısız') }

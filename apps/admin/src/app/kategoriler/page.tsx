@@ -241,9 +241,13 @@ export default function CategoriesPage() {
         }
       />
 
-      {/* Add/Edit Form */}
+      {/* Add/Edit Form — modal (her zaman görünür, scroll konumundan bağımsız) */}
       {showAddForm && (
-        <Card className="mb-6">
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+          onClick={resetForm}
+        >
+        <Card className="w-full max-w-2xl my-8" onClick={(e) => e.stopPropagation()}>
           <CardHeader>
             <CardTitle>{editingId ? 'Kategori Düzenle' : 'Yeni Kategori Ekle'}</CardTitle>
           </CardHeader>
@@ -359,6 +363,7 @@ export default function CategoriesPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
       )}
 
       {/* Categories List */}

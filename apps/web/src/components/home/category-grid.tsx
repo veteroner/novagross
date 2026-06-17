@@ -22,24 +22,30 @@ export function CategoryGrid() {
       try {
         const supabase = createClient()
         
-        // Get categories with their first product image
+        // Sadece ANA kategoriler (parent_id null) — alt kategoriler ana sayfada gösterilmez
         const { data, error } = await supabase
           .from('categories')
           .select(`
             id,
             name,
             slug,
+            image_url,
             sort_order
           `)
           .eq('is_active', true)
+          .is('parent_id', null)
           .order('sort_order')
-        
+
         if (error) throw error
-        
+
         if (data && data.length > 0) {
-          // Fetch first product image for each category
+          // Önce kategorinin kendi resmi (admin'den); yoksa ilk ürün resmine düş
           const categoriesWithImages = await Promise.all(
             data.map(async (category) => {
+              // Kategorinin kendi resmi tanımlıysa onu kullan
+              if ((category as any).image_url) {
+                return { ...category, image_url: (category as any).image_url as string }
+              }
               // First try to get products directly from this category
               let { data: productRows } = await supabase
                 .from('products')

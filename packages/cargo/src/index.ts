@@ -353,6 +353,9 @@ export class CargoService {
 // Export singleton instance
 export const cargoService = new CargoService()
 
+// MNG istemcisini doğrudan dışa aç (Finance Query mutabakatı için)
+export { mngKargo } from './mng'
+
 // Export types
 export type {
   YurticiShipmentRequest,

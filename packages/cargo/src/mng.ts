@@ -225,6 +225,8 @@ export class MngKargoClient {
         })),
         shipper: {
           customerId: this.customerId,
+          // Fatura mutabakatında siparişi geri eşleştirmek için referansımız
+          refCustomerId: reference,
         },
         recipient: {
           cityCode: recvCityCode,
@@ -316,6 +318,36 @@ export class MngKargoClient {
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
     }
+  }
+
+  /** Finance Query: tarih aralığındaki faturalar */
+  async getInvoiceList(startDate: string, endDate: string): Promise<any[]> {
+    const { ok, data } = await this.authedFetch('/mngapi/api/financequeryapi/getinvoicelist', {
+      method: 'POST',
+      body: JSON.stringify({ startDate, endDate }),
+    })
+    if (!ok || !Array.isArray(data)) return []
+    return data
+  }
+
+  /** Finance Query: bir faturanın gönderi bazında detayları (finalTotal = gerçek kargo ücreti) */
+  async getInvoiceDetailList(invoice: {
+    invoiceNumber?: string
+    invoiceSerialNumber?: string
+    eInvoiceId?: string
+    invoiceType?: number
+  }): Promise<any[]> {
+    const { ok, data } = await this.authedFetch('/mngapi/api/financequeryapi/getinvoicedetaillist', {
+      method: 'POST',
+      body: JSON.stringify({
+        invoiceNumber: invoice.invoiceNumber || '',
+        invoiceSerialNumber: invoice.invoiceSerialNumber || '',
+        eInvoiceId: invoice.eInvoiceId || '',
+        invoiceType: invoice.invoiceType ?? 1,
+      }),
+    })
+    if (!ok || !Array.isArray(data)) return []
+    return data
   }
 
   /** MNG yanıtından hata mesajı çıkar (ProblemDetails / array / message alanları) */

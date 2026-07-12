@@ -20,7 +20,7 @@ const STOP = '2331112' // kod 106 + bitiş çubuğu
 /** Code128-B olarak barkod SVG'si üretir. Yalnızca ASCII 32-126 destekler. */
 export function code128Svg(text: string, opts?: { height?: number; module?: number }): string {
   const height = opts?.height ?? 60
-  const module = opts?.module ?? 2
+  const mod = opts?.module ?? 2
 
   const values: number[] = [104] // Start B
   for (const ch of text) {
@@ -39,11 +39,11 @@ export function code128Svg(text: string, opts?: { height?: number; module?: numb
   widths += STOP
 
   // SVG çiz
-  const quiet = 10 * module
+  const quiet = 10 * mod
   let x = quiet
   let bars = ''
   for (let i = 0; i < widths.length; i++) {
-    const w = Number(widths[i]) * module
+    const w = Number(widths[i]) * mod
     if (i % 2 === 0) {
       bars += `<rect x="${x}" y="0" width="${w}" height="${height}" fill="#000"/>`
     }

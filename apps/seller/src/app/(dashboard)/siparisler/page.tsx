@@ -6,9 +6,11 @@ import { Button } from '@novagross/ui'
 import { ShoppingCart, Package, Truck, CheckCircle, XCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { safeExternalUrl } from '@novagross/utils'
+import { code128Svg } from '@/lib/code128'
 
 export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([])
+  const [storeInfo, setStoreInfo] = useState<{ store_name: string; address: string | null; city: string | null; district: string | null; phone: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [carriers, setCarriers] = useState<Array<{ id: string; name: string; code: string }>>([])
@@ -30,11 +32,18 @@ export default function SellerOrders() {
 
       const { data: store } = await supabase
         .from('stores')
-        .select('id')
+        .select('id, store_name, address, city, district, phone')
         .eq('owner_id', user.id)
         .maybeSingle()
 
       if (!store) return
+      setStoreInfo({
+        store_name: (store as any).store_name,
+        address: (store as any).address,
+        city: (store as any).city,
+        district: (store as any).district,
+        phone: (store as any).phone,
+      })
 
       const { data: orderItems } = await supabase
         .from('order_items')
@@ -124,31 +133,75 @@ export default function SellerOrders() {
     }
   }
 
-  const printBarcode = (orderId: string) => {
+  const printBarcode = (orderId: string, orderItem?: any) => {
     const shipment = shipmentsByOrderId[orderId]
     if (!shipment) return
-    // Önce gerçek barkod (base64), yoksa etiket PDF'i
     const barcode = shipment.barcode_data as string | undefined
     const labelUrl = shipment.shipping_label_url as string | undefined
     const tn = shipment.tracking_number || ''
 
+    // 1) MNG'den gelen resmi etiket/barkod varsa onu kullan
     if (labelUrl && /^https?:\/\//.test(labelUrl) && !labelUrl.includes('example.com')) {
       window.open(labelUrl, '_blank', 'noopener,noreferrer')
       return
     }
-    if (!barcode) {
-      alert('Bu gönderi için yazdırılabilir barkod bulunmuyor.')
+    if (barcode) {
+      const isPdf = barcode.startsWith('JVBER') // base64 PDF imzası
+      const src = isPdf ? `data:application/pdf;base64,${barcode}` : `data:image/png;base64,${barcode}`
+      const w = window.open('', '_blank')
+      if (!w) return
+      w.document.write(
+        isPdf
+          ? `<iframe src="${src}" style="width:100%;height:100vh;border:0" onload="this.contentWindow.print()"></iframe>`
+          : `<body style="text-align:center;font-family:sans-serif"><h3>Takip No: ${tn}</h3><img src="${src}" style="max-width:100%" onload="window.print()"/></body>`
+      )
+      w.document.close()
       return
     }
-    const isPdf = barcode.startsWith('JVBER') // base64 PDF imzası
-    const src = isPdf ? `data:application/pdf;base64,${barcode}` : `data:image/png;base64,${barcode}`
+
+    // 2) MNG barkodu yoksa: YEREL kargo etiketi üret (Code128 — MNG'de kayıtlı
+    //    barcode = referans no olduğundan kurye/şube bu barkodu okutabilir)
+    if (!tn) {
+      alert('Takip numarası yok — önce kargo oluşturun.')
+      return
+    }
+    const esc = (s: any) =>
+      String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const ship = orderItem?.order?.shipping_address || {}
+    const receiverName = `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || '—'
+    const receiverAddr = [ship.address_line1, ship.district, ship.city].filter(Boolean).join(', ')
+    const receiverPhone = ship.phone || orderItem?.order?.phone || ''
+    const senderName = storeInfo?.store_name || 'Novagross Satıcısı'
+    const senderAddr = [storeInfo?.address, storeInfo?.district, storeInfo?.city].filter(Boolean).join(', ')
+    const svg = code128Svg(tn, { height: 70, module: 2 })
+
     const w = window.open('', '_blank')
     if (!w) return
-    w.document.write(
-      isPdf
-        ? `<iframe src="${src}" style="width:100%;height:100vh;border:0" onload="this.contentWindow.print()"></iframe>`
-        : `<body style="text-align:center;font-family:sans-serif"><h3>Takip No: ${tn}</h3><img src="${src}" style="max-width:100%" onload="window.print()"/></body>`
-    )
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kargo Etiketi ${esc(tn)}</title>
+<style>
+  @page { size: A6 landscape; margin: 6mm; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; color: #000; }
+  .label { border: 2px solid #000; border-radius: 6px; padding: 10px 12px; max-width: 560px; }
+  .head { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 6px; }
+  .head b { font-size: 18px; }
+  .head span { font-size: 12px; }
+  .row { display: flex; gap: 10px; margin-top: 8px; }
+  .box { flex: 1; border: 1px solid #999; border-radius: 4px; padding: 6px 8px; }
+  .box .t { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: .5px; }
+  .box .v { font-size: 13px; font-weight: 600; margin-top: 2px; line-height: 1.35; }
+  .bc { text-align: center; margin-top: 10px; }
+  .meta { display: flex; justify-content: space-between; font-size: 11px; margin-top: 6px; color: #333; }
+</style></head><body onload="window.print()">
+<div class="label">
+  <div class="head"><b>MNG KARGO</b><span>Ödeme: GÖNDERİCİ ÖDER &nbsp;|&nbsp; Sipariş #${esc(orderItem?.order?.order_number || '')}</span></div>
+  <div class="row">
+    <div class="box"><div class="t">Gönderici</div><div class="v">${esc(senderName)}<br>${esc(senderAddr)}${storeInfo?.phone ? `<br>Tel: ${esc(storeInfo.phone)}` : ''}</div></div>
+    <div class="box"><div class="t">Alıcı</div><div class="v">${esc(receiverName)}<br>${esc(receiverAddr)}${receiverPhone ? `<br>Tel: ${esc(receiverPhone)}` : ''}</div></div>
+  </div>
+  <div class="bc">${svg}</div>
+  <div class="meta"><span>İçerik: ${esc((orderItem?.name || '').slice(0, 40))}</span><span>Adet: ${esc(orderItem?.quantity || 1)}</span><span>${new Date().toLocaleDateString('tr-TR')}</span></div>
+</div>
+</body></html>`)
     w.document.close()
   }
 
@@ -318,15 +371,14 @@ export default function SellerOrders() {
                       })()}
                       {(() => {
                         const s = shipmentsByOrderId[orderItem.order.id]
-                        const hasBarcode = Boolean(s.barcode_data)
-                        const lu = safeExternalUrl(s.shipping_label_url)
-                        const hasRealLabel = lu && !String(s.shipping_label_url).includes('example.com')
-                        return hasBarcode || hasRealLabel ? (
+                        // Takip no varsa her zaman etiket basılabilir:
+                        // MNG barkodu varsa o, yoksa yerel Code128 etiketi üretilir
+                        return s.tracking_number ? (
                           <button
-                            onClick={() => printBarcode(orderItem.order.id)}
-                            className="mt-1 inline-flex items-center gap-1 text-blue-600 underline"
+                            onClick={() => printBarcode(orderItem.order.id, orderItem)}
+                            className="mt-1 inline-flex items-center gap-1 rounded bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700"
                           >
-                            🖨️ Kargo Barkodu Yazdır
+                            🖨️ Kargo Etiketi Yazdır
                           </button>
                         ) : null
                       })()}

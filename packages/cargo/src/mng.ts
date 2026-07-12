@@ -59,6 +59,24 @@ export interface MngTrackingResponse {
   estimatedDelivery?: string
 }
 
+/** Bulk Query: toplu gönderi durumu satırı (ham MNG yanıtı) */
+export interface MngBulkShipmentRow {
+  shipment?: {
+    referenceId?: string
+    shipmentId?: string
+    shipmentStatusCode?: number
+    isDelivered?: number
+    deliveryDate?: string
+    deliveryTo?: string
+    estimatedDeliveryDate?: string
+    shipperBranch?: string
+    receivingBranch?: string
+    shipmentDateTime?: string
+    [k: string]: any
+  }
+  [k: string]: any
+}
+
 type CodeRec = { code: number; name: string }
 
 function trUpper(s: string): string {
@@ -318,6 +336,29 @@ export class MngKargoClient {
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
     }
+  }
+
+  /**
+   * Bulk Query: belirli bir tarih/saatten sonra DURUMU DEĞİŞEN tüm gönderiler.
+   * Format: dd-MM-yyyy ve HH:mm:ss (MNG örnek formatı). Günlük senkronizasyon için kullanılır.
+   */
+  async getStatusChangedShipments(date: string, time: string): Promise<MngBulkShipmentRow[]> {
+    const { ok, data } = await this.authedFetch(
+      `/mngapi/api/bulkqueryapi/getStatusChangedShipments/${encodeURIComponent(date)}/${encodeURIComponent(time)}`,
+      { method: 'GET' }
+    )
+    if (!ok || !Array.isArray(data)) return []
+    return data
+  }
+
+  /** Bulk Query: belirli tarihte teslim edilmiş tüm gönderiler */
+  async getDeliveredShipments(date: string): Promise<MngBulkShipmentRow[]> {
+    const { ok, data } = await this.authedFetch(
+      `/mngapi/api/bulkqueryapi/getDeliveredShipment/${encodeURIComponent(date)}`,
+      { method: 'GET' }
+    )
+    if (!ok || !Array.isArray(data)) return []
+    return data
   }
 
   /** Finance Query: tarih aralığındaki faturalar */

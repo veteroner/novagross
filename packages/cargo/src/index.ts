@@ -365,3 +365,4 @@ export type {
   MngShipmentRequest,
   MngShipmentResponse,
 }
+export type { MngBulkShipmentRow } from './mng'

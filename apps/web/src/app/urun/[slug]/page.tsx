@@ -6,6 +6,7 @@ import { formatPrice } from '@novagross/utils'
 import { Truck, Shield, RotateCcw, Star } from 'lucide-react'
 import { ProductImageGallery } from '@/components/product/product-image-gallery'
 import { ProductVariantSelector } from '@/components/product/product-variant-selector'
+import { ProductViewTracker } from '@/components/product/product-view-tracker'
 import { getProductBySlug } from '@/lib/supabase/queries'
 import { generateProductMetadata } from '@/lib/metadata'
 import { JsonLd } from '@/components/seo/json-ld'
@@ -84,6 +85,8 @@ export default async function ProductDetailPage({
           { name: product.name, url: productUrl },
         ])}
       />
+
+      <ProductViewTracker productId={product.id} />
 
       <div className="container py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">

@@ -86,6 +86,34 @@ export function renderEmailTemplate(template: string, data: Record<string, any>)
       };
     }
 
+    case 'marketing/product-offer': {
+      const customerName = escapeHtml(data?.customerName || 'Değerli Müşterimiz');
+      const productName = escapeHtml(data?.productName);
+      const productUrl = escapeHtml(data?.productUrl);
+      const storeName = escapeHtml(data?.storeName);
+      const discountValue = escapeHtml(data?.discountValue);
+      const couponCode = escapeHtml(data?.couponCode);
+      const expiresAt = escapeHtml(data?.expiresAt);
+
+      return {
+        html: `
+          <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto; line-height:1.5; color:#111; max-width:560px; margin:0 auto;">
+            <h2 style="margin:0 0 12px;">Size Özel Bir Fırsat! 🎁</h2>
+            <p style="margin:0 0 8px;">Merhaba ${customerName},</p>
+            <p style="margin:0 0 16px;">İlgilendiğiniz <strong>${productName}</strong> için ${storeName} size özel <strong>%${discountValue} indirim</strong> tanımladı.</p>
+            <div style="background:#FFF4EC; border:2px dashed #FF6000; border-radius:10px; padding:16px; text-align:center; margin:16px 0;">
+              <p style="margin:0 0 4px; font-size:12px; color:#9a5b2d;">İndirim Kodunuz</p>
+              <p style="margin:0; font-size:24px; font-weight:bold; letter-spacing:2px; color:#FF6000;">${couponCode}</p>
+              ${expiresAt ? `<p style="margin:6px 0 0; font-size:12px; color:#9a5b2d;">Son kullanım: ${expiresAt}</p>` : ''}
+            </div>
+            ${productUrl ? `<p style="text-align:center; margin:20px 0;"><a href="${productUrl}" style="background:#FF6000; color:#fff; padding:12px 28px; border-radius:8px; text-decoration:none; font-weight:bold;">Ürüne Git ve Kodu Kullan</a></p>` : ''}
+            <hr style="border:none; border-top:1px solid #eee; margin:20px 0;" />
+            <p style="margin:0; color:#888; font-size:12px;">Kod tek kullanımlıktır ve yalnızca size özeldir. Ödeme adımında "Kupon Kodu" alanına girin.</p>
+          </div>
+        `,
+      };
+    }
+
     // Fallback: still send something instead of failing the whole queue item
     default: {
       return {

@@ -9,6 +9,7 @@ import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { useFavoritesStore } from '@/stores/favorites-store'
 import { createClient } from '@/lib/supabase/client'
+import { NotificationBell } from '@/components/layout/notification-bell'
 import { useState, useEffect } from 'react'
 import { SearchBar } from './search-bar'
 
@@ -191,6 +192,7 @@ export function Header() {
 
           {mounted && authHydrated && user ? (
             <div className="flex items-center gap-2">
+              <NotificationBell userId={user.id} />
               <Link href="/hesabim" aria-label="Hesabım">
                 <Button variant="ghost" size="sm" className="hidden sm:flex">
                   <User className="h-4 w-4 mr-2" />

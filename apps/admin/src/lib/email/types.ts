@@ -39,12 +39,14 @@ export type EmailTemplate =
   | 'marketing/win-back'
   | 'marketing/welcome-series'
   | 'marketing/product-recommendations'
+  | 'marketing/product-offer'
   // Seller (Marketplace)
   | 'seller/application-received'
   | 'seller/application-approved'
   | 'seller/application-rejected'
   | 'seller/withdrawal-processed'
   | 'seller/weekly-payout-processed'
+  | 'seller/weekly-insights'
   // Store (Marketplace)
   | 'store/product-approved'
   | 'store/product-rejected'

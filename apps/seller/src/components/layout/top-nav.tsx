@@ -154,6 +154,12 @@ const NAV: NavGroup[] = [
       },
       { href: '/raporlar', label: 'Raporlar', icon: BarChart3, description: 'Top ürün, yorum, kampanya' },
       {
+        href: '/kacan-satislar',
+        label: 'Kaçan Satışlar',
+        icon: Activity,
+        description: 'İlgilenen ama almayanlara teklif gönder',
+      },
+      {
         href: '/oneriler/stok',
         label: 'Stok Önerileri',
         icon: Package,

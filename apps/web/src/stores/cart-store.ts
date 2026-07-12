@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { trackProductEvent } from '@/lib/analytics/track-product-event'
 
 interface CartItem {
   productId: string
@@ -73,6 +74,8 @@ export const useCartStore = create<CartState>()(
 
           return { items: [...state.items, item] }
         })
+        // Davranış analitiği (best-effort, akışı bloklamaz)
+        trackProductEvent('add_to_cart', item.productId, item.quantity)
       },
 
       removeItem: (productId, variantId) => {
@@ -81,6 +84,7 @@ export const useCartStore = create<CartState>()(
             (item) => !(item.productId === productId && item.variantId === variantId)
           ),
         }))
+        trackProductEvent('remove_from_cart', productId)
       },
 
       updateQuantity: (productId, variantId, quantity) => {

@@ -208,7 +208,28 @@ export class EmailService {
           );
           TemplateComponent = WeeklyPayoutSummary;
           break;
-          
+
+        case 'marketing/product-offer':
+          const { default: ProductOffer } = await import(
+            './templates/marketing/product-offer'
+          );
+          TemplateComponent = ProductOffer;
+          break;
+
+        case 'marketing/abandoned-cart':
+          const { default: AbandonedCart } = await import(
+            './templates/marketing/abandoned-cart'
+          );
+          TemplateComponent = AbandonedCart;
+          break;
+
+        case 'seller/weekly-insights':
+          const { default: WeeklyInsights } = await import(
+            './templates/seller/weekly-insights'
+          );
+          TemplateComponent = WeeklyInsights;
+          break;
+
         default:
           throw new Error(`Unknown template: ${template}`);
       }

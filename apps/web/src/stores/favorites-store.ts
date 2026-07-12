@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { trackProductEvent } from '@/lib/analytics/track-product-event'
 
 export interface FavoriteItem {
   productId: string
@@ -33,12 +34,14 @@ export const useFavoritesStore = create<FavoritesState>()(
         set((state) => ({
           items: [...state.items, { ...item, addedAt: new Date() }],
         }))
+        trackProductEvent('favorite', item.productId)
       },
 
       removeFromFavorites: (productId) => {
         set((state) => ({
           items: state.items.filter((item) => item.productId !== productId),
         }))
+        trackProductEvent('unfavorite', productId)
       },
 
       isFavorite: (productId) => {

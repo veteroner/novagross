@@ -3,9 +3,16 @@
  *
  * Auth: her istekte X-IBM-Client-Id + X-IBM-Client-Secret header.
  *       POST /mngapi/api/token { customerNumber, password, identityType } → JWT (Bearer).
- * Sipariş: Plus Command /createDetailedOrder
+ * Sipariş: Plus Command /createDetailedOrder (marketPlaceShortCode='' —
+ *          createMarketPlaceOrder yalnızca TRND/GG/N11 kabul ediyor, bize uygun değil)
+ * İptal:   Plus Command /marketPlaceCancelOrder (fallback: /cancelOrderDelivery)
+ * İade:    Standard Command /createReturnOrder + Plus Query /checkReturnOrder
  * Takip:   Plus Query /getShipmentByBarcode/{barcode}
+ * Toplu:   Bulk Query /getStatusChangedShipments, /getDeliveredShipment
+ * Teslimat sorunu: Plus Query /getShipmentDeliveryProblems + Plus Command /answerShipmentDeliveryProblem
+ * Ücret (ön tahmin): Standard Query /calculate — kesin ücret Finance Query mutabakatıyla belli olur
  * Barkod:  Barcode Command /createbarcode
+ * Fatura:  Finance Query /getinvoicelist (kargo), /getCommissionInvoicelist (komisyon)
  * Şehir/ilçe kodu: CBS Info /getcities, /getdistricts/{cityCode}
  *
  * Gerekli env:
@@ -325,17 +332,254 @@ export class MngKargoClient {
     }
   }
 
-  async cancelShipment(barcode: string): Promise<{ success: boolean; message: string }> {
+  /**
+   * Kargo iptali. Önce Plus Command'ın marketplace'e özel iptal endpoint'ini
+   * dener (cancelOrderDelivery hesabımızda 20015 yetki hatası veriyordu);
+   * o da başarısız olursa cancelOrderDelivery'e düşer.
+   */
+  async cancelShipment(barcode: string, reason?: string): Promise<{ success: boolean; message: string }> {
+    const ref = trUpper(barcode)
+    const description = (reason || 'Sipariş iptali').slice(0, 200)
     try {
-      const { ok, data } = await this.authedFetch('/mngapi/api/pluscmdapi/cancelOrderDelivery', {
+      const { ok, data } = await this.authedFetch('/mngapi/api/pluscmdapi/marketPlaceCancelOrder', {
         method: 'POST',
-        body: JSON.stringify({ referenceId: trUpper(barcode), description: 'Sipariş iptali' }),
+        body: JSON.stringify({ referenceId: ref, description }),
       })
       const err = this.extractError(data)
-      return { success: ok && !err, message: err || (ok ? 'Kargo iptal edildi' : 'İptal başarısız') }
+      if (ok && !err) return { success: true, message: 'Kargo iptal edildi' }
+
+      // Fallback: eski endpoint
+      const fallback = await this.authedFetch('/mngapi/api/pluscmdapi/cancelOrderDelivery', {
+        method: 'POST',
+        body: JSON.stringify({ referenceId: ref, description }),
+      })
+      const fbErr = this.extractError(fallback.data)
+      return {
+        success: fallback.ok && !fbErr,
+        message: fbErr || (fallback.ok ? 'Kargo iptal edildi' : err || 'İptal başarısız'),
+      }
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
     }
+  }
+
+  /**
+   * Gerçek MNG iade gönderisi (Standard Command /createReturnOrder).
+   * Gönderici = müşteri (ürünü geri gönderen), shipper.customerId = platform
+   * hesabı (MNG'nin bize ait irsaliye/muhasebe kaydı için).
+   */
+  async createReturnOrder(data: {
+    senderName: string
+    senderAddress: string
+    senderCity: string
+    senderDistrict: string
+    senderPhone: string
+    description?: string
+    invoiceNumber?: string
+    referenceNumber?: string
+    weight?: number
+    pieceCount?: number
+  }): Promise<MngShipmentResponse> {
+    const cfg = this.isConfigured()
+    if (!cfg.ok) {
+      return { success: false, error: `MNG entegrasyonu için eksik ayar: ${cfg.missing.join(', ')}`, errorCode: 'NOT_CONFIGURED' }
+    }
+    try {
+      const cityCode = await this.resolveCityCode(data.senderCity)
+      if (!cityCode) return { success: false, error: `Gönderici şehri MNG koduna çevrilemedi: ${data.senderCity}`, errorCode: 'CITY_NOT_FOUND' }
+      const districtCode = await this.resolveDistrictCode(cityCode, data.senderDistrict)
+
+      const reference = trUpper((data.referenceNumber || data.invoiceNumber || `NGRET${Date.now()}`).replace(/[^A-Za-z0-9]/g, ''))
+      const kg = Math.max(1, Math.ceil(data.weight || 1))
+      const desi = Math.max(1, Math.ceil((data.weight || 1) * 3))
+
+      const payload = {
+        order: {
+          referenceId: reference,
+          barcode: reference,
+          isCOD: 0,
+          codAmount: 0,
+          shipmentServiceType: 1,
+          packagingType: 4,
+          content: (data.description || 'İade').slice(0, 50),
+          smsPreference1: 1,
+          smsPreference2: 1,
+          smsPreference3: 0,
+          paymentType: 2, // 2=ALICI_ODER — iade kargo bedeli mağazaya (alıcı=biz)
+          deliveryType: 1,
+          description: (data.description || 'Ürün iadesi').slice(0, 100),
+          marketPlaceShortCode: '',
+          marketPlaceSaleCode: '',
+          pudoId: '',
+        },
+        orderPieceList: Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
+          barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
+          desi,
+          kg,
+          content: (data.description || 'İade').slice(0, 50),
+        })),
+        shipper: {
+          cityCode,
+          districtCode: districtCode ?? 0,
+          address: data.senderAddress,
+          fullName: data.senderName,
+          mobilePhoneNumber: (data.senderPhone || '').replace(/\D/g, ''),
+          refCustomerId: reference,
+        },
+      }
+
+      const { ok, data: result } = await this.authedFetch('/mngapi/api/standardcmdapi/createReturnOrder', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+
+      const errMsg = this.extractError(result)
+      if (ok && !errMsg) {
+        return { success: true, trackingNumber: reference, barcode: reference }
+      }
+      return { success: false, error: errMsg || 'MNG iade gönderisi oluşturulamadı', errorCode: 'CREATE_RETURN_FAILED' }
+    } catch (e: any) {
+      console.error('[mng] createReturnOrder error', e)
+      return { success: false, error: e.message || 'API bağlantı hatası' }
+    }
+  }
+
+  /** Plus Query /checkReturnOrder: iade gönderisinin durumu */
+  async checkReturnOrder(referenceId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const { ok, data } = await this.authedFetch('/mngapi/api/plusqueryapi/checkReturnOrder', {
+        method: 'POST',
+        body: JSON.stringify({ referenceId: trUpper(referenceId) }),
+      })
+      const err = this.extractError(data)
+      if (ok && !err) return { success: true, data }
+      return { success: false, error: err || 'İade durumu alınamadı' }
+    } catch (e: any) {
+      return { success: false, error: e.message || 'API bağlantı hatası' }
+    }
+  }
+
+  /**
+   * Plus Query /getShipmentDeliveryProblems: kurye/şubeden bildirilen
+   * teslimat sorunları (adres bulunamadı, alıcı yok vb.). responseStatus:
+   * 0 = cevap bekleyenler, 1 = yanıtlanan tümü.
+   */
+  async getShipmentDeliveryProblems(params: {
+    responseStartDate: string
+    responseEndDate: string
+    responseStatus?: number
+  }): Promise<any[]> {
+    const { ok, data } = await this.authedFetch('/mngapi/api/plusqueryapi/getShipmentDeliveryProblems', {
+      method: 'POST',
+      body: JSON.stringify({
+        responseStartDate: params.responseStartDate,
+        responseEndDate: params.responseEndDate,
+        responseStatus: params.responseStatus ?? 0,
+      }),
+    })
+    if (!ok || !Array.isArray(data)) return []
+    return data
+  }
+
+  /**
+   * Plus Command /answerShipmentDeliveryProblem: kurye/şubenin bildirdiği
+   * teslimat sorununu onayla (approveOrCancel=1) ya da reddet (0).
+   */
+  async answerShipmentDeliveryProblem(params: {
+    shipmentId: string
+    shipmentDeliveryProblemId: number
+    approve: boolean
+    answer: string
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const { ok, data } = await this.authedFetch('/mngapi/api/pluscmdapi/answerShipmentDeliveryProblem', {
+        method: 'POST',
+        body: JSON.stringify({
+          shipmentId: params.shipmentId,
+          shipmentDeliveryProblemId: params.shipmentDeliveryProblemId,
+          approveOrCancel: params.approve ? 1 : 0,
+          anwser: params.answer.slice(0, 200), // MNG'nin şemasındaki (yanlış yazılmış) alan adı
+        }),
+      })
+      const err = this.extractError(data)
+      return { success: ok && !err, message: err || (ok ? 'Yanıt gönderildi' : 'Yanıt gönderilemedi') }
+    } catch (e: any) {
+      return { success: false, message: e.message || 'API bağlantı hatası' }
+    }
+  }
+
+  /**
+   * Standard Query /calculate: sipariş oluşturmadan ÖNCE tahmini kargo
+   * ücreti. Kesin ücret yalnızca fatura mutabakatıyla (Finance Query) belli
+   * olur — bu yalnızca ön bilgi/tahmin amaçlıdır.
+   */
+  async calculateShippingCost(params: {
+    receiverCity: string
+    receiverDistrict: string
+    weight: number
+    serviceType?: 'STANDARD' | 'EXPRESS'
+  }): Promise<{ success: boolean; cost?: number; error?: string }> {
+    try {
+      const cityCode = await this.resolveCityCode(params.receiverCity)
+      if (!cityCode) return { success: false, error: `Şehir koduna çevrilemedi: ${params.receiverCity}` }
+      const districtCode = await this.resolveDistrictCode(cityCode, params.receiverDistrict)
+      const kg = Math.max(1, Math.ceil(params.weight || 1))
+      const desi = Math.max(1, Math.ceil((params.weight || 1) * 3))
+
+      const { ok, data } = await this.authedFetch('/mngapi/api/standardqueryapi/calculate', {
+        method: 'POST',
+        body: JSON.stringify({
+          shipmentServiceType: params.serviceType === 'EXPRESS' ? 7 : 1,
+          packagingType: 4,
+          paymentType: 1,
+          pickUpType: 1,
+          deliveryType: 1,
+          recipientCustomerId: this.customerId,
+          cityCode,
+          districtCode: districtCode ?? 0,
+          smsPreference1: 1,
+          smsPreference2: 1,
+          smsPreference3: 0,
+          orderPieceList: [{ desi, kg }],
+        }),
+      })
+      const err = this.extractError(data)
+      if (ok && !err) {
+        const cost = Number((data as any)?.finalTotal ?? (data as any)?.total ?? (data as any)?.cost ?? 0)
+        return { success: true, cost }
+      }
+      return { success: false, error: err || 'Ücret hesaplanamadı' }
+    } catch (e: any) {
+      return { success: false, error: e.message || 'API bağlantı hatası' }
+    }
+  }
+
+  /** Finance Query: komisyon fatura listesi (MNG'nin bize kestiği komisyon) */
+  async getCommissionInvoiceList(startDate: string, endDate: string): Promise<any[]> {
+    const { ok, data } = await this.authedFetch('/mngapi/api/financequeryapi/getCommissionInvoicelist', {
+      method: 'POST',
+      body: JSON.stringify({ startDate, endDate }),
+    })
+    if (!ok || !Array.isArray(data)) return []
+    return data
+  }
+
+  /** Finance Query: komisyon faturası detayı */
+  async getCommissionInvoiceDetailList(invoice: {
+    invoiceNumber?: string
+    invoiceSerialNumber?: string
+    eInvoiceId?: string
+  }): Promise<any[]> {
+    const { ok, data } = await this.authedFetch('/mngapi/api/financequeryapi/getCommissionInvoicedetaillist', {
+      method: 'POST',
+      body: JSON.stringify({
+        invoiceNumber: invoice.invoiceNumber || '',
+        invoiceSerialNumber: invoice.invoiceSerialNumber || '',
+        eInvoiceId: invoice.eInvoiceId || '',
+      }),
+    })
+    if (!ok || !Array.isArray(data)) return []
+    return data
   }
 
   /**

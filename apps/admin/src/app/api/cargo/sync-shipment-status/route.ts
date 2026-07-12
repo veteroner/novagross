@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
       const { data: shipment } = await service
         .from('order_shipments')
-        .select('id, order_id, status')
+        .select('id, order_id, status, bill_of_landing_id')
         .eq('tracking_number', ref)
         .maybeSingle()
 
@@ -93,13 +93,18 @@ export async function POST(req: NextRequest) {
       }
       summary.matched++
 
-      if (shipment.status === newStatus) {
+      const billOfLandingId = s?.billOfLandingId || s?.billOfLandingID || null
+      const newBillOfLanding = !shipment.bill_of_landing_id && billOfLandingId
+
+      if (shipment.status === newStatus && !newBillOfLanding) {
         summary.skipped++ // zaten güncel
         continue
       }
 
-      const update: any = { status: newStatus, updated_at: new Date().toISOString() }
-      if (newStatus === 'delivered') {
+      const update: any = { updated_at: new Date().toISOString() }
+      if (shipment.status !== newStatus) update.status = newStatus
+      if (newBillOfLanding) update.bill_of_landing_id = billOfLandingId
+      if (newStatus === 'delivered' && shipment.status !== 'delivered') {
         update.delivered_at = s?.deliveryDate || new Date().toISOString()
       }
 
@@ -113,21 +118,24 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      await service.from('shipping_status_history').insert({
-        shipment_id: shipment.id,
-        status: newStatus,
-        location: s?.receivingBranch || s?.shipperBranch || null,
-        description: `MNG durum güncellemesi (kod ${s?.shipmentStatusCode})`,
-        timestamp: new Date().toISOString(),
-        raw_data: row,
-      })
+      const statusChanged = shipment.status !== newStatus
+      if (statusChanged) {
+        await service.from('shipping_status_history').insert({
+          shipment_id: shipment.id,
+          status: newStatus,
+          location: s?.receivingBranch || s?.shipperBranch || null,
+          description: `MNG durum güncellemesi (kod ${s?.shipmentStatusCode})`,
+          timestamp: new Date().toISOString(),
+          raw_data: row,
+        })
 
-      // Teslim edildiyse siparişi de güncelle
-      if (newStatus === 'delivered') {
-        await service
-          .from('orders')
-          .update({ status: 'delivered', updated_at: new Date().toISOString() })
-          .eq('id', shipment.order_id)
+        // Teslim edildiyse siparişi de güncelle
+        if (newStatus === 'delivered') {
+          await service
+            .from('orders')
+            .update({ status: 'delivered', updated_at: new Date().toISOString() })
+            .eq('id', shipment.order_id)
+        }
       }
 
       summary.updated++

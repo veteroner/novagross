@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         // referans = order_shipments.tracking_number (oluştururken referenceId = tracking)
         const { data: shipment } = await service
           .from('order_shipments')
-          .select('order_id, cargo_fee')
+          .select('id, order_id, cargo_fee, bill_of_landing_id')
           .eq('tracking_number', ref)
           .maybeSingle()
 
@@ -85,8 +85,15 @@ export async function POST(req: NextRequest) {
           continue
         }
         summary.matched++
+
+        // İrsaliye no faturadan geldiyse, ücret zaten işlenmiş olsa da doldur
+        const billOfLandingId = (line as any).billOfLandingId || (line as any).billOfLandingID || null
+        if (billOfLandingId && !shipment.bill_of_landing_id) {
+          await service.from('order_shipments').update({ bill_of_landing_id: billOfLandingId }).eq('id', shipment.id)
+        }
+
         if (shipment.cargo_fee != null) {
-          summary.skipped++ // zaten işlenmiş
+          summary.skipped++ // ücret zaten işlenmiş
           continue
         }
 

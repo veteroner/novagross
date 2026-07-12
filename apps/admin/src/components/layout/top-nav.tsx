@@ -24,6 +24,7 @@ import {
   Megaphone,
   ChevronDown,
   Bell,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -99,6 +100,18 @@ const NAV: NavGroup[] = [
         counter: 'pendingWithdrawals',
       },
       { href: '/odemeler', label: 'Haftalık Ödemeler', icon: Wallet, description: 'Çarşamba batch' },
+      {
+        href: '/teslimat-sorunlari',
+        label: 'Teslimat Sorunları',
+        icon: AlertTriangle,
+        description: 'MNG kurye/şube bildirimleri',
+      },
+      {
+        href: '/mng-kargo-faturalari',
+        label: 'MNG Kargo Faturaları',
+        icon: Receipt,
+        description: 'MNG komisyon/kargo faturaları',
+      },
       { href: '/vergi/stopaj', label: 'Vergi / Stopaj', icon: Receipt, description: 'Aylık %1 tevkifat & GİB beyanı' },
       { href: '/vergi/faturalar', label: 'Komisyon Faturaları', icon: Receipt, description: 'Aylık satıcı faturaları + e-arşiv' },
       { href: '/ayarlar/komisyon', label: 'Komisyon', icon: Settings, description: 'Satıcı oranları' },

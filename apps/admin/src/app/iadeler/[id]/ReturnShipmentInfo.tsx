@@ -20,6 +20,8 @@ export function ReturnShipmentInfo({
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [statusInfo, setStatusInfo] = useState<any>(null)
 
   async function regenerate() {
     setSubmitting(true)
@@ -37,6 +39,25 @@ export function ReturnShipmentInfo({
       setMsg(e.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function checkStatus() {
+    setChecking(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/returns/check-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Durum sorgulanamadı')
+      setStatusInfo(data.status)
+    } catch (e: any) {
+      setMsg(e.message)
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -67,6 +88,14 @@ export function ReturnShipmentInfo({
             <p className="text-xs text-muted-foreground">
               Barkod müşterinin İadelerim sayfasında yazdırılabilir.
             </p>
+            <Button onClick={checkStatus} disabled={checking} variant="outline" size="sm">
+              {checking ? 'Sorgulanıyor...' : '🔍 MNG Durumunu Sorgula'}
+            </Button>
+            {statusInfo ? (
+              <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto whitespace-pre-wrap">
+                {JSON.stringify(statusInfo, null, 2)}
+              </pre>
+            ) : null}
           </>
         ) : (
           <>

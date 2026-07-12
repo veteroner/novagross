@@ -70,7 +70,7 @@ export default function SellerOrders() {
       if (orderIds.length > 0) {
         const { data: shipments } = await supabase
           .from('order_shipments')
-          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,provider_code,carrier_id,method_id')
+          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,provider_code,carrier_id,method_id,bill_of_landing_id')
           .in('order_id', orderIds)
 
         const next: Record<string, any> = {}
@@ -225,6 +225,29 @@ export default function SellerOrders() {
     }
   }
 
+  const cancelShipmentAction = async (orderId: string) => {
+    const reason = window.prompt('İptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
+    if (reason === null) return // vazgeçildi
+    try {
+      setShippingSubmittingForOrderId(orderId)
+      const res = await fetch(`/api/orders/${orderId}/shipment`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'Satıcı iptali' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'İptal edilemedi')
+
+      setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
+      await fetchOrders()
+      alert('Kargo iptal edildi.')
+    } catch (e: any) {
+      alert(e?.message || 'İptal edilemedi')
+    } finally {
+      setShippingSubmittingForOrderId(null)
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <ShoppingCart className="w-5 h-5 text-yellow-600" />
@@ -363,6 +386,9 @@ export default function SellerOrders() {
                       {shipmentsByOrderId[orderItem.order.id].tracking_number && (
                         <div>Takip No: <span className="font-mono">{shipmentsByOrderId[orderItem.order.id].tracking_number}</span></div>
                       )}
+                      {shipmentsByOrderId[orderItem.order.id].bill_of_landing_id && (
+                        <div>İrsaliye No: <span className="font-mono">{shipmentsByOrderId[orderItem.order.id].bill_of_landing_id}</span></div>
+                      )}
                       {(() => {
                         const tu = safeExternalUrl(shipmentsByOrderId[orderItem.order.id].tracking_url)
                         return tu ? (
@@ -485,13 +511,23 @@ export default function SellerOrders() {
                 )}
 
                 {orderItem.order.status === 'shipped' && (
-                  <Button
-                    onClick={() => markDelivered(orderItem.order.id)}
-                    className="w-full"
-                    disabled={shippingSubmittingForOrderId === orderItem.order.id}
-                  >
-                    Teslim Edildi Olarak İşaretle
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => markDelivered(orderItem.order.id)}
+                      className="flex-1"
+                      disabled={shippingSubmittingForOrderId === orderItem.order.id}
+                    >
+                      Teslim Edildi Olarak İşaretle
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => cancelShipmentAction(orderItem.order.id)}
+                      disabled={shippingSubmittingForOrderId === orderItem.order.id}
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                    >
+                      Kargoyu İptal Et
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

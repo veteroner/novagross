@@ -369,3 +369,80 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
     return NextResponse.json({ error: error.message || 'Kargo durumu güncellenemedi' }, { status: 500 })
   }
 }
+
+/**
+ * Kargo iptali — henüz teslim edilmemiş bir gönderi için gerçek MNG iptalini
+ * çağırır (marketPlaceCancelOrder, yetkisizse cancelOrderDelivery'e düşer).
+ */
+export async function DELETE(request: NextRequest, { params }: { params: { orderId: string } }) {
+  try {
+    const supabase = await createClient()
+    const { data: auth } = await supabase.auth.getUser()
+    const user = auth.user
+    if (!user) {
+      return NextResponse.json({ error: 'Giriş yapmanız gerekiyor' }, { status: 401 })
+    }
+
+    const ownership = await assertSellerOwnsOrder(supabase, user.id, params.orderId)
+    if (!ownership.ok) {
+      return NextResponse.json({ error: 'Bu siparişe erişim yetkiniz yok' }, { status: 403 })
+    }
+
+    const body = await request.json().catch(() => ({}))
+    const reason = (body?.reason as string | undefined) || 'Satıcı iptali'
+
+    const { data: shipment, error: shipmentError } = await (supabase as any)
+      .from('order_shipments')
+      .select('id, tracking_number, provider_code, status')
+      .eq('order_id', params.orderId)
+      .maybeSingle()
+
+    if (shipmentError || !shipment) {
+      return NextResponse.json({ error: 'Kargo kaydı bulunamadı' }, { status: 404 })
+    }
+    if (!shipment.tracking_number) {
+      return NextResponse.json({ error: 'Bu gönderinin takip numarası yok' }, { status: 400 })
+    }
+    if (['delivered', 'failed', 'returned'].includes(shipment.status)) {
+      return NextResponse.json({ error: 'Teslim edilmiş/kapanmış gönderi iptal edilemez' }, { status: 400 })
+    }
+
+    const provider = (shipment.provider_code || '').toLowerCase() as CargoProvider
+    if (REAL_PROVIDERS.includes(provider)) {
+      const result = await cargoService.cancelShipment(provider, shipment.tracking_number, reason)
+      if (!result.success) {
+        return NextResponse.json({ error: result.message || 'Kargo iptal edilemedi' }, { status: 502 })
+      }
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('order_shipments')
+      .update({ status: 'failed', updated_at: new Date().toISOString() })
+      .eq('id', shipment.id)
+      .select()
+      .single()
+    if (updateError) throw updateError
+
+    try {
+      await supabase.from('shipping_status_history').insert({
+        shipment_id: shipment.id,
+        status: 'failed',
+        location: 'Sistem',
+        description: `Kargo iptal edildi: ${reason}`,
+        timestamp: new Date().toISOString(),
+      })
+    } catch {
+      /* ignore */
+    }
+
+    await supabase
+      .from('orders')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', params.orderId)
+
+    return NextResponse.json({ success: true, shipment: updated })
+  } catch (error: any) {
+    console.error('Cancel shipment error:', error)
+    return NextResponse.json({ error: error.message || 'Kargo iptal edilemedi' }, { status: 500 })
+  }
+}

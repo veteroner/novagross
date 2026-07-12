@@ -203,18 +203,19 @@ export class CargoService {
    */
   async cancelShipment(
     provider: CargoProvider,
-    trackingNumber: string
+    trackingNumber: string,
+    reason?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
       switch (provider) {
         case 'yurtici':
           return await yurticiKargo.cancelShipment(trackingNumber)
-        
+
         case 'aras':
           return await arasKargo.cancelShipment(trackingNumber)
 
         case 'mng':
-          return await mngKargo.cancelShipment(trackingNumber)
+          return await mngKargo.cancelShipment(trackingNumber, reason)
 
         case 'ptt':
         case 'surat':

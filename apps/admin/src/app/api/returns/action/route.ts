@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { queueEmail } from '@/lib/email/queue'
-import { cargoService } from '@novagross/cargo'
+import { mngKargo } from '@novagross/cargo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic'
 const RETURN_CARRIER = 'mng' as const
 
 /**
- * İade kargosu oluştur: müşteri ürünü mağazaya geri gönderir.
- * Gönderici = müşteri (sipariş teslimat adresi), Alıcı = mağaza.
+ * İade kargosu oluştur: müşteri ürünü mağazaya geri gönderir. MNG'nin GERÇEK
+ * iade endpoint'i (Standard Command /createReturnOrder) kullanılır — normal
+ * createDetailedOrder ile oluşturulan bir gönderi MNG'nin muhasebesinde
+ * "yeni sipariş" gibi görünür, checkReturnOrder ile sorgulanamaz.
  * Best-effort: hata olursa return_shipment_error'a yazılır, talep akışı bozulmaz.
  */
 async function generateReturnShipment(service: any, requestId: string): Promise<void> {
@@ -30,23 +32,17 @@ async function generateReturnShipment(service: any, requestId: string): Promise<
       .eq('id', req.order_id)
       .maybeSingle()
 
-    const { data: store } = await service
-      .from('stores')
-      .select('store_name, address, city, district, phone')
-      .eq('id', req.store_id)
-      .maybeSingle()
-
     const ship = (order?.shipping_address as any) || {}
 
-    if (!store?.address || !store?.city) {
+    if (!ship.address_line1 || !ship.city) {
       await service
         .from('return_requests')
-        .update({ return_shipment_error: 'Mağaza adresi eksik, iade kargosu oluşturulamadı' })
+        .update({ return_shipment_error: 'Müşterinin teslimat adresi eksik, iade kargosu oluşturulamadı' })
         .eq('id', requestId)
       return
     }
 
-    const mngReady = Boolean(process.env.MNG_CLIENT_ID && process.env.MNG_CLIENT_SECRET)
+    const mngReady = mngKargo.isConfigured().ok
     if (!mngReady) {
       await service
         .from('return_requests')
@@ -55,32 +51,22 @@ async function generateReturnShipment(service: any, requestId: string): Promise<
       return
     }
 
-    const result = await cargoService.createShipment(RETURN_CARRIER, {
-      // Gönderici = müşteri
+    const result = await mngKargo.createReturnOrder({
+      // Gönderici = müşteri (ürünü geri gönderen taraf)
       senderName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
       senderAddress: ship.address_line1 || '',
       senderCity: ship.city || '',
       senderDistrict: ship.district || '',
       senderPhone: ship.phone || '',
-      // Alıcı = mağaza
-      receiverName: store.store_name,
-      receiverAddress: store.address,
-      receiverCity: store.city,
-      receiverDistrict: store.district || '',
-      receiverPhone: store.phone || '',
-      receiverEmail: '',
-
       weight: 1,
       pieceCount: req.quantity || 1,
-      paymentType: 'RECEIVER', // iade kargo bedeli mağazaya
-      serviceType: 'STANDARD',
       description: `İADE - Sipariş #${order?.order_number || ''} - ${req.order_items?.name || ''}`,
       invoiceNumber: `IADE-${req.id.slice(0, 8)}`,
     })
 
     if (result.success && result.trackingNumber) {
       let barcode: string | null = null
-      const bc = await cargoService.getBarcode(RETURN_CARRIER, result.trackingNumber)
+      const bc = await mngKargo.getBarcode(result.trackingNumber)
       if (bc.success && bc.barcodeBase64) barcode = bc.barcodeBase64
 
       await service

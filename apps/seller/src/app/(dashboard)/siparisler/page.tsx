@@ -324,6 +324,21 @@ export default function SellerOrders() {
     return map[status] || status
   }
 
+  // order_shipments.status enum → HB tarzı Türkçe kargo durumu etiketi + renk
+  const shipmentStatusMeta = (status: string): { label: string; cls: string } => {
+    const map: Record<string, { label: string; cls: string }> = {
+      pending: { label: 'Kargo Bekliyor', cls: 'bg-gray-100 text-gray-700' },
+      preparing: { label: 'Hazırlanıyor', cls: 'bg-blue-100 text-blue-700' },
+      shipped: { label: 'Kargoya Verildi', cls: 'bg-purple-100 text-purple-700' },
+      in_transit: { label: 'Yolda (Transfer)', cls: 'bg-indigo-100 text-indigo-700' },
+      out_for_delivery: { label: 'Dağıtımda', cls: 'bg-amber-100 text-amber-800' },
+      delivered: { label: 'Teslim Edildi', cls: 'bg-green-100 text-green-700' },
+      failed: { label: 'Teslim Edilemedi / İptal', cls: 'bg-red-100 text-red-700' },
+      returned: { label: 'İ­ade / Geri Dönüyor', cls: 'bg-orange-100 text-orange-700' },
+    }
+    return map[status] || { label: status, cls: 'bg-gray-100 text-gray-700' }
+  }
+
   const filteredOrders = filter === 'all' ? orders : orders.filter((o) => o.order.status === filter)
 
   if (loading) {
@@ -482,7 +497,17 @@ export default function SellerOrders() {
                   <div className="mb-4 p-3 border rounded-lg bg-white">
                     <p className="text-sm font-semibold mb-1">Kargo:</p>
                     <div className="text-sm text-gray-700">
-                      <div>Durum: {shipmentsByOrderId[orderItem.order.id].status}</div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span>Durum:</span>
+                        {(() => {
+                          const meta = shipmentStatusMeta(shipmentsByOrderId[orderItem.order.id].status)
+                          return (
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${meta.cls}`}>
+                              {meta.label}
+                            </span>
+                          )
+                        })()}
+                      </div>
                       {shipmentsByOrderId[orderItem.order.id].tracking_number && (
                         <div>Takip No: <span className="font-mono">{shipmentsByOrderId[orderItem.order.id].tracking_number}</span></div>
                       )}

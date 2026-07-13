@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -292,6 +292,25 @@ export default function TopNav() {
   const [counters, setCounters] = useState(EMPTY_COUNTERS)
   const [storeName, setStoreName] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement | null>(null)
+
+  // Bildirim menüsü dışına tıklayınca kapat
+  useEffect(() => {
+    if (!notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [notifOpen])
+
+  // Sayfa değişince menüyü kapat
+  useEffect(() => {
+    setNotifOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     let cancelled = false
@@ -349,6 +368,22 @@ export default function TopNav() {
     counters.cartSuggestions +
     counters.pendingDeliveryProblems
 
+  // Bildirim menüsündeki aksiyon bekleyen kalemler (yalnızca sayısı > 0 olanlar)
+  const notifItems = [
+    { count: counters.pendingDeliveryProblems, label: 'Kargo teslimat sorunu', href: '/siparisler', icon: AlertCircle },
+    { count: counters.pendingReviews, label: 'Yanıtsız yorum', href: '/yorumlar', icon: MessageSquare },
+    { count: counters.pendingQuestions, label: 'Yanıtsız ürün sorusu', href: '/sorular', icon: HelpCircle },
+    { count: counters.openClaims, label: 'Açık müşteri talebi', href: '/talepler', icon: RefreshCcw },
+    { count: counters.pendingProducts, label: 'Aksiyon bekleyen ürün', href: '/urunler/aksiyon-bekleyen', icon: BadgeCheck },
+    { count: counters.cartSuggestions, label: 'Sepette bekleyen ürün (fiyat önerisi)', href: '/rota', icon: TrendingUp },
+  ].filter((i) => i.count > 0)
+
+  // Store adı platform markasıyla aynıysa (test/kendi mağazamız) logo yanında
+  // tekrar göstermeye gerek yok — gereksiz "Novagross Novagross" tekrarını önler.
+  const brandNorm = BRAND_NAME.trim().toLowerCase()
+  const storeNorm = storeName.trim().toLowerCase()
+  const showStoreName = Boolean(storeName) && storeNorm !== brandNorm && storeNorm !== 'novagross'
+
   return (
     <header className="bg-white border-b sticky top-0 z-40">
       {/* Brand bar */}
@@ -356,24 +391,71 @@ export default function TopNav() {
         <div className="max-w-screen-2xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 min-w-0">
             <img src="/logo.webp" alt={BRAND_NAME} className="h-16 w-auto" />
-            <span className="text-sm text-gray-500 font-medium truncate">
-              {storeName || 'Satıcı Paneli'}
-            </span>
+            {showStoreName && (
+              <span className="text-sm text-gray-500 font-medium truncate border-l pl-2 ml-1">
+                {storeName}
+              </span>
+            )}
           </Link>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/yorumlar"
-              className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 text-gray-700"
-              title="Bildirimler"
-            >
-              <Bell className="h-5 w-5" />
-              {totalAlerts > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-green-600 text-white text-[10px] font-bold leading-none flex items-center justify-center">
-                  {totalAlerts > 99 ? '99+' : totalAlerts}
-                </span>
+            {/* Bildirimler — açılır menü (tam sayfa geçiş yerine yerinde liste) */}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setNotifOpen((v) => !v)}
+                className="relative inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 text-gray-700"
+                title="Bildirimler"
+                aria-haspopup="true"
+                aria-expanded={notifOpen}
+              >
+                <Bell className="h-5 w-5" />
+                {totalAlerts > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-green-600 text-white text-[10px] font-bold leading-none flex items-center justify-center">
+                    {totalAlerts > 99 ? '99+' : totalAlerts}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border bg-white shadow-lg z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-900">Bildirimler</span>
+                    {totalAlerts > 0 && (
+                      <span className="text-xs text-gray-500">{totalAlerts} aksiyon bekliyor</span>
+                    )}
+                  </div>
+                  {notifItems.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-gray-500">
+                      Yeni bildirim yok 🎉
+                    </div>
+                  ) : (
+                    <ul className="max-h-96 overflow-y-auto divide-y">
+                      {notifItems.map((it) => {
+                        const ItIcon = it.icon
+                        return (
+                          <li key={it.label}>
+                            <Link
+                              href={it.href}
+                              onClick={() => setNotifOpen(false)}
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50"
+                            >
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-50 text-green-700 shrink-0">
+                                <ItIcon className="h-4 w-4" />
+                              </span>
+                              <span className="flex-1 text-sm text-gray-700">{it.label}</span>
+                              <span className="min-w-[1.4rem] h-6 px-1.5 rounded-full bg-green-600 text-white text-xs font-bold leading-none flex items-center justify-center">
+                                {it.count > 99 ? '99+' : it.count}
+                              </span>
+                            </Link>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
               )}
-            </Link>
+            </div>
 
             <button
               type="button"

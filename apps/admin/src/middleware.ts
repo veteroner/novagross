@@ -11,11 +11,33 @@ function isApiRoute(pathname: string): boolean {
   return pathname.startsWith('/api/')
 }
 
+// Cron/scheduled-function ile çağrılan route'lar: Netlify scheduled function'lar
+// tarayıcı oturumu taşımaz, yalnızca `Authorization: Bearer <secret>` gönderir.
+// Bu route'ların HER BİRİ kendi içinde secret'ı doğrular — middleware'in oturum
+// zorunluluğu bunları asla geçmelerine izin vermez (session yoksa 401 verip
+// route koduna hiç ulaşmaz), bu yüzden burada muaf tutulmaları GEREKİR.
+const CRON_ROUTE_PREFIXES = [
+  '/api/email/process-queue',
+  '/api/iyzico/auto-approve',
+  '/api/marketing/weekly-seller-insights',
+  '/api/marketing/abandoned-cart-reminders',
+  '/api/cargo/sync-shipment-status',
+  '/api/cargo/reconcile-invoices',
+  '/api/cargo/sync-delivery-problems',
+]
+
+function isCronRoute(pathname: string): boolean {
+  return CRON_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+}
+
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone()
 
   // Allow unauthenticated access to login and assets.
   if (url.pathname === '/login') return NextResponse.next()
+
+  // Cron route'ları kendi Bearer secret kontrolünü yapar — oturum şartından muaf.
+  if (isCronRoute(url.pathname)) return NextResponse.next()
 
   let res = NextResponse.next({
     request: {

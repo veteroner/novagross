@@ -475,8 +475,11 @@ export class MngKargoClient {
         responseStartDate: params.responseStartDate,
         responseEndDate: params.responseEndDate,
         responseStatus: params.responseStatus ?? 0,
+        // Gerçek MNG API'si bu alanı da zorunlu tutuyor (spec'te opsiyonel görünüyordu)
+        isResponseApprovedorRejected: 0,
       }),
     })
+    // 404 = bu aralıkta hiç sorun yok (gerçek "boş sonuç", hata değil)
     if (!ok || !Array.isArray(data)) return []
     return data
   }
@@ -516,6 +519,7 @@ export class MngKargoClient {
   async calculateShippingCost(params: {
     receiverCity: string
     receiverDistrict: string
+    receiverAddress: string
     weight: number
     serviceType?: 'STANDARD' | 'EXPRESS'
   }): Promise<{ success: boolean; cost?: number; error?: string }> {
@@ -526,6 +530,10 @@ export class MngKargoClient {
       const kg = Math.max(1, Math.ceil(params.weight || 1))
       const desi = Math.max(1, Math.ceil((params.weight || 1) * 3))
 
+      // Gerçek MNG API'si spec'ten farklı davranıyor (doğrulandı):
+      // - recipientCustomerId + cityCode birlikte gönderilemez (26059) → yalnızca cityCode/districtCode/address kullan
+      // - districtCode STRING olmalı (integer değil)
+      // - orderPieceList.barcode ve .content ZORUNLU (spec'te opsiyonel görünüyordu)
       const { ok, data } = await this.authedFetch('/mngapi/api/standardqueryapi/calculate', {
         method: 'POST',
         body: JSON.stringify({
@@ -534,13 +542,13 @@ export class MngKargoClient {
           paymentType: 1,
           pickUpType: 1,
           deliveryType: 1,
-          recipientCustomerId: this.customerId,
           cityCode,
-          districtCode: districtCode ?? 0,
+          districtCode: String(districtCode ?? 0),
+          address: params.receiverAddress,
           smsPreference1: 1,
           smsPreference2: 1,
           smsPreference3: 0,
-          orderPieceList: [{ desi, kg }],
+          orderPieceList: [{ barcode: `CALC${Date.now()}`, desi, kg, content: 'Ürün' }],
         }),
       })
       const err = this.extractError(data)

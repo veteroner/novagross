@@ -19,6 +19,9 @@ export default function SellerOrders() {
   const [shippingFormOpenForOrderId, setShippingFormOpenForOrderId] = useState<string | null>(null)
   const [shippingForm, setShippingForm] = useState({ carrierId: '', methodId: '', weight: 1, createLabel: true })
   const [shippingSubmittingForOrderId, setShippingSubmittingForOrderId] = useState<string | null>(null)
+  const [deliveryProblemsByOrderId, setDeliveryProblemsByOrderId] = useState<Record<string, any>>({})
+  const [deliveryProblemAnswer, setDeliveryProblemAnswer] = useState<Record<string, string>>({})
+  const [deliveryProblemSubmittingId, setDeliveryProblemSubmittingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchOrders()
@@ -76,11 +79,43 @@ export default function SellerOrders() {
         const next: Record<string, any> = {}
         for (const s of shipments || []) next[(s as any).order_id] = s
         setShipmentsByOrderId(next)
+
+        const { data: problems } = await (supabase as any)
+          .from('delivery_problems')
+          .select('id, order_id, mng_shipment_id, problem_description, status, created_at')
+          .in('order_id', orderIds)
+          .eq('status', 'pending')
+        const nextProblems: Record<string, any> = {}
+        for (const p of problems || []) nextProblems[p.order_id] = p
+        setDeliveryProblemsByOrderId(nextProblems)
       }
     } catch (error) {
       console.error('Failed to fetch orders:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const answerDeliveryProblem = async (problemId: string, approve: boolean) => {
+    const text = (deliveryProblemAnswer[problemId] || '').trim()
+    if (text.length < 3) {
+      alert('Lütfen en az 3 karakterlik bir yanıt yazın')
+      return
+    }
+    setDeliveryProblemSubmittingId(problemId)
+    try {
+      const res = await fetch('/api/delivery-problems/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemId, approve, answer: text }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Yanıt gönderilemedi')
+      await fetchOrders()
+    } catch (e: any) {
+      alert(e?.message || 'Yanıt gönderilemedi')
+    } finally {
+      setDeliveryProblemSubmittingId(null)
     }
   }
 
@@ -376,6 +411,49 @@ export default function SellerOrders() {
                     )}
                   </div>
                 </div>
+
+                {/* Teslimat sorunu bildirimi — MNG kurye/şubenin bildirdiği sorun, yanıt bekliyor */}
+                {deliveryProblemsByOrderId[orderItem.order.id] && (
+                  <div className="mb-4 p-3 border border-yellow-300 rounded-lg bg-yellow-50">
+                    <p className="text-sm font-semibold mb-1 text-yellow-800">⚠️ Kargo Teslimat Sorunu — Yanıt Bekliyor</p>
+                    {deliveryProblemsByOrderId[orderItem.order.id].problem_description && (
+                      <p className="text-sm text-yellow-900 mb-2">
+                        {deliveryProblemsByOrderId[orderItem.order.id].problem_description}
+                      </p>
+                    )}
+                    <textarea
+                      className="w-full text-sm border rounded px-2 py-1.5 mb-2"
+                      rows={2}
+                      placeholder="Yanıtınız (kuryeye/şubeye iletilecek)"
+                      value={deliveryProblemAnswer[deliveryProblemsByOrderId[orderItem.order.id].id] || ''}
+                      onChange={(e) =>
+                        setDeliveryProblemAnswer((prev) => ({
+                          ...prev,
+                          [deliveryProblemsByOrderId[orderItem.order.id].id]: e.target.value,
+                        }))
+                      }
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={deliveryProblemSubmittingId === deliveryProblemsByOrderId[orderItem.order.id].id}
+                        onClick={() => answerDeliveryProblem(deliveryProblemsByOrderId[orderItem.order.id].id, true)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        ✅ Onayla
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={deliveryProblemSubmittingId === deliveryProblemsByOrderId[orderItem.order.id].id}
+                        onClick={() => answerDeliveryProblem(deliveryProblemsByOrderId[orderItem.order.id].id, false)}
+                        className="text-red-600 border-red-300"
+                      >
+                        ❌ Reddet
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Shipping status */}
                 {shipmentsByOrderId[orderItem.order.id] && (

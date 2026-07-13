@@ -36,6 +36,7 @@ type CounterKey =
   | 'openClaims'
   | 'pendingProducts'
   | 'pendingPlatformOffers'
+  | 'pendingDeliveryProblems'
 
 type NavLeaf = {
   href: string
@@ -77,7 +78,7 @@ const NAV: NavGroup[] = [
     icon: ShoppingCart,
     href: '/siparisler',
     items: [],
-    surfacesCounters: ['pendingOrders'],
+    surfacesCounters: ['pendingOrders', 'pendingDeliveryProblems'],
   },
   {
     label: 'Pazarlama',
@@ -203,6 +204,7 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   openClaims: 0,
   pendingProducts: 0,
   pendingPlatformOffers: 0,
+  pendingDeliveryProblems: 0,
 }
 
 async function fetchCounters(
@@ -217,7 +219,7 @@ async function fetchCounters(
     .eq('store_id', storeId)
   const productIds = (productRows ?? []).map((p: any) => p.id)
 
-  const [a, b, c, d, e, f, g] = await Promise.all([
+  const [a, b, c, d, e, f, g, h] = await Promise.all([
     productIds.length > 0
       ? (supabase as any)
           .from('reviews')
@@ -257,6 +259,11 @@ async function fetchCounters(
       .select('id', { count: 'exact', head: true })
       .or(`store_id.eq.${storeId},store_id.is.null`)
       .eq('status', 'pending'),
+    // RLS bu satırları zaten satıcının kendi mağazasına ait siparişlerle sınırlıyor
+    (supabase as any)
+      .from('delivery_problems')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
   ])
   return {
     pendingReviews: a.count ?? 0,
@@ -266,6 +273,7 @@ async function fetchCounters(
     openClaims: e.count ?? 0,
     pendingProducts: f.count ?? 0,
     pendingPlatformOffers: g.count ?? 0,
+    pendingDeliveryProblems: h.count ?? 0,
   }
 }
 
@@ -338,7 +346,8 @@ export default function TopNav() {
     counters.pendingQuestions +
     counters.openClaims +
     counters.pendingProducts +
-    counters.cartSuggestions
+    counters.cartSuggestions +
+    counters.pendingDeliveryProblems
 
   return (
     <header className="bg-white border-b sticky top-0 z-40">

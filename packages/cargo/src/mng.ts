@@ -345,7 +345,7 @@ export class MngKargoClient {
         method: 'POST',
         body: JSON.stringify({ referenceId: ref, description }),
       })
-      const err = this.extractError(data)
+      const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
       if (ok && !err) return { success: true, message: 'Kargo iptal edildi' }
 
       // Fallback: eski endpoint
@@ -353,10 +353,10 @@ export class MngKargoClient {
         method: 'POST',
         body: JSON.stringify({ referenceId: ref, description }),
       })
-      const fbErr = this.extractError(fallback.data)
+      const fbErr = this.extractError(fallback.data) || (!fallback.ok ? this.rawMessage(fallback.data) : null)
       return {
         success: fallback.ok && !fbErr,
-        message: fbErr || (fallback.ok ? 'Kargo iptal edildi' : err || 'İptal başarısız'),
+        message: fbErr || (fallback.ok ? 'Kargo iptal edildi' : err || 'İptal başarısız (MNG yanıtı ayrıştırılamadı)'),
       }
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
@@ -646,8 +646,12 @@ export class MngKargoClient {
   /** MNG yanıtından hata mesajı çıkar (ProblemDetails / array / message alanları) */
   private extractError(data: any): string | null {
     if (!data) return null
-    if (typeof data === 'string') return /error|hata|invalid|fail/i.test(data) ? data.slice(0, 200) : null
-    if (data.errors || data.errorCode || data.isSuccess === false || data.success === false || (typeof data.status === 'number' && data.status >= 400)) {
+    if (typeof data === 'string') {
+      return /error|hata|invalid|fail|yetki|izin|reddedildi|bulunamadı|yok\b/i.test(data)
+        ? data.slice(0, 300)
+        : null
+    }
+    if (data.errors || data.errorCode || data.code || data.isSuccess === false || data.success === false || (typeof data.status === 'number' && data.status >= 400)) {
       return String(data.detail || data.errorMessage || data.title || data.message || 'İşlem başarısız')
     }
     if (Array.isArray(data)) {
@@ -655,6 +659,22 @@ export class MngKargoClient {
       if (failed) return String(failed.errorMessage || failed.message || 'İşlem başarısız')
     }
     return null
+  }
+
+  /**
+   * extractError beklenen şemalardan hiçbirini tanımadığında (yeni/bilinmeyen
+   * hata biçimi) ham MNG yanıtını olduğu gibi döndürür — HTTP durumu zaten
+   * başarısızsa asla sessizce genel bir mesaja düşülmemeli, gerçek neden
+   * (örn. hesap yetki hatası) kullanıcıya ulaşmalı.
+   */
+  private rawMessage(data: any): string | null {
+    if (data === null || data === undefined || data === '') return null
+    if (typeof data === 'string') return data.slice(0, 300)
+    try {
+      return JSON.stringify(data).slice(0, 300)
+    } catch {
+      return null
+    }
   }
 }
 

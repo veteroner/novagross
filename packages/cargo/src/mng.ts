@@ -167,21 +167,41 @@ export class MngKargoClient {
     }
   }
 
-  private async authedFetch(path: string, init: RequestInit & { method: string }) {
+  private async authedFetch(
+    path: string,
+    init: RequestInit & { method: string; timeoutMs?: number }
+  ) {
     const token = await this.getToken()
     if (!token) throw new Error('MNG kimlik doğrulama başarısız (token alınamadı)')
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { ...this.ibmHeaders(), Authorization: `Bearer ${token}`, ...(init.headers || {}) },
-    })
-    const text = await res.text()
-    let data: any
+
+    // MNG'nin bazı uçları çok yavaş yanıtlıyor (örn. getShipmentDeliveryProblems
+    // 15-17sn). Varsayılan 20sn timeout, hung socket'te sonsuza dek beklemeyi
+    // engeller; yavaş uçlar timeoutMs ile bunu genişletebilir.
+    const { timeoutMs = 20_000, ...fetchInit } = init
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      data = JSON.parse(text)
-    } catch {
-      data = text
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...fetchInit,
+        signal: controller.signal,
+        headers: { ...this.ibmHeaders(), Authorization: `Bearer ${token}`, ...(init.headers || {}) },
+      })
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+      return { ok: res.ok, status: res.status, data }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        throw new Error(`MNG isteği zaman aşımına uğradı (${timeoutMs}ms): ${path}`)
+      }
+      throw e
+    } finally {
+      clearTimeout(timer)
     }
-    return { ok: res.ok, status: res.status, data }
   }
 
   /** CBS Info: şehir adı → integer kod */
@@ -471,6 +491,9 @@ export class MngKargoClient {
   }): Promise<any[]> {
     const { ok, data } = await this.authedFetch('/mngapi/api/plusqueryapi/getShipmentDeliveryProblems', {
       method: 'POST',
+      // Bu uç gerçek testte 15-17sn sürüyor — varsayılan 20sn'yi aşabildiği için
+      // cömert bir timeout veriyoruz (aksi halde cron ortasında abort olur).
+      timeoutMs: 45_000,
       body: JSON.stringify({
         responseStartDate: params.responseStartDate,
         responseEndDate: params.responseEndDate,

@@ -5,6 +5,9 @@ import { mngKargo } from '@novagross/cargo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// MNG getShipmentDeliveryProblems ucu 15-17sn sürebiliyor + token + DB yazımları;
+// varsayılan 10sn function limitini aşmamak için süreyi yükseltiyoruz.
+export const maxDuration = 60
 
 // MNG'den cevap bekleyen teslimat sorunlarını çekip delivery_problems'a yazar.
 // Cron (MNG_CRON_SECRET) veya oturum açmış admin tarafından çağrılabilir.

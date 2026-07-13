@@ -47,6 +47,27 @@ export default async function SellerReviewsPage({
 }: {
   searchParams: Promise<{ tab?: string; status?: string }>
 }) {
+  try {
+    return await renderReviews(searchParams)
+  } catch (e: any) {
+    // Next.js redirect/notFound sinyallerini bozma
+    if (e?.digest && String(e.digest).startsWith('NEXT_')) throw e
+    return (
+      <div className="p-6 space-y-2">
+        <h2 className="text-lg font-bold text-red-700">[TANI] Yorumlar sayfası hatası</h2>
+        <pre className="text-xs bg-red-50 border border-red-200 p-3 rounded whitespace-pre-wrap overflow-auto">
+          {String(e?.message || e)}
+          {'\n\n'}
+          {String(e?.stack || '')}
+        </pre>
+      </div>
+    )
+  }
+}
+
+async function renderReviews(
+  searchParams: Promise<{ tab?: string; status?: string }>
+) {
   const { supabase, storeId } = await requireSeller('/yorumlar')
   const sp = await searchParams
   const tab = parseTab(sp.tab)

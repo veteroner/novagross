@@ -390,6 +390,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { order
 
     const body = await request.json().catch(() => ({}))
     const reason = (body?.reason as string | undefined) || 'Satıcı iptali'
+    const force = body?.force === true
 
     const { data: shipment, error: shipmentError } = await (supabase as any)
       .from('order_shipments')
@@ -407,11 +408,25 @@ export async function DELETE(request: NextRequest, { params }: { params: { order
       return NextResponse.json({ error: 'Teslim edilmiş/kapanmış gönderi iptal edilemez' }, { status: 400 })
     }
 
+    let cancelNote = `Kargo iptal edildi: ${reason}`
     const provider = (shipment.provider_code || '').toLowerCase() as CargoProvider
     if (REAL_PROVIDERS.includes(provider)) {
       const result = await cargoService.cancelShipment(provider, shipment.tracking_number, reason)
       if (!result.success) {
-        return NextResponse.json({ error: result.message || 'Kargo iptal edilemedi' }, { status: 502 })
+        if (!force) {
+          // MNG API'si reddetti (örn. hesap yetki hatası) — satıcıya elle
+          // iptal seçeneği sunulsun diye ham hatayı geri döndür, kaydı
+          // henüz değiştirme.
+          return NextResponse.json(
+            { error: result.message || 'Kargo iptal edilemedi', canForce: true },
+            { status: 502 }
+          )
+        }
+        // Satıcı, kargo firmasıyla telefon/portal üzerinden manuel iletişime
+        // geçtiğini onaylayarak sistemde iptal olarak işaretlenmesini istedi.
+        // MNG API çağrısı başarısız kaldığı için fiziksel gönderiyi bu kayıt
+        // durdurmaz — bilgi amaçlı not olarak MNG'nin ham hatası saklanır.
+        cancelNote = `Kargo iptal edildi (MANUEL — MNG API reddetti: ${result.message || 'bilinmeyen hata'}): ${reason}`
       }
     }
 
@@ -428,7 +443,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { order
         shipment_id: shipment.id,
         status: 'failed',
         location: 'Sistem',
-        description: `Kargo iptal edildi: ${reason}`,
+        description: cancelNote,
         timestamp: new Date().toISOString(),
       })
     } catch {

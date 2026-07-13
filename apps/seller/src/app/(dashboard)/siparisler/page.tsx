@@ -271,7 +271,29 @@ export default function SellerOrders() {
         body: JSON.stringify({ reason: reason || 'Satıcı iptali' }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'İptal edilemedi')
+      if (!res.ok) {
+        if (data?.canForce) {
+          const confirmForce = window.confirm(
+            `Kargo firması API'si iptali reddetti:\n"${data.error}"\n\n` +
+              'Kargo firmasıyla telefon/portal üzerinden MANUEL olarak iletişime geçip gönderiyi durdurduysanız, ' +
+              'sistemde bu siparişi yine de iptal olarak işaretleyebiliriz.\n\n' +
+              'Gönderiyi kargo firmasıyla manuel olarak durdurdunuz mu?'
+          )
+          if (!confirmForce) return
+          const res2 = await fetch(`/api/orders/${orderId}/shipment`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason || 'Satıcı iptali', force: true }),
+          })
+          const data2 = await res2.json()
+          if (!res2.ok) throw new Error(data2?.error || 'İptal edilemedi')
+          setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data2.shipment }))
+          await fetchOrders()
+          alert('Kargo sistemde iptal olarak işaretlendi (manuel).')
+          return
+        }
+        throw new Error(data?.error || 'İptal edilemedi')
+      }
 
       setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
       await fetchOrders()

@@ -237,22 +237,8 @@ export class MngKargoClient {
       const recvCityCode = await this.resolveCityCode(data.receiverCity)
       if (!recvCityCode) return { success: false, error: `Alıcı şehri MNG koduna çevrilemedi: ${data.receiverCity}`, errorCode: 'CITY_NOT_FOUND' }
       const recvDistrictCode = await this.resolveDistrictCode(recvCityCode, data.receiverDistrict)
-
-      const reference = trUpper((data.referenceNumber || data.invoiceNumber || `NG${Date.now()}`).replace(/[^A-Za-z0-9]/g, ''))
       const kg = Math.max(1, Math.ceil(data.weight || 1))
       const desi = Math.max(1, Math.ceil((data.weight || 1) * 3))
-
-      const orderPieceList = Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
-        barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
-        desi,
-        kg,
-        content: (data.description || 'Sipariş').slice(0, 50),
-      }))
-      const shipper = {
-        customerId: this.customerId,
-        // Fatura mutabakatında siparişi geri eşleştirmek için referansımız
-        refCustomerId: reference,
-      }
       const recipient = {
         cityCode: recvCityCode,
         districtCode: recvDistrictCode ?? 0,
@@ -261,68 +247,93 @@ export class MngKargoClient {
         mobilePhoneNumber: (data.receiverPhone || '').replace(/\D/g, ''),
         email: data.receiverEmail || '',
       }
-      const baseOrder = {
-        referenceId: reference,
-        barcode: reference,
-        isCOD: 0,
-        codAmount: 0,
-        shipmentServiceType: data.serviceType === 'EXPRESS' ? 7 : 1, // 1=STANDART, 7=GÜNİÇİ
-        packagingType: 4, // KOLİ
-        content: (data.description || 'Sipariş').slice(0, 50),
-        smsPreference1: 1,
-        smsPreference2: 1,
-        smsPreference3: 0,
-        paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
-        deliveryType: 1, // ADRESE_TESLİM
-        description: (data.description || '').slice(0, 100),
-        // Canlı testte (2026-07-14) Standard Command'ın createOrder'ı da bu
-        // alanları zorunlu tutuyor (26029 "MarketPlaceShortCode' şunlardan
-        // biri olmalıdır: TRND,GG,N11,''" hatası kanıtladı) — Plus Command'a
-        // özel değilmiş, boş string olarak paylaşılan order objesine taşındı.
-        marketPlaceShortCode: '',
-        marketPlaceSaleCode: '',
-        pudoId: '',
-      }
       const extractLabel = (result: any) =>
         (result && (result.labelUrl || result.documentUrl || result.pdfUrl || result.barcodeUrl || result.cargoLabelUrl)) || undefined
 
-      // 1) MNG destek ekibinin yönlendirmesine göre (2026-07-14): resmi barkod
-      // yalnızca Standard Command'ın createOrder'ıyla oluşturulan siparişlerde
-      // çalışıyormuş (Plus Command'ın createDetailedOrder'ı barkod hesabı
-      // iznini tetiklemiyor). Şema henüz canlıda doğrulanmadı — bu yüzden
-      // createReturnOrder'daki (aynı ürün, kanıtlanmış) şema deseni izleniyor.
-      // Başarısız olursa aşağıdaki kanıtlanmış Plus Command yoluna düşülür.
-      const std = await this.authedFetch('/mngapi/api/standardcmdapi/createOrder', {
-        method: 'POST',
-        body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
-      })
-      const stdErr = this.extractError(std.data) || (!std.ok ? this.rawMessage(std.data) : null)
-      if (std.ok && !stdErr) {
-        console.log('[mng] standardcmdapi/createOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(std.data).slice(0, 1000))
-        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(std.data) }
-      }
-      console.warn('[mng] standardcmdapi/createOrder başarısız, Plus Command createDetailedOrder\'a düşülüyor:', stdErr)
+      // Belirli bir referansla sipariş oluşturmayı dener: önce Standard Command
+      // (MNG destek ekibinin yönlendirmesi, 2026-07-14 — resmi barkod yalnızca
+      // bununla oluşturulan siparişlerde çalışıyormuş), olmazsa kanıtlanmış
+      // Plus Command'a düşer. `duplicate: true` MNG'nin bu referansı zaten
+      // kayıtlı bulduğunu (kod 3002) işaretler — referenceId MNG'de KALICI
+      // benzersizdir, iptal edilmiş olsa bile aynı değer tekrar kullanılamaz.
+      const attemptWithReference = async (
+        reference: string
+      ): Promise<MngShipmentResponse & { duplicate?: boolean }> => {
+        const orderPieceList = Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
+          barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
+          desi,
+          kg,
+          content: (data.description || 'Sipariş').slice(0, 50),
+        }))
+        const shipper = {
+          customerId: this.customerId,
+          // Fatura mutabakatında siparişi geri eşleştirmek için referansımız
+          refCustomerId: reference,
+        }
+        const baseOrder = {
+          referenceId: reference,
+          barcode: reference,
+          isCOD: 0,
+          codAmount: 0,
+          shipmentServiceType: data.serviceType === 'EXPRESS' ? 7 : 1, // 1=STANDART, 7=GÜNİÇİ
+          packagingType: 4, // KOLİ
+          content: (data.description || 'Sipariş').slice(0, 50),
+          smsPreference1: 1,
+          smsPreference2: 1,
+          smsPreference3: 0,
+          paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
+          deliveryType: 1, // ADRESE_TESLİM
+          description: (data.description || '').slice(0, 100),
+          // Canlı testte (2026-07-14) Standard Command'ın createOrder'ı da bu
+          // alanları zorunlu tutuyor (26029 "MarketPlaceShortCode' şunlardan
+          // biri olmalıdır: TRND,GG,N11,''" hatası kanıtladı) — Plus Command'a
+          // özel değilmiş, boş string olarak paylaşılan order objesine taşındı.
+          marketPlaceShortCode: '',
+          marketPlaceSaleCode: '',
+          pudoId: '',
+        }
 
-      // 2) Fallback: kanıtlanmış Plus Command yolu
-      const { ok, data: result } = await this.authedFetch('/mngapi/api/pluscmdapi/createDetailedOrder', {
-        method: 'POST',
-        body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
-      })
+        const std = await this.authedFetch('/mngapi/api/standardcmdapi/createOrder', {
+          method: 'POST',
+          body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
+        })
+        const stdErr = this.extractError(std.data) || (!std.ok ? this.rawMessage(std.data) : null)
+        if (std.ok && !stdErr) {
+          console.log('[mng] standardcmdapi/createOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(std.data).slice(0, 1000))
+          return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(std.data) }
+        }
+        console.warn('[mng] standardcmdapi/createOrder başarısız, Plus Command createDetailedOrder\'a düşülüyor:', stdErr)
 
-      const errMsg = this.extractError(result) || (!ok ? this.rawMessage(result) : null)
-      if (ok && !errMsg) {
-        // createbarcode ayrı çağrısı hesap izni yokluğunda (20011) reddediyor.
-        // createDetailedOrder yanıtında zaten bir etiket/barkod/döküman alanı
-        // gelip gelmediğini bir sonraki gerçek siparişte teşhis edebilmek için
-        // ham yanıtı logluyoruz + olası alan adlarını fırsatçı şekilde okuyoruz.
-        console.log('[mng] createDetailedOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(result).slice(0, 1000))
-        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(result) }
+        const { ok, data: result } = await this.authedFetch('/mngapi/api/pluscmdapi/createDetailedOrder', {
+          method: 'POST',
+          body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
+        })
+        const errMsg = this.extractError(result) || (!ok ? this.rawMessage(result) : null)
+        if (ok && !errMsg) {
+          // createbarcode ayrı çağrısı hesap izni yokluğunda (20011) reddediyor.
+          // createDetailedOrder yanıtında zaten bir etiket/barkod/döküman alanı
+          // gelip gelmediğini bir sonraki gerçek siparişte teşhis edebilmek için
+          // ham yanıtı logluyoruz + olası alan adlarını fırsatçı şekilde okuyoruz.
+          console.log('[mng] createDetailedOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(result).slice(0, 1000))
+          return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(result) }
+        }
+
+        const combined = `Standard: ${stdErr || 'bilinmiyor'} | Plus: ${errMsg || 'bilinmiyor'}`
+        const duplicate = /"?Code"?\s*:\s*"?3002"?|ZATEN VAR/i.test(combined)
+        return { success: false, error: combined, errorCode: 'CREATE_FAILED', duplicate }
       }
-      return {
-        success: false,
-        error: `Standard: ${stdErr || 'bilinmiyor'} | Plus: ${errMsg || 'bilinmiyor'}`,
-        errorCode: 'CREATE_FAILED',
+
+      const baseReference = trUpper((data.referenceNumber || data.invoiceNumber || `NG${Date.now()}`).replace(/[^A-Za-z0-9]/g, ''))
+      let attempt = await attemptWithReference(baseReference)
+      if (!attempt.success && attempt.duplicate) {
+        // Bu referans MNG'de zaten kayıtlı (örn. önceki başarısız/tekrar denemesi
+        // yüzünden) — benzersiz bir sonek ekleyip bir kez daha deniyoruz.
+        const retryReference = `${baseReference}R${Date.now().toString(36).slice(-4).toUpperCase()}`
+        console.warn(`[mng] referans ${baseReference} MNG'de zaten kayıtlı, yeni referansla tekrar deneniyor: ${retryReference}`)
+        attempt = await attemptWithReference(retryReference)
       }
+      const { duplicate: _drop, ...response } = attempt
+      return response
     } catch (e: any) {
       console.error('[mng] createShipment error', e)
       return { success: false, error: e.message || 'API bağlantı hatası' }

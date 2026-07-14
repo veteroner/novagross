@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, Badge, PageHeader, EmptyState, TabBar, type TabItem } from '@novagross/ui'
 import { requireSeller } from '@/lib/auth/requireSeller'
-import { Star, MessageSquare, Package, Store as StoreIcon } from 'lucide-react'
+import { Star, MessageSquare } from 'lucide-react'
 import { ReplyForm } from './reply-form'
 
 export const dynamic = 'force-dynamic'
@@ -47,27 +47,6 @@ export default async function SellerReviewsPage({
 }: {
   searchParams: Promise<{ tab?: string; status?: string }>
 }) {
-  try {
-    return await renderReviews(searchParams)
-  } catch (e: any) {
-    // Next.js redirect/notFound sinyallerini bozma
-    if (e?.digest && String(e.digest).startsWith('NEXT_')) throw e
-    return (
-      <div className="p-6 space-y-2">
-        <h2 className="text-lg font-bold text-red-700">[TANI] Yorumlar sayfası hatası</h2>
-        <pre className="text-xs bg-red-50 border border-red-200 p-3 rounded whitespace-pre-wrap overflow-auto">
-          {String(e?.message || e)}
-          {'\n\n'}
-          {String(e?.stack || '')}
-        </pre>
-      </div>
-    )
-  }
-}
-
-async function renderReviews(
-  searchParams: Promise<{ tab?: string; status?: string }>
-) {
   const { supabase, storeId } = await requireSeller('/yorumlar')
   const sp = await searchParams
   const tab = parseTab(sp.tab)
@@ -144,18 +123,20 @@ async function renderReviews(
     storeReviewsList = ((await q).data ?? []) as any[]
   }
 
+  // NOT: TabBar bir Client Component ('use client'). Sunucu bileşeninden
+  // client'a Lucide ikon BİLEŞENİ (fonksiyon) prop olarak geçilemez — RSC
+  // "Functions cannot be passed to Client Components" hatası verir ve sayfa
+  // 500 ile çöker. Bu yüzden burada ikon geçilmiyor (etiketler zaten açık).
   const tabs: TabItem[] = [
     {
       key: 'products',
       label: 'Ürün Yorumları',
-      icon: Package,
       count: productsTotal,
       href: '/yorumlar?tab=products',
     },
     {
       key: 'store',
       label: 'Mağaza Yorumları',
-      icon: StoreIcon,
       count: storesTotal,
       href: '/yorumlar?tab=store',
     },

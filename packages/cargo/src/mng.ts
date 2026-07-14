@@ -356,28 +356,32 @@ export class MngKargoClient {
    * Kargo iptali. MNG destek ekibinin yönlendirmesine göre (2026-07-14):
    * "Sipariş datanızı iptal etmek için Standard Command – CancelOrder,
    * oluşturulan gönderi barkodu iptal edilecekse Barcode Command –
-   * CancelShipment kullanılır." Plus Command'ın marketPlaceCancelOrder/
-   * cancelOrderDelivery uçları (20015 "yetkiniz yok") YANLIŞ uç olabilirmiş —
-   * bu yüzden önce Standard Command deneniyor, o da başarısız olursa Barcode
-   * Command'a, o da olmazsa (geriye dönük uyumluluk için) eski Plus Command
-   * uçlarına düşülüyor.
+   * CancelShipment kullanılır." İlk canlı denemede kesin ipuçları geldi:
+   * - POST standardcmdapi/cancelOrder → 404 Not Found → bu path/casing YANLIŞ
+   * - POST barcodecmdapi/cancelshipment → 405 Method Not Allowed → path DOĞRU,
+   *   metod yanlış (405 sadece rota var ama izin verilmeyen metod anlamına gelir)
+   * Bu yüzden DELETE metodu ve alternatif casing'ler de deneniyor. Hiçbiri
+   * çalışmazsa (geriye dönük uyumluluk için) eski Plus Command uçlarına düşülüyor.
    */
   async cancelShipment(barcode: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const ref = trUpper(barcode)
     const description = (reason || 'Sipariş iptali').slice(0, 200)
-    const attempts: Array<{ label: string; path: string }> = [
-      { label: 'standardcmdapi/cancelOrder', path: '/mngapi/api/standardcmdapi/cancelOrder' },
-      { label: 'barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment' },
-      { label: 'pluscmdapi/marketPlaceCancelOrder', path: '/mngapi/api/pluscmdapi/marketPlaceCancelOrder' },
-      { label: 'pluscmdapi/cancelOrderDelivery', path: '/mngapi/api/pluscmdapi/cancelOrderDelivery' },
+    const attempts: Array<{ label: string; path: string; method: string }> = [
+      { label: 'DELETE barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment', method: 'DELETE' },
+      { label: 'DELETE standardcmdapi/cancelorder', path: '/mngapi/api/standardcmdapi/cancelorder', method: 'DELETE' },
+      { label: 'POST standardcmdapi/cancelorder', path: '/mngapi/api/standardcmdapi/cancelorder', method: 'POST' },
+      { label: 'POST standardcmdapi/cancelOrder', path: '/mngapi/api/standardcmdapi/cancelOrder', method: 'POST' },
+      { label: 'POST barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment', method: 'POST' },
+      { label: 'POST pluscmdapi/marketPlaceCancelOrder', path: '/mngapi/api/pluscmdapi/marketPlaceCancelOrder', method: 'POST' },
+      { label: 'POST pluscmdapi/cancelOrderDelivery', path: '/mngapi/api/pluscmdapi/cancelOrderDelivery', method: 'POST' },
     ]
 
     const errors: string[] = []
     try {
       for (const attempt of attempts) {
         const { ok, status, data } = await this.authedFetch(attempt.path, {
-          method: 'POST',
-          body: JSON.stringify({ referenceId: ref, description }),
+          method: attempt.method,
+          body: JSON.stringify({ referenceId: ref, description, barcode: ref }),
         })
         const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
         if (ok && !err) return { success: true, message: `Kargo iptal edildi (${attempt.label})` }

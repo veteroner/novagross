@@ -353,31 +353,37 @@ export class MngKargoClient {
   }
 
   /**
-   * Kargo iptali. Önce Plus Command'ın marketplace'e özel iptal endpoint'ini
-   * dener (cancelOrderDelivery hesabımızda 20015 yetki hatası veriyordu);
-   * o da başarısız olursa cancelOrderDelivery'e düşer.
+   * Kargo iptali. MNG destek ekibinin yönlendirmesine göre (2026-07-14):
+   * "Sipariş datanızı iptal etmek için Standard Command – CancelOrder,
+   * oluşturulan gönderi barkodu iptal edilecekse Barcode Command –
+   * CancelShipment kullanılır." Plus Command'ın marketPlaceCancelOrder/
+   * cancelOrderDelivery uçları (20015 "yetkiniz yok") YANLIŞ uç olabilirmiş —
+   * bu yüzden önce Standard Command deneniyor, o da başarısız olursa Barcode
+   * Command'a, o da olmazsa (geriye dönük uyumluluk için) eski Plus Command
+   * uçlarına düşülüyor.
    */
   async cancelShipment(barcode: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const ref = trUpper(barcode)
     const description = (reason || 'Sipariş iptali').slice(0, 200)
-    try {
-      const { ok, data } = await this.authedFetch('/mngapi/api/pluscmdapi/marketPlaceCancelOrder', {
-        method: 'POST',
-        body: JSON.stringify({ referenceId: ref, description }),
-      })
-      const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
-      if (ok && !err) return { success: true, message: 'Kargo iptal edildi' }
+    const attempts: Array<{ label: string; path: string }> = [
+      { label: 'standardcmdapi/cancelOrder', path: '/mngapi/api/standardcmdapi/cancelOrder' },
+      { label: 'barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment' },
+      { label: 'pluscmdapi/marketPlaceCancelOrder', path: '/mngapi/api/pluscmdapi/marketPlaceCancelOrder' },
+      { label: 'pluscmdapi/cancelOrderDelivery', path: '/mngapi/api/pluscmdapi/cancelOrderDelivery' },
+    ]
 
-      // Fallback: eski endpoint
-      const fallback = await this.authedFetch('/mngapi/api/pluscmdapi/cancelOrderDelivery', {
-        method: 'POST',
-        body: JSON.stringify({ referenceId: ref, description }),
-      })
-      const fbErr = this.extractError(fallback.data) || (!fallback.ok ? this.rawMessage(fallback.data) : null)
-      return {
-        success: fallback.ok && !fbErr,
-        message: fbErr || (fallback.ok ? 'Kargo iptal edildi' : err || 'İptal başarısız (MNG yanıtı ayrıştırılamadı)'),
+    const errors: string[] = []
+    try {
+      for (const attempt of attempts) {
+        const { ok, status, data } = await this.authedFetch(attempt.path, {
+          method: 'POST',
+          body: JSON.stringify({ referenceId: ref, description }),
+        })
+        const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
+        if (ok && !err) return { success: true, message: `Kargo iptal edildi (${attempt.label})` }
+        errors.push(`${attempt.label} [HTTP ${status}]: ${err || 'ayrıştırılamayan hata'}`)
       }
+      return { success: false, message: errors.join(' | ') }
     } catch (e: any) {
       return { success: false, message: e.message || 'API bağlantı hatası' }
     }

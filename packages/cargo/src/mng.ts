@@ -275,6 +275,13 @@ export class MngKargoClient {
         paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
         deliveryType: 1, // ADRESE_TESLİM
         description: (data.description || '').slice(0, 100),
+        // Canlı testte (2026-07-14) Standard Command'ın createOrder'ı da bu
+        // alanları zorunlu tutuyor (26029 "MarketPlaceShortCode' şunlardan
+        // biri olmalıdır: TRND,GG,N11,''" hatası kanıtladı) — Plus Command'a
+        // özel değilmiş, boş string olarak paylaşılan order objesine taşındı.
+        marketPlaceShortCode: '',
+        marketPlaceSaleCode: '',
+        pudoId: '',
       }
       const extractLabel = (result: any) =>
         (result && (result.labelUrl || result.documentUrl || result.pdfUrl || result.barcodeUrl || result.cargoLabelUrl)) || undefined
@@ -296,16 +303,10 @@ export class MngKargoClient {
       }
       console.warn('[mng] standardcmdapi/createOrder başarısız, Plus Command createDetailedOrder\'a düşülüyor:', stdErr)
 
-      // 2) Fallback: kanıtlanmış Plus Command yolu (marketplace alanları zorunlu,
-      // yoksa 26029 hatası verir)
+      // 2) Fallback: kanıtlanmış Plus Command yolu
       const { ok, data: result } = await this.authedFetch('/mngapi/api/pluscmdapi/createDetailedOrder', {
         method: 'POST',
-        body: JSON.stringify({
-          order: { ...baseOrder, marketPlaceShortCode: '', marketPlaceSaleCode: '', pudoId: '' },
-          orderPieceList,
-          shipper,
-          recipient,
-        }),
+        body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
       })
 
       const errMsg = this.extractError(result)

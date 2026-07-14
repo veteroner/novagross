@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { cargoService, type CargoProvider } from '@novagross/cargo'
 
 export const runtime = 'nodejs'
+// POST artık Standard Command deneyip başarısız olursa Plus Command'a düşüyor
+// (art arda 2 MNG çağrısı + barkod çağrısı, her biri ~20sn'ye kadar sürebilir);
+// varsayılan Netlify function limiti bu toplam süreyi ortasında kesebilir.
+export const maxDuration = 60
 
 type ShipmentStatus =
   | 'pending'

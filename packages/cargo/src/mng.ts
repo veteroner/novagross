@@ -290,7 +290,14 @@ export class MngKargoClient {
 
       const errMsg = this.extractError(result)
       if (ok && !errMsg) {
-        return { success: true, trackingNumber: reference, barcode: reference }
+        // createbarcode ayrı çağrısı hesap izni yokluğunda (20011) reddediyor.
+        // createDetailedOrder yanıtında zaten bir etiket/barkod/döküman alanı
+        // gelip gelmediğini bir sonraki gerçek siparişte teşhis edebilmek için
+        // ham yanıtı logluyoruz + olası alan adlarını fırsatçı şekilde okuyoruz.
+        console.log('[mng] createDetailedOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(result).slice(0, 1000))
+        const opportunisticLabel =
+          (result && (result.labelUrl || result.documentUrl || result.pdfUrl || result.barcodeUrl || result.cargoLabelUrl)) || undefined
+        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: opportunisticLabel }
       }
       return { success: false, error: errMsg || 'MNG sipariş oluşturulamadı', errorCode: 'CREATE_FAILED' }
     } catch (e: any) {

@@ -309,7 +309,7 @@ export class MngKargoClient {
         body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
       })
 
-      const errMsg = this.extractError(result)
+      const errMsg = this.extractError(result) || (!ok ? this.rawMessage(result) : null)
       if (ok && !errMsg) {
         // createbarcode ayrı çağrısı hesap izni yokluğunda (20011) reddediyor.
         // createDetailedOrder yanıtında zaten bir etiket/barkod/döküman alanı
@@ -318,7 +318,11 @@ export class MngKargoClient {
         console.log('[mng] createDetailedOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(result).slice(0, 1000))
         return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(result) }
       }
-      return { success: false, error: errMsg || `MNG sipariş oluşturulamadı (Standard: ${stdErr || 'bilinmiyor'})`, errorCode: 'CREATE_FAILED' }
+      return {
+        success: false,
+        error: `Standard: ${stdErr || 'bilinmiyor'} | Plus: ${errMsg || 'bilinmiyor'}`,
+        errorCode: 'CREATE_FAILED',
+      }
     } catch (e: any) {
       console.error('[mng] createShipment error', e)
       return { success: false, error: e.message || 'API bağlantı hatası' }

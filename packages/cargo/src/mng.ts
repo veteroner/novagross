@@ -242,50 +242,70 @@ export class MngKargoClient {
       const kg = Math.max(1, Math.ceil(data.weight || 1))
       const desi = Math.max(1, Math.ceil((data.weight || 1) * 3))
 
-      const payload = {
-        order: {
-          referenceId: reference,
-          barcode: reference,
-          isCOD: 0,
-          codAmount: 0,
-          shipmentServiceType: data.serviceType === 'EXPRESS' ? 7 : 1, // 1=STANDART, 7=GÜNİÇİ
-          packagingType: 4, // KOLİ
-          content: (data.description || 'Sipariş').slice(0, 50),
-          smsPreference1: 1,
-          smsPreference2: 1,
-          smsPreference3: 0,
-          paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
-          deliveryType: 1, // ADRESE_TESLİM
-          description: (data.description || '').slice(0, 100),
-          // MNG bu alanları boş string ister (yoksa 26029 reddeder)
-          marketPlaceShortCode: '',
-          marketPlaceSaleCode: '',
-          pudoId: '',
-        },
-        orderPieceList: Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
-          barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
-          desi,
-          kg,
-          content: (data.description || 'Sipariş').slice(0, 50),
-        })),
-        shipper: {
-          customerId: this.customerId,
-          // Fatura mutabakatında siparişi geri eşleştirmek için referansımız
-          refCustomerId: reference,
-        },
-        recipient: {
-          cityCode: recvCityCode,
-          districtCode: recvDistrictCode ?? 0,
-          address: data.receiverAddress,
-          fullName: data.receiverName,
-          mobilePhoneNumber: (data.receiverPhone || '').replace(/\D/g, ''),
-          email: data.receiverEmail || '',
-        },
+      const orderPieceList = Array.from({ length: data.pieceCount || 1 }, (_, i) => ({
+        barcode: (data.pieceCount || 1) > 1 ? `${reference}-${i + 1}` : reference,
+        desi,
+        kg,
+        content: (data.description || 'Sipariş').slice(0, 50),
+      }))
+      const shipper = {
+        customerId: this.customerId,
+        // Fatura mutabakatında siparişi geri eşleştirmek için referansımız
+        refCustomerId: reference,
       }
+      const recipient = {
+        cityCode: recvCityCode,
+        districtCode: recvDistrictCode ?? 0,
+        address: data.receiverAddress,
+        fullName: data.receiverName,
+        mobilePhoneNumber: (data.receiverPhone || '').replace(/\D/g, ''),
+        email: data.receiverEmail || '',
+      }
+      const baseOrder = {
+        referenceId: reference,
+        barcode: reference,
+        isCOD: 0,
+        codAmount: 0,
+        shipmentServiceType: data.serviceType === 'EXPRESS' ? 7 : 1, // 1=STANDART, 7=GÜNİÇİ
+        packagingType: 4, // KOLİ
+        content: (data.description || 'Sipariş').slice(0, 50),
+        smsPreference1: 1,
+        smsPreference2: 1,
+        smsPreference3: 0,
+        paymentType: data.paymentType === 'RECEIVER' ? 2 : 1, // 1=GÖNDERİCİ, 2=ALICI
+        deliveryType: 1, // ADRESE_TESLİM
+        description: (data.description || '').slice(0, 100),
+      }
+      const extractLabel = (result: any) =>
+        (result && (result.labelUrl || result.documentUrl || result.pdfUrl || result.barcodeUrl || result.cargoLabelUrl)) || undefined
 
+      // 1) MNG destek ekibinin yönlendirmesine göre (2026-07-14): resmi barkod
+      // yalnızca Standard Command'ın createOrder'ıyla oluşturulan siparişlerde
+      // çalışıyormuş (Plus Command'ın createDetailedOrder'ı barkod hesabı
+      // iznini tetiklemiyor). Şema henüz canlıda doğrulanmadı — bu yüzden
+      // createReturnOrder'daki (aynı ürün, kanıtlanmış) şema deseni izleniyor.
+      // Başarısız olursa aşağıdaki kanıtlanmış Plus Command yoluna düşülür.
+      const std = await this.authedFetch('/mngapi/api/standardcmdapi/createOrder', {
+        method: 'POST',
+        body: JSON.stringify({ order: baseOrder, orderPieceList, shipper, recipient }),
+      })
+      const stdErr = this.extractError(std.data) || (!std.ok ? this.rawMessage(std.data) : null)
+      if (std.ok && !stdErr) {
+        console.log('[mng] standardcmdapi/createOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(std.data).slice(0, 1000))
+        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(std.data) }
+      }
+      console.warn('[mng] standardcmdapi/createOrder başarısız, Plus Command createDetailedOrder\'a düşülüyor:', stdErr)
+
+      // 2) Fallback: kanıtlanmış Plus Command yolu (marketplace alanları zorunlu,
+      // yoksa 26029 hatası verir)
       const { ok, data: result } = await this.authedFetch('/mngapi/api/pluscmdapi/createDetailedOrder', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          order: { ...baseOrder, marketPlaceShortCode: '', marketPlaceSaleCode: '', pudoId: '' },
+          orderPieceList,
+          shipper,
+          recipient,
+        }),
       })
 
       const errMsg = this.extractError(result)
@@ -295,11 +315,9 @@ export class MngKargoClient {
         // gelip gelmediğini bir sonraki gerçek siparişte teşhis edebilmek için
         // ham yanıtı logluyoruz + olası alan adlarını fırsatçı şekilde okuyoruz.
         console.log('[mng] createDetailedOrder ham yanıt (etiket alanı var mı incele):', JSON.stringify(result).slice(0, 1000))
-        const opportunisticLabel =
-          (result && (result.labelUrl || result.documentUrl || result.pdfUrl || result.barcodeUrl || result.cargoLabelUrl)) || undefined
-        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: opportunisticLabel }
+        return { success: true, trackingNumber: reference, barcode: reference, labelUrl: extractLabel(result) }
       }
-      return { success: false, error: errMsg || 'MNG sipariş oluşturulamadı', errorCode: 'CREATE_FAILED' }
+      return { success: false, error: errMsg || `MNG sipariş oluşturulamadı (Standard: ${stdErr || 'bilinmiyor'})`, errorCode: 'CREATE_FAILED' }
     } catch (e: any) {
       console.error('[mng] createShipment error', e)
       return { success: false, error: e.message || 'API bağlantı hatası' }

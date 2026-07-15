@@ -350,14 +350,19 @@ export class MngKargoClient {
       const ref = trUpper(reference)
       const orderPieceList =
         pieces && pieces.length > 0 ? pieces : [{ barcode: ref, desi: 1, kg: 1, content: '' }]
-      const { ok, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
+      const { ok, status, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
         method: 'POST',
         body: JSON.stringify({ referenceId: ref, orderPieceList }),
       })
       const b64 = (data && (data.barcode || data.barcodeData || data.base64 || data.content)) || (typeof data === 'string' ? data : null)
       if (ok && b64) return { success: true, barcodeBase64: b64 }
-      return { success: false, error: this.extractError(data) || 'Barkod alınamadı' }
+      const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null) || 'Barkod alınamadı'
+      // Bu çağrının hatası önceden hiçbir yere loglanmıyordu — sessizce
+      // yutuluyordu. Artık gerçek HTTP kodu + ham yanıt görünür.
+      console.warn(`[mng] createbarcode başarısız [HTTP ${status}]:`, err)
+      return { success: false, error: err }
     } catch (e: any) {
+      console.error('[mng] createbarcode error', e)
       return { success: false, error: e.message }
     }
   }

@@ -260,6 +260,26 @@ export default function SellerOrders() {
     }
   }
 
+  const retryOfficialBarcode = async (orderId: string) => {
+    try {
+      setShippingSubmittingForOrderId(orderId)
+      const res = await fetch(`/api/orders/${orderId}/shipment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry_barcode' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Resmi barkod alınamadı')
+
+      setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
+      alert('Resmi MNG barkodu alındı.')
+    } catch (e: any) {
+      alert(e?.message || 'Resmi barkod alınamadı')
+    } finally {
+      setShippingSubmittingForOrderId(null)
+    }
+  }
+
   const cancelShipmentAction = async (orderId: string) => {
     const reason = window.prompt('İptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
     if (reason === null) return // vazgeçildi
@@ -530,6 +550,21 @@ export default function SellerOrders() {
                             className="mt-1 inline-flex items-center gap-1 rounded bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700"
                           >
                             🖨️ Kargo Etiketi Yazdır
+                          </button>
+                        ) : null
+                      })()}
+                      {(() => {
+                        const s = shipmentsByOrderId[orderItem.order.id]
+                        // Resmi MNG barkodu henüz gelmediyse (hesap izni vb.
+                        // yüzünden) yeniden deneme imkanı — gönderiyi yeniden
+                        // oluşturmadan yalnızca barkodu tekrar ister.
+                        return s.tracking_number && !s.barcode_data ? (
+                          <button
+                            onClick={() => retryOfficialBarcode(orderItem.order.id)}
+                            disabled={shippingSubmittingForOrderId === orderItem.order.id}
+                            className="mt-1 ml-2 inline-flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            🔄 Resmi Barkodu Tekrar Dene
                           </button>
                         ) : null
                       })()}

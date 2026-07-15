@@ -317,6 +317,35 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
     }
 
     const body = await request.json()
+
+    // Resmi MNG barkodunu, gönderiyi yeniden oluşturmadan tekrar dener
+    // (ilk oluşturmada hesap izni/ge​çici bir sebeple gelmemiş olabilir).
+    if (body.action === 'retry_barcode') {
+      const { data: shipment, error: shipmentError } = await (supabase as any)
+        .from('order_shipments')
+        .select('id, tracking_number, provider_code, barcode_data')
+        .eq('order_id', params.orderId)
+        .maybeSingle()
+      if (shipmentError || !shipment) {
+        return NextResponse.json({ error: 'Kargo kaydı bulunamadı' }, { status: 404 })
+      }
+      if (!shipment.tracking_number || !REAL_PROVIDERS.includes((shipment.provider_code || '').toLowerCase() as CargoProvider)) {
+        return NextResponse.json({ error: 'Bu gönderi için resmi barkod desteklenmiyor' }, { status: 400 })
+      }
+      const bc = await cargoService.getBarcode(shipment.provider_code as CargoProvider, shipment.tracking_number)
+      if (!bc.success || !bc.barcodeBase64) {
+        return NextResponse.json({ error: bc.error || 'Resmi barkod alınamadı' }, { status: 502 })
+      }
+      const { data: updated, error: updateError } = await supabase
+        .from('order_shipments')
+        .update({ barcode_data: bc.barcodeBase64, updated_at: new Date().toISOString() } as any)
+        .eq('id', shipment.id)
+        .select()
+        .single()
+      if (updateError) throw updateError
+      return NextResponse.json({ success: true, shipment: updated })
+    }
+
     const nextStatus = body.status as ShipmentStatus
     const location = (body.location as string | undefined) || null
     const description = (body.description as string | undefined) || null

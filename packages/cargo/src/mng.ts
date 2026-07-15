@@ -97,6 +97,7 @@ export class MngKargoClient {
   private customerPassword: string
   private customerId: number
   private baseUrl: string
+  private proxySecret: string
   private tokenCache: { token: string; expiresAt: number } | null = null
   private cityCache: CodeRec[] | null = null
   private districtCache = new Map<number, CodeRec[]>()
@@ -108,6 +109,10 @@ export class MngKargoClient {
     this.customerPassword = process.env.MNG_CUSTOMER_PASSWORD || ''
     this.customerId = Number(process.env.MNG_CUSTOMER_ID || 0)
     this.baseUrl = process.env.MNG_BASE_URL || 'https://api.mngkargo.com.tr'
+    // MNG_BASE_URL sabit-IP relay'imize (infra/mng-proxy) işaret ediyorsa bu
+    // secret ile doğrulanır. MNG'ye doğrudan bağlanılıyorsa boş bırakılabilir
+    // (header hiç eklenmez, MNG bunu zaten görmez).
+    this.proxySecret = process.env.MNG_PROXY_SECRET || ''
   }
 
   /** Entegrasyon için zorunlu kimlik bilgileri tam mı? */
@@ -127,6 +132,7 @@ export class MngKargoClient {
       'X-IBM-Client-Secret': this.clientSecret,
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(this.proxySecret ? { 'x-relay-secret': this.proxySecret } : {}),
     }
   }
 

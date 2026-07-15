@@ -1,0 +1,5 @@
+# Otomatik Let's Encrypt HTTPS ile mng-proxy.novagross.com -> localhost:8080
+# DNS: mng-proxy.novagross.com A kaydı bu VPS'nin IP'sine işaret etmeli.
+mng-proxy.novagross.com {
+	reverse_proxy localhost:8080
+}

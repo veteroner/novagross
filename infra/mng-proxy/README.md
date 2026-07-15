@@ -99,9 +99,9 @@ ekleyen değişiklik ayrıca yapıldı — bkz. `packages/cargo/src/mng.ts`.)
 
 ## 8. MNG'ye IP'yi bildir
 
-Destek ekibine VPS'nin IP adresini ve müşteri numaranızı (3524746254)
-göndererek bu IP'nin barkod/tekli işlem uçları için whitelist'e eklenmesini
-isteyin.
+Destek ekibine VPS'nin IP adresini ve müşteri numaranızı (Netlify env
+`MNG_CUSTOMER_NUMBER` değeri) göndererek bu IP'nin barkod/tekli işlem
+uçları için whitelist'e eklenmesini isteyin.
 
 ## Bakım notları
 

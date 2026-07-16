@@ -113,6 +113,7 @@ export class MngKargoClient {
     // secret ile doğrulanır. MNG'ye doğrudan bağlanılıyorsa boş bırakılabilir
     // (header hiç eklenmez, MNG bunu zaten görmez).
     this.proxySecret = process.env.MNG_PROXY_SECRET || ''
+    console.log(`[mng] client başlatıldı — baseUrl=${this.baseUrl} proxySecret=${this.proxySecret ? 'VAR(' + this.proxySecret.length + ')' : 'YOK'}`)
   }
 
   /** Entegrasyon için zorunlu kimlik bilgileri tam mı? */

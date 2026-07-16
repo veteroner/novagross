@@ -47,6 +47,14 @@ const server = http.createServer(async (req, res) => {
     delete forwardHeaders['content-length']
     delete forwardHeaders['x-relay-secret']
     delete forwardHeaders.connection
+    // Caddy, reverse_proxy yaparken gerçek istemcinin (Netlify/AWS) IP'sini
+    // bu başlıklara otomatik ekliyor. Bunları silmezsek MNG'nin IP whitelist
+    // kontrolü VPS'in kendi IP'si yerine orijinal çağıranı görür.
+    delete forwardHeaders['x-forwarded-for']
+    delete forwardHeaders['x-forwarded-host']
+    delete forwardHeaders['x-forwarded-proto']
+    delete forwardHeaders['x-real-ip']
+    delete forwardHeaders['forwarded']
 
     const upstream = await fetch(`${TARGET_BASE}${req.url}`, {
       method: req.method,

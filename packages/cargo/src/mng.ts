@@ -367,6 +367,23 @@ export class MngKargoClient {
       // Bu çağrının hatası önceden hiçbir yere loglanmıyordu — sessizce
       // yutuluyordu. Artık gerçek HTTP kodu + ham yanıt görünür.
       console.warn(`[mng] createbarcode başarısız [HTTP ${status}]:`, err)
+      // Barkod MNG tarafında zaten oluşturulmuşsa (20001, "DAHA ÖNCE KESİLMİŞ")
+      // yeniden oluşturmak yerine mevcut gönderiyi sorgulayıp barkod/etiket
+      // alanı taşıyıp taşımadığına bakıyoruz.
+      if (/20001|DAHA ÖNCE KESİLMİŞ|ZATEN.*KESİLMİŞ/i.test(err)) {
+        try {
+          const q = await this.authedFetch(
+            `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(ref)}`,
+            { method: 'GET' }
+          )
+          console.warn('[mng] barkod zaten var, sorgu ham yanıtı:', JSON.stringify(q.data).slice(0, 800))
+          const rec = Array.isArray(q.data) ? q.data[0] : q.data
+          const b64FromQuery = rec && (rec.barcode || rec.barcodeData || rec.base64 || rec.content || rec.labelUrl || rec.barcodeImage)
+          if (q.ok && b64FromQuery) return { success: true, barcodeBase64: b64FromQuery }
+        } catch (qe: any) {
+          console.warn('[mng] barkod sorgu fallback hata', qe.message)
+        }
+      }
       return { success: false, error: err }
     } catch (e: any) {
       console.error('[mng] createbarcode error', e)

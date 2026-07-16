@@ -111,6 +111,8 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     let trackingNumber: string | null = null
     let labelUrl: string | null = null
     let barcodeData: string | null = null
+    let officialBarcode: string | null = null
+    let labelZpl: string | null = null
     let providerCode = carrierCode || 'manual'
 
     if (createLabel) {
@@ -174,7 +176,11 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         labelUrl = result.labelUrl || null
         providerCode = carrierCode
         const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
-        if (bc.success && bc.barcodeBase64) barcodeData = bc.barcodeBase64
+        if (bc.success) {
+          barcodeData = bc.barcodeBase64 || null
+          officialBarcode = bc.officialBarcode || null
+          labelZpl = bc.zpl || null
+        }
       } else {
         // API'siz firma seçildi ve takip no girilmedi
         return NextResponse.json(
@@ -215,6 +221,8 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       shipping_cost: shippingCost,
       shipping_label_url: labelUrl,
       barcode_data: barcodeData,
+      official_barcode: officialBarcode,
+      label_zpl: labelZpl,
       provider_code: providerCode,
       shipped_at: trackingNumber ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
@@ -334,13 +342,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
       }
       console.log('[retry_barcode] çağrılıyor:', shipment.provider_code, shipment.tracking_number)
       const bc = await cargoService.getBarcode(shipment.provider_code as CargoProvider, shipment.tracking_number)
-      console.log('[retry_barcode] sonuç:', JSON.stringify(bc).slice(0, 500))
-      if (!bc.success || !bc.barcodeBase64) {
+      console.log('[retry_barcode] sonuç:', JSON.stringify({ ...bc, zpl: bc.zpl ? `<${bc.zpl.length} kr>` : undefined }).slice(0, 500))
+      if (!bc.success || (!bc.barcodeBase64 && !bc.officialBarcode && !bc.zpl)) {
         return NextResponse.json({ error: bc.error || 'Resmi barkod alınamadı' }, { status: 502 })
       }
       const { data: updated, error: updateError } = await supabase
         .from('order_shipments')
-        .update({ barcode_data: bc.barcodeBase64, updated_at: new Date().toISOString() } as any)
+        .update({
+          barcode_data: bc.barcodeBase64 || null,
+          official_barcode: bc.officialBarcode || null,
+          label_zpl: bc.zpl || null,
+          updated_at: new Date().toISOString(),
+        } as any)
         .eq('id', shipment.id)
         .select()
         .single()

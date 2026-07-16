@@ -73,7 +73,7 @@ export default function SellerOrders() {
       if (orderIds.length > 0) {
         const { data: shipments } = await supabase
           .from('order_shipments')
-          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,provider_code,carrier_id,method_id,bill_of_landing_id')
+          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,official_barcode,label_zpl,provider_code,carrier_id,method_id,bill_of_landing_id')
           .in('order_id', orderIds)
 
         const next: Record<string, any> = {}
@@ -172,6 +172,7 @@ export default function SellerOrders() {
     const shipment = shipmentsByOrderId[orderId]
     if (!shipment) return
     const barcode = shipment.barcode_data as string | undefined
+    const officialBarcode = shipment.official_barcode as string | undefined
     const labelUrl = shipment.shipping_label_url as string | undefined
     const tn = shipment.tracking_number || ''
 
@@ -194,11 +195,20 @@ export default function SellerOrders() {
       return
     }
 
-    // 2) MNG barkodu yoksa: YEREL kargo etiketi üret (Code128 — MNG'de kayıtlı
-    //    barcode = referans no olduğundan kurye/şube bu barkodu okutabilir)
+    // 2) Yerel kargo etiketi üret. Code128 içeriği MNG'nin RESMİ barkod
+    //    değeri olmalı (official_barcode, örn. "C@56@..."). Takip numarasını
+    //    basmak MNG şubesinde REDDEDİLİYOR (2026-07-16'da canlıda yaşandı) —
+    //    okuyucular yalnızca resmi değeri tanıyor. official_barcode yoksa
+    //    son çare takip numarası basılır ama satıcı uyarılır.
     if (!tn) {
       alert('Takip numarası yok — önce kargo oluşturun.')
       return
+    }
+    const barcodeValue = officialBarcode || tn
+    if (!officialBarcode && (shipment.provider_code || '').toLowerCase() === 'mng') {
+      alert(
+        'DİKKAT: Resmi MNG barkodu henüz alınamadı. Bu etiketteki barkodu MNG şubesi kabul etmeyebilir — önce "Resmi Barkodu Tekrar Dene" butonunu kullanın.'
+      )
     }
     const esc = (s: any) =>
       String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -208,7 +218,7 @@ export default function SellerOrders() {
     const receiverPhone = ship.phone || orderItem?.order?.phone || ''
     const senderName = storeInfo?.store_name || 'Novagross Satıcısı'
     const senderAddr = [storeInfo?.address, storeInfo?.district, storeInfo?.city].filter(Boolean).join(', ')
-    const svg = code128Svg(tn, { height: 70, module: 2 })
+    const svg = code128Svg(barcodeValue, { height: 70, module: 2 })
 
     const w = window.open('', '_blank')
     if (!w) return
@@ -233,8 +243,8 @@ export default function SellerOrders() {
     <div class="box"><div class="t">Gönderici</div><div class="v">${esc(senderName)}<br>${esc(senderAddr)}${storeInfo?.phone ? `<br>Tel: ${esc(storeInfo.phone)}` : ''}</div></div>
     <div class="box"><div class="t">Alıcı</div><div class="v">${esc(receiverName)}<br>${esc(receiverAddr)}${receiverPhone ? `<br>Tel: ${esc(receiverPhone)}` : ''}</div></div>
   </div>
-  <div class="bc">${svg}</div>
-  <div class="meta"><span>İçerik: ${esc((orderItem?.name || '').slice(0, 40))}</span><span>Adet: ${esc(orderItem?.quantity || 1)}</span><span>${new Date().toLocaleDateString('tr-TR')}</span></div>
+  <div class="bc">${svg}<div style="font-size:12px;margin-top:2px;letter-spacing:1px">${esc(barcodeValue)}</div></div>
+  <div class="meta"><span>REF/Takip: ${esc(tn)}</span><span>İçerik: ${esc((orderItem?.name || '').slice(0, 30))}</span><span>Adet: ${esc(orderItem?.quantity || 1)}</span><span>${new Date().toLocaleDateString('tr-TR')}</span></div>
 </div>
 </body></html>`)
     w.document.close()
@@ -558,7 +568,7 @@ export default function SellerOrders() {
                         // Resmi MNG barkodu henüz gelmediyse (hesap izni vb.
                         // yüzünden) yeniden deneme imkanı — gönderiyi yeniden
                         // oluşturmadan yalnızca barkodu tekrar ister.
-                        return s.tracking_number && !s.barcode_data ? (
+                        return s.tracking_number && !s.barcode_data && !s.official_barcode ? (
                           <button
                             onClick={() => retryOfficialBarcode(orderItem.order.id)}
                             disabled={shippingSubmittingForOrderId === orderItem.order.id}

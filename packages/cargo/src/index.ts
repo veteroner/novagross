@@ -115,13 +115,15 @@ export class CargoService {
   }
   
   /**
-   * Get printable barcode/label for a shipment (base64).
+   * Get printable barcode/label for a shipment.
+   * MNG: zpl = resmi etiket (Zebra formatı), officialBarcode = okuyucuların
+   * beklediği gerçek barkod değeri (takip numarasından FARKLI).
    * Yalnızca destekleyen sağlayıcılar (MNG) için döner.
    */
   async getBarcode(
     provider: CargoProvider,
     trackingNumber: string
-  ): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
+  ): Promise<{ success: boolean; barcodeBase64?: string; zpl?: string; officialBarcode?: string; error?: string }> {
     try {
       switch (provider) {
         case 'mng':

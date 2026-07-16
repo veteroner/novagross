@@ -347,52 +347,73 @@ export class MngKargoClient {
     }
   }
 
-  /** Yazdırılabilir barkod (base64). createbarcode { referenceId, orderPieceList:[{barcode,desi,kg}] } ister. */
+  /**
+   * Resmi MNG etiketi/barkodu. createbarcode gerçek yanıt şeması (2026-07-16
+   * VPS'ten canlı çağrıyla KANITLANDI — spec'te yoktu):
+   *   [ { referenceId, invoiceId: "PG692232", shipmentId: "768959620548",
+   *       barcodes: [ { pieceNumber, value: "<ZPL etiket>", barcode: "C@56@..." } ],
+   *       referenceBarcodeOnError } ]
+   * - barcodes[].value  = ZPL (Zebra) formatında TAM resmi etiket
+   * - barcodes[].barcode = okuyucuların beklediği GERÇEK barkod değeri.
+   *   Bu değer takip numarasından FARKLIDIR (örn. "C@56@DN1PGVEAIAAA6J") —
+   *   yerel etikete takip numarasını Code128 basmak MNG şubesinde REDDEDİLİR.
+   * Barkod daha önce kesilmişse (20001) tek güvenli kurtarma: PUT cancelshipment
+   * ile mevcut barkodu iptal edip yeniden oluşturmak (sorgu uçları resmi barkod
+   * değerini DÖNDÜRMÜYOR, canlı denendi).
+   */
   async getBarcode(
     reference: string,
     pieces?: Array<{ barcode: string; desi: number; kg: number; content?: string }>
-  ): Promise<{ success: boolean; barcodeBase64?: string; error?: string }> {
+  ): Promise<{ success: boolean; barcodeBase64?: string; zpl?: string; officialBarcode?: string; error?: string }> {
     if (!this.isConfigured().ok) return { success: false, error: 'MNG yapılandırılmamış' }
     try {
       const ref = trUpper(reference)
       const orderPieceList =
         pieces && pieces.length > 0 ? pieces : [{ barcode: ref, desi: 1, kg: 1, content: '' }]
-      const { ok, status, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
-        method: 'POST',
-        body: JSON.stringify({ referenceId: ref, orderPieceList }),
-      })
-      const b64 = (data && (data.barcode || data.barcodeData || data.base64 || data.content)) || (typeof data === 'string' ? data : null)
-      if (ok && b64) return { success: true, barcodeBase64: b64 }
-      const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null) || 'Barkod alınamadı'
-      // Bu çağrının hatası önceden hiçbir yere loglanmıyordu — sessizce
-      // yutuluyordu. Artık gerçek HTTP kodu + ham yanıt görünür.
+
+      const callCreate = () =>
+        this.authedFetch('/mngapi/api/barcodecmdapi/createbarcode', {
+          method: 'POST',
+          body: JSON.stringify({ referenceId: ref, orderPieceList }),
+        })
+
+      const parse = (ok: boolean, data: any) => {
+        const rec = Array.isArray(data) ? data[0] : data
+        const piece = rec?.barcodes?.[0]
+        if (ok && piece && (piece.value || piece.barcode)) {
+          return {
+            success: true as const,
+            zpl: piece.value || undefined,
+            officialBarcode: piece.barcode || undefined,
+          }
+        }
+        // Eski/başka biçimler için geriye dönük alanlar
+        const b64 =
+          (rec && (rec.barcodeData || rec.base64 || rec.content)) ||
+          (typeof data === 'string' ? data : null)
+        if (ok && b64) return { success: true as const, barcodeBase64: b64 }
+        return null
+      }
+
+      let { ok, status, data } = await callCreate()
+      let parsed = parse(ok, data)
+      if (parsed) return parsed
+
+      let err = this.extractError(data) || (!ok ? this.rawMessage(data) : null) || 'Barkod alınamadı'
       console.warn(`[mng] createbarcode başarısız [HTTP ${status}]:`, err)
-      // Barkod MNG tarafında zaten oluşturulmuşsa (20001, "DAHA ÖNCE KESİLMİŞ")
-      // yeniden oluşturmak yerine mevcut gönderiyi sorgulayıp barkod/etiket
-      // alanı taşıyıp taşımadığına bakıyoruz.
+
+      // 20001 = barkod zaten kesilmiş. Kurtarma: shipmentId'yi getorder'dan bul,
+      // PUT cancelshipment ile barkodu iptal et, createbarcode'u tekrar çağır.
       if (/20001|DAHA ÖNCE KESİLMİŞ|ZATEN.*KESİLMİŞ/i.test(err)) {
-        // MNG'nin ürettiği iç fatura/etiket no'su hata metninde geçebiliyor
-        // (örn. "PG-677551 NO İLE"). Sorgu uçları referenceId yerine bunu
-        // isteyebilir — ikisini de dener, birden fazla olası uç noktayla.
-        const invoiceMatch = err.match(/([A-ZİĞÜŞÖÇ]{1,4}-\d+)\s*NO\s*İLE/i)
-        const invoiceNo = invoiceMatch ? invoiceMatch[1] : null
-        const candidates: Array<{ label: string; path: string }> = [
-          { label: 'getShipmentByBarcode(ref)', path: `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(ref)}` },
-          ...(invoiceNo
-            ? [{ label: 'getShipmentByBarcode(invoiceNo)', path: `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(invoiceNo)}` }]
-            : []),
-          { label: 'standardqueryapi/getshipment(ref)', path: `/mngapi/api/standardqueryapi/getshipment/${encodeURIComponent(ref)}` },
-          { label: 'standardqueryapi/getorder(ref)', path: `/mngapi/api/standardqueryapi/getorder/${encodeURIComponent(ref)}` },
-        ]
-        for (const c of candidates) {
-          try {
-            const q = await this.authedFetch(c.path, { method: 'GET' })
-            console.warn(`[mng] barkod sorgu denemesi [${c.label}] →`, JSON.stringify(q.data).slice(0, 500))
-            const rec = Array.isArray(q.data) ? q.data[0] : q.data
-            const b64FromQuery = rec && (rec.barcode || rec.barcodeData || rec.base64 || rec.content || rec.labelUrl || rec.barcodeImage)
-            if (q.ok && b64FromQuery) return { success: true, barcodeBase64: b64FromQuery }
-          } catch (qe: any) {
-            console.warn(`[mng] barkod sorgu denemesi [${c.label}] hata`, qe.message)
+        const shipmentId = await this.lookupShipmentId(ref)
+        if (shipmentId) {
+          const cancelled = await this.cancelBarcodeShipment(shipmentId, ref)
+          if (cancelled) {
+            ;({ ok, status, data } = await callCreate())
+            parsed = parse(ok, data)
+            if (parsed) return parsed
+            err = this.extractError(data) || (!ok ? this.rawMessage(data) : null) || 'Barkod alınamadı'
+            console.warn(`[mng] createbarcode (iptal sonrası) yine başarısız [HTTP ${status}]:`, err)
           }
         }
       }
@@ -400,6 +421,45 @@ export class MngKargoClient {
     } catch (e: any) {
       console.error('[mng] createbarcode error', e)
       return { success: false, error: e.message }
+    }
+  }
+
+  /** Standard Query getorder ile MNG shipmentId'sini bul (referenceId → shipmentId). */
+  private async lookupShipmentId(reference: string): Promise<string | null> {
+    try {
+      const q = await this.authedFetch(
+        `/mngapi/api/standardqueryapi/getorder/${encodeURIComponent(trUpper(reference))}`,
+        { method: 'GET' }
+      )
+      const rec = Array.isArray(q.data) ? q.data[0] : q.data
+      const id = rec?.order?.shipmentId || rec?.shipmentId || null
+      if (!id) console.warn('[mng] getorder shipmentId bulunamadı:', JSON.stringify(q.data).slice(0, 300))
+      return id ? String(id) : null
+    } catch (e: any) {
+      console.warn('[mng] getorder hata', e.message)
+      return null
+    }
+  }
+
+  /**
+   * Barcode Command cancelshipment — doğru kullanım PUT + {shipmentId, referenceId}
+   * (2026-07-16 canlı kanıt: DELETE her varyasyonda MNG WAF'ına takılıyor
+   * ["Request Rejected" HTML], POST 405, PUT alan doğrulama hatalarıyla yanıt
+   * verip her iki alan gönderilince HTTP 200 boş gövdeyle başarılı oluyor).
+   */
+  private async cancelBarcodeShipment(shipmentId: string, reference: string): Promise<boolean> {
+    try {
+      const { ok, status, data } = await this.authedFetch('/mngapi/api/barcodecmdapi/cancelshipment', {
+        method: 'PUT',
+        body: JSON.stringify({ shipmentId, referenceId: trUpper(reference) }),
+      })
+      const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
+      if (ok && !err) return true
+      console.warn(`[mng] cancelshipment (PUT) başarısız [HTTP ${status}]:`, err)
+      return false
+    } catch (e: any) {
+      console.warn('[mng] cancelshipment (PUT) hata', e.message)
+      return false
     }
   }
 
@@ -435,35 +495,45 @@ export class MngKargoClient {
   }
 
   /**
-   * Kargo iptali. MNG destek ekibinin yönlendirmesine göre (2026-07-14):
-   * "Sipariş datanızı iptal etmek için Standard Command – CancelOrder,
-   * oluşturulan gönderi barkodu iptal edilecekse Barcode Command –
-   * CancelShipment kullanılır." İlk canlı denemede kesin ipuçları geldi:
-   * - POST standardcmdapi/cancelOrder → 404 Not Found → bu path/casing YANLIŞ
-   * - POST barcodecmdapi/cancelshipment → 405 Method Not Allowed → path DOĞRU,
-   *   metod yanlış (405 sadece rota var ama izin verilmeyen metod anlamına gelir)
-   * Bu yüzden DELETE metodu ve alternatif casing'ler de deneniyor. Hiçbiri
-   * çalışmazsa (geriye dönük uyumluluk için) eski Plus Command uçlarına düşülüyor.
+   * Kargo iptali. 2026-07-16 canlı VPS testleriyle KANITLANAN doğru akış:
+   * 1. Standard Query getorder/{ref} → shipmentId bul
+   * 2. PUT barcodecmdapi/cancelshipment {shipmentId, referenceId} → HTTP 200 (boş gövde)
+   * DELETE her varyasyonda MNG'nin WAF'ına takılıyor ("Request Rejected" HTML,
+   * HTTP 200 gövdesiyle!), POST 405 veriyor. PUT eksik alanla çağrılınca gerçek
+   * doğrulama hataları dönüyor (ShipmentId/ReferenceId required) — şema bu.
+   * PUT başarısız olursa geriye dönük uyumluluk için eski uçlar da denenir.
    */
   async cancelShipment(barcode: string, reason?: string): Promise<{ success: boolean; message: string }> {
     const ref = trUpper(barcode)
     const description = (reason || 'Sipariş iptali').slice(0, 200)
-    const attempts: Array<{ label: string; path: string; method: string }> = [
-      { label: 'DELETE barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment', method: 'DELETE' },
-      { label: 'DELETE standardcmdapi/cancelorder', path: '/mngapi/api/standardcmdapi/cancelorder', method: 'DELETE' },
-      { label: 'POST standardcmdapi/cancelorder', path: '/mngapi/api/standardcmdapi/cancelorder', method: 'POST' },
-      { label: 'POST standardcmdapi/cancelOrder', path: '/mngapi/api/standardcmdapi/cancelOrder', method: 'POST' },
-      { label: 'POST barcodecmdapi/cancelshipment', path: '/mngapi/api/barcodecmdapi/cancelshipment', method: 'POST' },
-      { label: 'POST pluscmdapi/marketPlaceCancelOrder', path: '/mngapi/api/pluscmdapi/marketPlaceCancelOrder', method: 'POST' },
-      { label: 'POST pluscmdapi/cancelOrderDelivery', path: '/mngapi/api/pluscmdapi/cancelOrderDelivery', method: 'POST' },
-    ]
-
     const errors: string[] = []
     try {
+      // 1) Kanıtlanmış yol: shipmentId bul → PUT cancelshipment
+      const shipmentId = await this.lookupShipmentId(ref)
+      if (shipmentId) {
+        if (await this.cancelBarcodeShipment(shipmentId, ref)) {
+          return { success: true, message: 'Kargo iptal edildi (PUT barcodecmdapi/cancelshipment)' }
+        }
+        errors.push('PUT barcodecmdapi/cancelshipment başarısız')
+      } else {
+        errors.push('getorder shipmentId bulunamadı')
+      }
+
+      // 2) Fallback: sipariş verisi iptali + eski Plus Command uçları
+      const attempts: Array<{ label: string; path: string; method: string }> = [
+        { label: 'PUT standardcmdapi/cancelorder', path: '/mngapi/api/standardcmdapi/cancelorder', method: 'PUT' },
+        { label: 'POST pluscmdapi/marketPlaceCancelOrder', path: '/mngapi/api/pluscmdapi/marketPlaceCancelOrder', method: 'POST' },
+        { label: 'POST pluscmdapi/cancelOrderDelivery', path: '/mngapi/api/pluscmdapi/cancelOrderDelivery', method: 'POST' },
+      ]
       for (const attempt of attempts) {
         const { ok, status, data } = await this.authedFetch(attempt.path, {
           method: attempt.method,
-          body: JSON.stringify({ referenceId: ref, description, barcode: ref }),
+          body: JSON.stringify({
+            referenceId: ref,
+            description,
+            barcode: ref,
+            ...(shipmentId ? { shipmentId } : {}),
+          }),
         })
         const err = this.extractError(data) || (!ok ? this.rawMessage(data) : null)
         if (ok && !err) return { success: true, message: `Kargo iptal edildi (${attempt.label})` }

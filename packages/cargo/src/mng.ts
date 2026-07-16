@@ -371,17 +371,29 @@ export class MngKargoClient {
       // yeniden oluşturmak yerine mevcut gönderiyi sorgulayıp barkod/etiket
       // alanı taşıyıp taşımadığına bakıyoruz.
       if (/20001|DAHA ÖNCE KESİLMİŞ|ZATEN.*KESİLMİŞ/i.test(err)) {
-        try {
-          const q = await this.authedFetch(
-            `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(ref)}`,
-            { method: 'GET' }
-          )
-          console.warn('[mng] barkod zaten var, sorgu ham yanıtı:', JSON.stringify(q.data).slice(0, 800))
-          const rec = Array.isArray(q.data) ? q.data[0] : q.data
-          const b64FromQuery = rec && (rec.barcode || rec.barcodeData || rec.base64 || rec.content || rec.labelUrl || rec.barcodeImage)
-          if (q.ok && b64FromQuery) return { success: true, barcodeBase64: b64FromQuery }
-        } catch (qe: any) {
-          console.warn('[mng] barkod sorgu fallback hata', qe.message)
+        // MNG'nin ürettiği iç fatura/etiket no'su hata metninde geçebiliyor
+        // (örn. "PG-677551 NO İLE"). Sorgu uçları referenceId yerine bunu
+        // isteyebilir — ikisini de dener, birden fazla olası uç noktayla.
+        const invoiceMatch = err.match(/([A-ZİĞÜŞÖÇ]{1,4}-\d+)\s*NO\s*İLE/i)
+        const invoiceNo = invoiceMatch ? invoiceMatch[1] : null
+        const candidates: Array<{ label: string; path: string }> = [
+          { label: 'getShipmentByBarcode(ref)', path: `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(ref)}` },
+          ...(invoiceNo
+            ? [{ label: 'getShipmentByBarcode(invoiceNo)', path: `/mngapi/api/plusqueryapi/getShipmentByBarcode/${encodeURIComponent(invoiceNo)}` }]
+            : []),
+          { label: 'standardqueryapi/getshipment(ref)', path: `/mngapi/api/standardqueryapi/getshipment/${encodeURIComponent(ref)}` },
+          { label: 'standardqueryapi/getorder(ref)', path: `/mngapi/api/standardqueryapi/getorder/${encodeURIComponent(ref)}` },
+        ]
+        for (const c of candidates) {
+          try {
+            const q = await this.authedFetch(c.path, { method: 'GET' })
+            console.warn(`[mng] barkod sorgu denemesi [${c.label}] →`, JSON.stringify(q.data).slice(0, 500))
+            const rec = Array.isArray(q.data) ? q.data[0] : q.data
+            const b64FromQuery = rec && (rec.barcode || rec.barcodeData || rec.base64 || rec.content || rec.labelUrl || rec.barcodeImage)
+            if (q.ok && b64FromQuery) return { success: true, barcodeBase64: b64FromQuery }
+          } catch (qe: any) {
+            console.warn(`[mng] barkod sorgu denemesi [${c.label}] hata`, qe.message)
+          }
         }
       }
       return { success: false, error: err }

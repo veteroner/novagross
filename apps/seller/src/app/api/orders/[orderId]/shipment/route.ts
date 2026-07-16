@@ -340,9 +340,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
       if (!shipment.tracking_number || !REAL_PROVIDERS.includes((shipment.provider_code || '').toLowerCase() as CargoProvider)) {
         return NextResponse.json({ error: 'Bu gönderi için resmi barkod desteklenmiyor' }, { status: 400 })
       }
-      console.log('[retry_barcode] çağrılıyor:', shipment.provider_code, shipment.tracking_number)
       const bc = await cargoService.getBarcode(shipment.provider_code as CargoProvider, shipment.tracking_number)
-      console.log('[retry_barcode] sonuç:', JSON.stringify({ ...bc, zpl: bc.zpl ? `<${bc.zpl.length} kr>` : undefined }).slice(0, 500))
       if (!bc.success || (!bc.barcodeBase64 && !bc.officialBarcode && !bc.zpl)) {
         return NextResponse.json({ error: bc.error || 'Resmi barkod alınamadı' }, { status: 502 })
       }

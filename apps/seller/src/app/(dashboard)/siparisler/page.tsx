@@ -168,11 +168,12 @@ export default function SellerOrders() {
     }
   }
 
-  const printBarcode = (orderId: string, orderItem?: any) => {
+  const printBarcode = async (orderId: string, orderItem?: any) => {
     const shipment = shipmentsByOrderId[orderId]
     if (!shipment) return
     const barcode = shipment.barcode_data as string | undefined
     const officialBarcode = shipment.official_barcode as string | undefined
+    const labelZpl = shipment.label_zpl as string | undefined
     const labelUrl = shipment.shipping_label_url as string | undefined
     const tn = shipment.tracking_number || ''
 
@@ -181,6 +182,34 @@ export default function SellerOrders() {
       window.open(labelUrl, '_blank', 'noopener,noreferrer')
       return
     }
+
+    // 1.5) Resmi MNG etiketi (ZPL) varsa görsele çevirip onu bas — DK kodu,
+    // hat adı, şube gibi MNG'ye özel yönlendirme bilgilerini içerir; bizim
+    // kendi çizdiğimiz barkodda bu alanlar yok ve şube reddedebiliyor.
+    if (labelZpl) {
+      const w = window.open('', '_blank')
+      if (!w) return
+      w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">Resmi etiket hazırlanıyor…</body>`)
+      try {
+        const res = await fetch(`/api/orders/${orderId}/shipment/label`)
+        if (!res.ok) throw new Error('Etiket görseli alınamadı')
+        const blob = await res.blob()
+        const src = URL.createObjectURL(blob)
+        w.document.open()
+        w.document.write(
+          `<body style="text-align:center;margin:0"><img src="${src}" style="max-width:100%" onload="window.print()"/></body>`
+        )
+        w.document.close()
+      } catch (e: any) {
+        w.document.open()
+        w.document.write(
+          `<body style="text-align:center;font-family:sans-serif;margin:20px">Resmi etiket alınamadı: ${e?.message || 'bilinmeyen hata'}<br>Lütfen tekrar deneyin.</body>`
+        )
+        w.document.close()
+      }
+      return
+    }
+
     if (barcode) {
       const isPdf = barcode.startsWith('JVBER') // base64 PDF imzası
       const src = isPdf ? `data:application/pdf;base64,${barcode}` : `data:image/png;base64,${barcode}`

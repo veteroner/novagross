@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { cargoService, type CargoProvider } from '@novagross/cargo'
+import { assertSellerOwnsOrder } from '@/lib/order-ownership'
 
 export const runtime = 'nodejs'
 // POST artık Standard Command deneyip başarısız olursa Plus Command'a düşüyor
@@ -23,31 +24,6 @@ const REAL_PROVIDERS: CargoProvider[] = ['mng', 'aras', 'yurtici']
 function buildTrackingUrl(template: string | null | undefined, trackingNumber: string) {
   if (!template) return null
   return template.replace('{tracking_number}', encodeURIComponent(trackingNumber))
-}
-
-async function assertSellerOwnsOrder(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  orderId: string
-) {
-  const { data: store, error: storeError } = await supabase
-    .from('stores')
-    .select('id')
-    .eq('owner_id', userId)
-    .maybeSingle()
-
-  if (storeError) throw storeError
-  if (!store?.id) return { ok: false as const, storeId: null }
-
-  const { data: items, error: itemsError } = await supabase
-    .from('order_items')
-    .select('id')
-    .eq('order_id', orderId)
-    .eq('store_id', store.id)
-    .limit(1)
-
-  if (itemsError) throw itemsError
-  return { ok: (items?.length ?? 0) > 0, storeId: store.id }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { orderId: string } }) {

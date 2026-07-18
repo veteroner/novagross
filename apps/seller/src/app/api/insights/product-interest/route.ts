@@ -17,7 +17,7 @@ export async function GET() {
     const { data: store } = await db
       .from('stores')
       .select('id')
-      .eq('owner_id', user.id)
+      .eq('id', ((await (db as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
       .maybeSingle()
     if (!store) return NextResponse.json({ error: 'Mağaza bulunamadı' }, { status: 403 })
 

@@ -48,7 +48,7 @@ export default function SellerDashboard() {
       const { data: store } = await supabase
         .from('stores')
         .select('id, store_name, store_slug, status, logo_url, description, email, phone, city, district, commission_rate, rating, total_reviews, total_sales, created_at')
-        .eq('owner_id', user.id)
+        .eq('id', ((await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
         .single()
 
       setStoreInfo(store)

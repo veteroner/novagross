@@ -48,6 +48,7 @@ export type EmailTemplate =
   | 'seller/withdrawal-processed'
   | 'seller/weekly-payout-processed'
   | 'seller/weekly-insights'
+  | 'seller/store-invitation'
   // Store (Marketplace)
   | 'store/product-approved'
   | 'store/product-rejected'

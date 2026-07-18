@@ -1,6 +1,6 @@
 import { Card, Badge, PageHeader, EmptyState } from '@novagross/ui'
 import { Gift, Globe2, Store as StoreIcon } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { ResponseButtons } from './response-buttons'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ const STATUS_VARIANT: Record<string, any> = {
 }
 
 export default async function SellerPlatformOffersPage() {
-  const { supabase, storeId } = await requireSeller('/avantajli-teklifler')
+  const { supabase, storeId } = await requireSellerRole('manager', '/avantajli-teklifler')
 
   // RLS sayesinde sadece kendisinin veya genel teklifler dönecek.
   const { data } = await (supabase as any)

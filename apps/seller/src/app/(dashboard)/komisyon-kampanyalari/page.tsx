@@ -1,12 +1,12 @@
 import { PageHeader, EmptyState } from '@novagross/ui'
 import { Percent } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { CommissionCampaignList } from './commission-campaign-list'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SellerCommissionCampaignsPage() {
-  const { supabase, storeId } = await requireSeller('/komisyon-kampanyalari')
+  const { supabase, storeId } = await requireSellerRole('manager', '/komisyon-kampanyalari')
   const nowIso = new Date().toISOString()
 
   // Aktif komisyon kampanyaları

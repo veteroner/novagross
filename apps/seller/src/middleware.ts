@@ -59,6 +59,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Davet kabul sayfası: kullanıcı henüz satıcı DEĞİL (davetli), giriş
+  // yapmış olması yeterli. accept_store_invitation RPC'si üyeliği kurar,
+  // trigger is_seller'ı true yapar. is_seller kontrolünden muaf.
+  if (url.pathname.startsWith('/davet/')) {
+    return res
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, is_seller')

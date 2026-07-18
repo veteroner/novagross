@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const { data: store } = await supabase
       .from('stores')
       .select('id')
-      .eq('owner_id', user.id)
+      .eq('id', ((await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
       .maybeSingle()
     if (!store?.id) return NextResponse.json({ error: 'Mağazanız bulunamadı' }, { status: 403 })
 

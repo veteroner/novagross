@@ -1,6 +1,6 @@
 import { Card, PageHeader, EmptyState, StatCard } from '@novagross/ui'
 import { Megaphone, Eye, MousePointerClick, DollarSign, Wallet } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { AdCampaignForm } from './ad-campaign-form'
 import { CampaignRow } from './campaign-row'
 import { AdBalancePanel } from './ad-balance-panel'
@@ -12,7 +12,7 @@ export default async function SellerAdsPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  const { supabase, storeId } = await requireSeller('/reklam')
+  const { supabase, storeId } = await requireSellerRole('manager', '/reklam')
   const topupStatus = typeof searchParams?.topup === 'string' ? searchParams.topup : undefined
 
   const [statsRes, productsRes, categoriesRes] = await Promise.all([

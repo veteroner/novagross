@@ -1,10 +1,10 @@
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { CouponsClient, type CouponRow } from './coupons-client'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SellerCouponsPage() {
-  const { supabase, userId } = await requireSeller('/kuponlar')
+  const { supabase, userId } = await requireSellerRole('manager', '/kuponlar')
 
   const { data } = await supabase
     .from('coupons')

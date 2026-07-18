@@ -242,6 +242,13 @@ export class EmailService {
           TemplateComponent = WeeklyInsights;
           break;
 
+        case 'seller/store-invitation':
+          const { default: StoreInvitation } = await import(
+            './templates/seller/store-invitation'
+          );
+          TemplateComponent = StoreInvitation;
+          break;
+
         default:
           throw new Error(`Unknown template: ${template}`);
       }

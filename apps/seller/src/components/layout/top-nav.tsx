@@ -39,12 +39,17 @@ type CounterKey =
   | 'pendingDeliveryProblems'
   | 'missingInvoices'
 
+type StoreRole = 'owner' | 'manager' | 'staff'
+const ROLE_RANK: Record<StoreRole, number> = { staff: 1, manager: 2, owner: 3 }
+const meetsRole = (role: StoreRole, min?: StoreRole) => !min || ROLE_RANK[role] >= ROLE_RANK[min]
+
 type NavLeaf = {
   href: string
   label: string
   icon?: LucideIcon
   counter?: CounterKey
   description?: string
+  minRole?: StoreRole
 }
 
 type NavGroup = {
@@ -53,6 +58,7 @@ type NavGroup = {
   href?: string
   items: NavLeaf[]
   surfacesCounters?: CounterKey[]
+  minRole?: StoreRole
 }
 
 const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || 'Trendikon'
@@ -84,6 +90,7 @@ const NAV: NavGroup[] = [
   {
     label: 'Pazarlama',
     icon: Megaphone,
+    minRole: 'manager',
     items: [
       { href: '/kuponlar', label: 'Kuponlar', icon: Tag, description: 'İndirim kodları' },
       {
@@ -154,12 +161,13 @@ const NAV: NavGroup[] = [
         icon: Activity,
         description: 'Sağlık metrikleri',
       },
-      { href: '/raporlar', label: 'Raporlar', icon: BarChart3, description: 'Top ürün, yorum, kampanya' },
+      { href: '/raporlar', label: 'Raporlar', icon: BarChart3, description: 'Top ürün, yorum, kampanya', minRole: 'manager' },
       {
         href: '/kacan-satislar',
         label: 'Kaçan Satışlar',
         icon: Activity,
         description: 'İlgilenen ama almayanlara teklif gönder',
+        minRole: 'manager',
       },
       {
         href: '/oneriler/stok',
@@ -167,12 +175,13 @@ const NAV: NavGroup[] = [
         icon: Package,
         description: 'Tükenecek ürünler',
       },
-      { href: '/analizler', label: 'Satış Analizleri', icon: BarChart3, description: 'Klasik analiz' },
+      { href: '/analizler', label: 'Satış Analizleri', icon: BarChart3, description: 'Klasik analiz', minRole: 'manager' },
     ],
   },
   {
     label: 'Finans',
     icon: Wallet,
+    minRole: 'manager',
     items: [
       { href: '/kazanclarim', label: 'Kazançlarım', icon: Wallet, description: 'Bakiye & ödemeler' },
       { href: '/vergi', label: 'Vergi & Stopaj', icon: Wallet, description: 'Aylık %1 kesintiler & tevkifat belgesi' },
@@ -183,7 +192,7 @@ const NAV: NavGroup[] = [
     icon: Store,
     items: [
       { href: '/vitrin', label: 'Mağaza Vitrini', icon: Store, description: 'Banner, öne çıkan ürünler' },
-      { href: '/magaza', label: 'Mağaza Ayarları', icon: Store, description: 'Profil, logo' },
+      { href: '/magaza', label: 'Mağaza Ayarları', icon: Store, description: 'Profil, logo', minRole: 'owner' },
       {
         href: '/teslimat-profilleri',
         label: 'Teslimat Profilleri',
@@ -191,6 +200,13 @@ const NAV: NavGroup[] = [
         description: 'Kargo şablonları',
       },
       { href: '/belgeler', label: 'Belgelerim', icon: Settings, description: 'Vergi, kimlik, sözleşme' },
+      {
+        href: '/ayarlar/kullanicilar',
+        label: 'Kullanıcı Yönetimi',
+        icon: User,
+        description: 'Mağaza kullanıcıları & roller',
+        minRole: 'owner',
+      },
       { href: '/profil', label: 'Profil', icon: User, description: 'Hesap bilgileri' },
       { href: '/ayarlar', label: 'Ayarlar', icon: Settings, description: 'Genel ayarlar' },
     ],
@@ -301,6 +317,7 @@ export default function TopNav() {
   const [counters, setCounters] = useState(EMPTY_COUNTERS)
   const [storeName, setStoreName] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [role, setRole] = useState<StoreRole>('staff')
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement | null>(null)
 
@@ -330,14 +347,17 @@ export default function TopNav() {
           data: { user },
         } = await supabase.auth.getUser()
         if (!user) return
+        const myStore = (await (supabase as any).rpc('get_my_store')).data?.[0]
+        if (!myStore?.store_id) return
         const { data: store } = await supabase
           .from('stores')
           .select('id, store_name')
-          .eq('owner_id', user.id)
+          .eq('id', myStore.store_id)
           .single()
         if (!store || cancelled) return
         setStoreId(store.id)
         setStoreName(store.store_name)
+        setRole((myStore.role as StoreRole) || 'staff')
         const c = await fetchCounters(supabase, store.id)
         if (!cancelled) setCounters(c)
       } catch {
@@ -358,6 +378,12 @@ export default function TopNav() {
     router.push('/login')
     router.refresh()
   }
+
+  // Rol bazlı görünür menü: grup minRole'ü sağlanmıyorsa gizle; grup içi
+  // leaf'leri de role göre filtrele; tüm leaf'leri elenen dropdown grubu gizlenir.
+  const visibleNav: NavGroup[] = NAV.filter((g) => meetsRole(role, g.minRole))
+    .map((g) => ({ ...g, items: g.items.filter((it) => meetsRole(role, it.minRole)) }))
+    .filter((g) => g.items.length > 0 || (g.href && g.items.length === 0))
 
   const isGroupActive = (g: NavGroup) => {
     if (g.href && (g.href === '/' ? pathname === '/' : pathname.startsWith(g.href))) return true
@@ -482,7 +508,7 @@ export default function TopNav() {
       {/* Primary nav — CSS-only hover/focus dropdowns */}
       <div className="max-w-screen-2xl mx-auto px-6">
         <nav className="flex items-stretch gap-1 -mb-px flex-wrap">
-          {NAV.map((g) => {
+          {visibleNav.map((g) => {
             const Icon = g.icon
             const active = isGroupActive(g)
             const hasDropdown = g.items.length > 0

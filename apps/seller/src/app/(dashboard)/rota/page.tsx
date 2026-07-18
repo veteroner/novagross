@@ -1,6 +1,6 @@
 import { Card, PageHeader, EmptyState, Badge } from '@novagross/ui'
 import { TrendingUp, ShoppingCart } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { RowActions } from './row-actions'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ function formatDate(iso: string | null) {
 }
 
 export default async function SellerRotaPage() {
-  const { supabase, storeId } = await requireSeller('/rota')
+  const { supabase, storeId } = await requireSellerRole('manager', '/rota')
 
   const { data, error } = await (supabase as any)
     .from('seller_cart_suggestions')

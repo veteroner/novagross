@@ -40,7 +40,7 @@ export default function SellerOrders() {
       const { data: store } = await supabase
         .from('stores')
         .select('id, store_name, address, city, district, phone')
-        .eq('owner_id', user.id)
+        .eq('id', ((await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
         .maybeSingle()
 
       if (!store) return

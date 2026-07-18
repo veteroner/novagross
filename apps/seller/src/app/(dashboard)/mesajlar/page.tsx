@@ -44,7 +44,7 @@ export default function MessagesPage() {
       const { data: store } = await supabase
         .from('stores')
         .select('id')
-        .eq('owner_id', user.id)
+        .eq('id', ((await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
         .single()
 
       if (!store) return

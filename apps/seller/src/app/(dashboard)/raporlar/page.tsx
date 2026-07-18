@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, PageHeader, EmptyState, Badge, StatCard } from '@novagross/ui'
 import { BarChart3, Package, Star, Megaphone, TrendingUp } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,7 @@ function formatTry(n: number) {
 }
 
 export default async function SellerReportsPage() {
-  const { supabase, storeId } = await requireSeller('/raporlar')
+  const { supabase, storeId } = await requireSellerRole('manager', '/raporlar')
 
   const last30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 

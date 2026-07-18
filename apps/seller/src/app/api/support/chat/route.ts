@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const { data: store } = await (db as any)
       .from('stores')
       .select('id, store_name, email')
-      .eq('owner_id', user.id)
+      .eq('id', ((await (db as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
       .maybeSingle()
     if (!store) return NextResponse.json({ error: 'Mağaza bulunamadı' }, { status: 403 })
 

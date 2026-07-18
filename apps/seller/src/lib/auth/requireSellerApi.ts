@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+export type StoreRole = 'owner' | 'manager' | 'staff'
+
 export type SellerApiResult = {
   supabase: Awaited<ReturnType<typeof createClient>>
   userId: string
   storeId: string
+  role: StoreRole
+}
+
+const ROLE_RANK: Record<StoreRole, number> = { staff: 1, manager: 2, owner: 3 }
+
+export function apiRoleAtLeast(role: StoreRole, min: StoreRole): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK[min]
 }
 
 /**
@@ -41,21 +50,23 @@ export async function requireSellerApi(): Promise<SellerApiResult | NextResponse
       )
     }
 
-    // Get their store
-    const { data: store } = await supabase
-      .from('stores')
-      .select('id')
-      .eq('owner_id', user.id)
-      .single()
+    // Mağazayı üyelik üzerinden çöz (sahip/yönetici/personel)
+    const { data: membership } = await (supabase as any).rpc('get_my_store')
+    const myStore = Array.isArray(membership) ? membership[0] : membership
 
-    if (!store) {
+    if (!myStore?.store_id) {
       return NextResponse.json(
         { error: 'Mağaza bulunamadı' },
         { status: 404 }
       )
     }
 
-    return { supabase, userId: user.id, storeId: store.id }
+    return {
+      supabase,
+      userId: user.id,
+      storeId: myStore.store_id,
+      role: (myStore.role as StoreRole) || 'staff',
+    }
   } catch {
     return NextResponse.json(
       { error: 'Kimlik doğrulama hatası' },

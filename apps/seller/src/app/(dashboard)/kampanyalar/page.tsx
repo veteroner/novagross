@@ -1,10 +1,10 @@
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { CampaignsClient, type CampaignRow } from './campaigns-client'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SellerCampaignsPage() {
-  const { supabase, storeId } = await requireSeller('/kampanyalar')
+  const { supabase, storeId } = await requireSellerRole('manager', '/kampanyalar')
 
   const [{ data: campaigns }, { data: products }, { data: categories }] = await Promise.all([
     (supabase as any)

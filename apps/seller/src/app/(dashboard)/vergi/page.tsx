@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, Badge, PageHeader, StatCard, EmptyState } from '@novagross/ui'
 import { Receipt, FileText, Info, Settings } from 'lucide-react'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSellerRole } from '@/lib/auth/requireSeller'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 import { TaxSettings } from './tax-settings'
 
@@ -21,7 +21,7 @@ function formatTRY(n: number) {
 }
 
 export default async function SellerTaxPage() {
-  const { storeId } = await requireSeller('/vergi')
+  const { storeId } = await requireSellerRole('manager', '/vergi')
 
   // withholding_periods RLS admin-only olduğundan period bilgisi (yıl/ay)
   // server-side service client ile çekilir; receipts zaten storeId filtreli.

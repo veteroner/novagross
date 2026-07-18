@@ -9,8 +9,11 @@ type Member = {
   user_id: string
   role: 'owner' | 'manager' | 'staff'
   created_at: string
-  profile?: { full_name: string | null; email: string | null } | null
+  profile?: { first_name: string | null; last_name: string | null; email: string | null } | null
 }
+
+const fullName = (p?: { first_name: string | null; last_name: string | null } | null) =>
+  `${p?.first_name || ''} ${p?.last_name || ''}`.trim()
 type Invitation = {
   id: string
   email: string
@@ -177,7 +180,7 @@ export function MembersClient({ storeName }: { storeName: string }) {
                   <div className="flex items-center gap-3">
                     {m.role === 'owner' ? <Crown className="h-5 w-5 text-amber-500" /> : m.role === 'manager' ? <Shield className="h-5 w-5 text-blue-500" /> : <UserIcon className="h-5 w-5 text-gray-400" />}
                     <div>
-                      <p className="font-medium">{m.profile?.full_name || m.profile?.email || 'Kullanıcı'}</p>
+                      <p className="font-medium">{(fullName(m.profile) || undefined) || m.profile?.email || 'Kullanıcı'}</p>
                       <p className="text-xs text-gray-500">{m.profile?.email}</p>
                     </div>
                   </div>
@@ -195,7 +198,7 @@ export function MembersClient({ storeName }: { storeName: string }) {
                           <option value="manager">Yönetici</option>
                         </select>
                         <button
-                          onClick={() => removeMember(m.id, m.profile?.full_name || m.profile?.email || 'Kullanıcı')}
+                          onClick={() => removeMember(m.id, (fullName(m.profile) || undefined) || m.profile?.email || 'Kullanıcı')}
                           className="rounded p-2 text-red-500 hover:bg-red-50"
                           title="Çıkar"
                         >

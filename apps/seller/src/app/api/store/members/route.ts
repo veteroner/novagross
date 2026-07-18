@@ -20,7 +20,7 @@ export async function GET() {
   const service = createServiceRoleClient() as any
   const { data: members } = await service
     .from('store_members')
-    .select('id, user_id, role, created_at, profile:profiles!store_members_user_id_fkey(id, full_name, email)')
+    .select('id, user_id, role, created_at, profile:profiles!store_members_user_id_fkey(id, first_name, last_name, email)')
     .eq('store_id', auth.storeId)
     .order('created_at', { ascending: true })
 

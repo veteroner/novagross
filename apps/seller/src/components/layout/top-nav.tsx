@@ -37,6 +37,7 @@ type CounterKey =
   | 'pendingProducts'
   | 'pendingPlatformOffers'
   | 'pendingDeliveryProblems'
+  | 'missingInvoices'
 
 type NavLeaf = {
   href: string
@@ -78,7 +79,7 @@ const NAV: NavGroup[] = [
     icon: ShoppingCart,
     href: '/siparisler',
     items: [],
-    surfacesCounters: ['pendingOrders', 'pendingDeliveryProblems'],
+    surfacesCounters: ['pendingOrders', 'pendingDeliveryProblems', 'missingInvoices'],
   },
   {
     label: 'Pazarlama',
@@ -205,6 +206,7 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   pendingProducts: 0,
   pendingPlatformOffers: 0,
   pendingDeliveryProblems: 0,
+  missingInvoices: 0,
 }
 
 async function fetchCounters(
@@ -219,7 +221,7 @@ async function fetchCounters(
     .eq('store_id', storeId)
   const productIds = (productRows ?? []).map((p: any) => p.id)
 
-  const [a, b, c, d, e, f, g, h] = await Promise.all([
+  const [a, b, c, d, e, f, g, h, i] = await Promise.all([
     productIds.length > 0
       ? (supabase as any)
           .from('reviews')
@@ -264,6 +266,12 @@ async function fetchCounters(
       .from('delivery_problems')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
+    // Kargolanmış/teslim edilmiş ama faturası yüklenmemiş siparişler
+    (supabase as any)
+      .from('order_invoice_obligations')
+      .select('order_id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .is('invoice_id', null),
   ])
   return {
     pendingReviews: a.count ?? 0,
@@ -274,6 +282,7 @@ async function fetchCounters(
     pendingProducts: f.count ?? 0,
     pendingPlatformOffers: g.count ?? 0,
     pendingDeliveryProblems: h.count ?? 0,
+    missingInvoices: i.count ?? 0,
   }
 }
 

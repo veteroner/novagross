@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '@novagross/ui'
 import { formatPrice, formatDate, safeExternalUrl } from '@novagross/utils'
-import { ArrowLeft, Truck, Package, CheckCircle, MapPin } from 'lucide-react'
+import { ArrowLeft, Truck, Package, CheckCircle, MapPin, FileText, Download } from 'lucide-react'
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CopyTrackingButton } from '@/components/order/copy-tracking-button'
@@ -101,6 +101,30 @@ export default async function OrderDetailPage({
 
   // Show claim button only after a sensible state (shipped or delivered)
   const claimsAllowed = ['shipped', 'delivered'].includes(order.status ?? '')
+
+  // Faturalar: sipariş birden fazla mağazadan ürün içerebilir, her mağaza
+  // kendi kalemleri için ayrı fatura yükler (order_id, store_id anahtarı).
+  const { data: storeRows } = await supabase
+    .from('order_items')
+    .select('store_id, store:store_id(id, store_name)')
+    .eq('order_id', order.id)
+
+  const storesById = new Map<string, { id: string; store_name: string }>()
+  for (const row of storeRows ?? []) {
+    const s = Array.isArray((row as any).store) ? (row as any).store[0] : (row as any).store
+    if (s?.id && !storesById.has(s.id)) storesById.set(s.id, s)
+  }
+
+  // RLS ("Customer views own order invoices") kendi siparişine kısıtlar
+  const { data: invoiceRows } = await (supabase as any)
+    .from('order_invoices')
+    .select('id, store_id, uploaded_at')
+    .eq('order_id', order.id)
+
+  const invoiceByStore = new Map<string, any>()
+  for (const inv of invoiceRows ?? []) invoiceByStore.set(inv.store_id, inv)
+
+  const showInvoices = ['shipped', 'delivered'].includes(order.status ?? '') && storesById.size > 0
 
   const shippingAddress = asAddressLike(order.shipping_address)
   const currentStatusIndex = statusSteps.findIndex((s) => s.status === order.status)
@@ -241,6 +265,46 @@ export default async function OrderDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Faturalar */}
+      {showInvoices && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Faturalar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Array.from(storesById.values()).map((store) => {
+                const invoice = invoiceByStore.get(store.id)
+                return (
+                  <div key={store.id} className="flex items-center justify-between gap-3 p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="font-medium">{store.store_name}</p>
+                        {invoice ? (
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(invoice.uploaded_at)} tarihinde yüklendi
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Satıcı henüz fatura yüklemedi</p>
+                        )}
+                      </div>
+                    </div>
+                    {invoice && (
+                      <Button asChild size="sm" variant="outline">
+                        <a href={`/api/invoices/${invoice.id}`}>
+                          <Download className="h-4 w-4 mr-1" /> İndir
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Shipping Address */}
       <Card>

@@ -3,14 +3,18 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@novagross/ui'
 import { Button } from '@novagross/ui'
-import { ShoppingCart, Package, Truck, CheckCircle, XCircle } from 'lucide-react'
+import { ShoppingCart, Package, Truck, CheckCircle, XCircle, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { safeExternalUrl } from '@novagross/utils'
 import { code128Svg } from '@/lib/code128'
+import { InvoiceDialog } from './invoice-dialog'
 
 export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([])
+  const [storeId, setStoreId] = useState<string | null>(null)
   const [storeInfo, setStoreInfo] = useState<{ store_name: string; address: string | null; city: string | null; district: string | null; phone: string | null } | null>(null)
+  const [invoicesByOrderId, setInvoicesByOrderId] = useState<Record<string, any>>({})
+  const [invoiceDialogOrderId, setInvoiceDialogOrderId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [carriers, setCarriers] = useState<Array<{ id: string; name: string; code: string }>>([])
@@ -40,6 +44,7 @@ export default function SellerOrders() {
         .maybeSingle()
 
       if (!store) return
+      setStoreId((store as any).id)
       setStoreInfo({
         store_name: (store as any).store_name,
         address: (store as any).address,
@@ -73,7 +78,7 @@ export default function SellerOrders() {
       if (orderIds.length > 0) {
         const { data: shipments } = await supabase
           .from('order_shipments')
-          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,official_barcode,label_zpl,provider_code,carrier_id,method_id,bill_of_landing_id')
+          .select('order_id,id,status,tracking_number,tracking_url,shipping_label_url,barcode_data,official_barcode,label_zpl,provider_code,carrier_id,method_id,bill_of_landing_id,shipped_at')
           .in('order_id', orderIds)
 
         const next: Record<string, any> = {}
@@ -88,6 +93,16 @@ export default function SellerOrders() {
         const nextProblems: Record<string, any> = {}
         for (const p of problems || []) nextProblems[p.order_id] = p
         setDeliveryProblemsByOrderId(nextProblems)
+
+        // Sipariş faturaları (RLS satıcının kendi store'una kısıtlar)
+        const { data: invoices } = await (supabase as any)
+          .from('order_invoices')
+          .select('id, order_id, invoice_number, uploaded_at')
+          .in('order_id', orderIds)
+          .eq('store_id', store.id)
+        const nextInvoices: Record<string, any> = {}
+        for (const inv of invoices || []) nextInvoices[inv.order_id] = inv
+        setInvoicesByOrderId(nextInvoices)
       }
     } catch (error) {
       console.error('Failed to fetch orders:', error)
@@ -398,6 +413,35 @@ export default function SellerOrders() {
     return map[status] || { label: status, cls: 'bg-gray-100 text-gray-700' }
   }
 
+  // Fatura yükleme yükümlülüğü: kargolamadan itibaren 7 gün (VUK ile uyumlu).
+  // Kalan gün <= 0 ise gecikmiş demektir.
+  const invoiceDeadlineDays = (orderId: string): number | null => {
+    const shippedAt = shipmentsByOrderId[orderId]?.shipped_at
+    if (!shippedAt) return null
+    const due = new Date(shippedAt).getTime() + 7 * 24 * 60 * 60 * 1000
+    return Math.ceil((due - Date.now()) / (24 * 60 * 60 * 1000))
+  }
+
+  const viewInvoice = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/invoice`)
+      const data = await res.json()
+      if (!res.ok || !data?.invoice?.url) throw new Error(data?.error || 'Fatura açılamadı')
+      window.open(data.invoice.url, '_blank', 'noopener,noreferrer')
+    } catch (e: any) {
+      alert(e?.message || 'Fatura açılamadı')
+    }
+  }
+
+  // Faturası eksik kargolanmış/teslim edilmiş siparişler (uyarı banner'ı için)
+  const missingInvoiceOrderIds = Array.from(
+    new Set(
+      orders
+        .filter((o) => ['shipped', 'delivered'].includes(o.order?.status) && !invoicesByOrderId[o.order?.id])
+        .map((o) => o.order.id)
+    )
+  )
+
   const filteredOrders = filter === 'all' ? orders : orders.filter((o) => o.order.status === filter)
 
   if (loading) {
@@ -417,6 +461,17 @@ export default function SellerOrders() {
         <h1 className="text-3xl font-bold mb-2">Siparişlerim</h1>
         <p className="text-gray-600">{orders.length} sipariş</p>
       </div>
+
+      {missingInvoiceOrderIds.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <FileText className="h-5 w-5 mt-0.5 shrink-0" />
+          <div>
+            <b>{missingInvoiceOrderIds.length} siparişin faturası eksik.</b> Kargolanan siparişlerin
+            e-Arşiv faturasını yasal süre içinde (kargolamadan itibaren 7 gün) sisteme yüklemeniz
+            gerekir. İlgili siparişin altındaki “Fatura Yükle” butonunu kullanın.
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="mb-6">
@@ -611,6 +666,53 @@ export default function SellerOrders() {
                   </div>
                 )}
 
+                {/* Fatura (kargolanmış/teslim edilmiş siparişlerde) */}
+                {['shipped', 'delivered'].includes(orderItem.order.status) && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    {invoicesByOrderId[orderItem.order.id] ? (
+                      <>
+                        <button
+                          onClick={() => viewInvoice(orderItem.order.id)}
+                          className="inline-flex items-center gap-1 rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        >
+                          <FileText className="h-3.5 w-3.5" /> Fatura
+                        </button>
+                        <button
+                          onClick={() => setInvoiceDialogOrderId(orderItem.order.id)}
+                          className="inline-flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          Değiştir
+                        </button>
+                        <span className="text-xs text-gray-500">
+                          Yüklendi: {new Date(invoicesByOrderId[orderItem.order.id].uploaded_at).toLocaleDateString('tr-TR')}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setInvoiceDialogOrderId(orderItem.order.id)}
+                          className="inline-flex items-center gap-1 rounded bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600"
+                        >
+                          <FileText className="h-3.5 w-3.5" /> Fatura Yükle
+                        </button>
+                        {(() => {
+                          const days = invoiceDeadlineDays(orderItem.order.id)
+                          if (days === null) return null
+                          return days > 0 ? (
+                            <span className={`rounded px-2 py-0.5 text-xs font-medium ${days <= 3 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
+                              Son {days} gün
+                            </span>
+                          ) : (
+                            <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                              Gecikti ({Math.abs(days)} gün)
+                            </span>
+                          )
+                        })()}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Actions */}
                 {orderItem.order.status === 'pending' && (
                   <div className="flex gap-2">
@@ -732,6 +834,20 @@ export default function SellerOrders() {
             </Card>
           ))}
         </div>
+      )}
+
+      {invoiceDialogOrderId && storeId && (
+        <InvoiceDialog
+          orderId={invoiceDialogOrderId}
+          orderNumber={orders.find((o) => o.order?.id === invoiceDialogOrderId)?.order?.order_number || ''}
+          storeId={storeId}
+          existing={Boolean(invoicesByOrderId[invoiceDialogOrderId])}
+          onDone={() => {
+            setInvoiceDialogOrderId(null)
+            fetchOrders()
+          }}
+          onClose={() => setInvoiceDialogOrderId(null)}
+        />
       )}
     </div>
   )

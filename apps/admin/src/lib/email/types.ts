@@ -15,6 +15,7 @@ export type EmailTemplate =
   | 'orders/order-cancelled'
   | 'orders/new-order-seller'
   | 'orders/order-reminder-seller'
+  | 'orders/invoice-uploaded'
   | 'orders/return-request'
   // Finance
   | 'finance/payment-received'

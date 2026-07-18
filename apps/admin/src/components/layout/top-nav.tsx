@@ -39,6 +39,7 @@ type CounterKey =
   | 'escalatedClaims'
   | 'pendingAds'
   | 'pendingInfluencers'
+  | 'missingOrderInvoices'
 
 type NavLeaf = {
   href: string
@@ -112,11 +113,18 @@ const NAV: NavGroup[] = [
         icon: Receipt,
         description: 'MNG komisyon/kargo faturaları',
       },
+      {
+        href: '/fatura-denetim',
+        label: 'Sipariş Fatura Denetimi',
+        icon: Receipt,
+        description: 'Satıcıların yüklemediği e-Arşiv faturaları',
+        counter: 'missingOrderInvoices',
+      },
       { href: '/vergi/stopaj', label: 'Vergi / Stopaj', icon: Receipt, description: 'Aylık %1 tevkifat & GİB beyanı' },
       { href: '/vergi/faturalar', label: 'Komisyon Faturaları', icon: Receipt, description: 'Aylık satıcı faturaları + e-arşiv' },
       { href: '/ayarlar/komisyon', label: 'Komisyon', icon: Settings, description: 'Satıcı oranları' },
     ],
-    surfacesCounters: ['pendingApplications', 'pendingWithdrawals'],
+    surfacesCounters: ['pendingApplications', 'pendingWithdrawals', 'missingOrderInvoices'],
   },
   {
     label: 'Pazarlama',
@@ -216,10 +224,11 @@ const EMPTY_COUNTERS: Record<CounterKey, number> = {
   escalatedClaims: 0,
   pendingAds: 0,
   pendingInfluencers: 0,
+  missingOrderInvoices: 0,
 }
 
 async function fetchCounters(supabase: ReturnType<typeof createClient>) {
-  const [a, b, c, d, e, f, g, h, i] = await Promise.all([
+  const [a, b, c, d, e, f, g, h, i, j] = await Promise.all([
     supabase.from('products').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
     supabase.from('reviews').select('id', { count: 'exact', head: true }).eq('is_approved', false),
     supabase.from('contact_messages').select('id', { count: 'exact', head: true }).eq('status', 'new'),
@@ -244,6 +253,11 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
       .from('influencers')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
+    (supabase as any)
+      .from('order_invoice_obligations')
+      .select('order_id', { count: 'exact', head: true })
+      .is('invoice_id', null)
+      .lt('due_date', new Date().toISOString()),
   ])
   return {
     pendingProducts: a.count ?? 0,
@@ -255,6 +269,7 @@ async function fetchCounters(supabase: ReturnType<typeof createClient>) {
     escalatedClaims: g.count ?? 0,
     pendingAds: h.count ?? 0,
     pendingInfluencers: i.count ?? 0,
+    missingOrderInvoices: j.count ?? 0,
   } as Record<CounterKey, number>
 }
 

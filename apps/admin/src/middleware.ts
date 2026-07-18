@@ -24,6 +24,7 @@ const CRON_ROUTE_PREFIXES = [
   '/api/cargo/sync-shipment-status',
   '/api/cargo/reconcile-invoices',
   '/api/cargo/sync-delivery-problems',
+  '/api/invoices/reminders',
 ]
 
 function isCronRoute(pathname: string): boolean {

@@ -157,7 +157,19 @@ export class EmailService {
           );
           TemplateComponent = NewOrderSeller;
           break;
-        
+        case 'orders/invoice-uploaded':
+          const { default: InvoiceUploaded } = await import(
+            './templates/orders/invoice-uploaded'
+          );
+          TemplateComponent = InvoiceUploaded;
+          break;
+        case 'orders/order-reminder-seller':
+          const { default: OrderReminderSeller } = await import(
+            './templates/orders/order-reminder-seller'
+          );
+          TemplateComponent = OrderReminderSeller;
+          break;
+
         // Marketplace Templates
         case 'seller/application-approved':
           const { default: ApplicationApproved } = await import(

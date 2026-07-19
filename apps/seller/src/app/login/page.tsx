@@ -86,6 +86,14 @@ function LoginForm() {
 
       const { data: profile } = await supabase.from('profiles').select('is_seller').eq('id', user.id).single()
       if (!profile?.is_seller) {
+        // Davet kabul akışı: henüz satıcı değil ama bir mağazaya davet edildiyse
+        // davet linkine gitmesine izin ver. /davet sayfası e-posta eşleşmesiyle
+        // üyeliği kurar ve is_seller'ı true yapar. 2FA'yı da atlar (kabul
+        // sonrası normal girişte 2FA yine devreye girer).
+        if (redirectTo && redirectTo.startsWith('/davet/')) {
+          finish()
+          return
+        }
         await supabase.auth.signOut()
         throw new Error('Bu panel sadece onaylı satıcılar içindir. Başvurunuz onaylandıktan sonra giriş yapabilirsiniz.')
       }

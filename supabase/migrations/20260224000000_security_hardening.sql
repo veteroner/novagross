@@ -34,6 +34,11 @@ CREATE POLICY "Users can only insert own profile"
 -- 3. FIX payments TABLE: Remove wide-open policy
 -- =====================================================
 DROP POLICY IF EXISTS "Backend can manage payments" ON public.payments;
+-- Idempotency: bu iki politika daha önceki migration'larda da (20240103000000,
+-- 20260118000000) oluşturuluyor. Sıfırdan replay'de (Schema Reproducibility DR)
+-- CREATE çakışmasını önlemek için önce düşür.
+DROP POLICY IF EXISTS "Users can view own payments" ON public.payments;
+DROP POLICY IF EXISTS "Admins can manage payments" ON public.payments;
 -- Only allow users to read their own payments via their orders
 CREATE POLICY "Users can view own payments"
   ON public.payments FOR SELECT

@@ -2,7 +2,15 @@
 -- Kullanıcı iyzico formunu açıp vazgeçerse callback hiç gelmez —
 -- reserve edilen stok sonsuza dek bloke kalıyordu. Bu job 10 dakikada bir,
 -- 30 dakikadan eski 'pending' siparişleri failed'a çekip stoklarını iade eder.
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- pg_cron yalnızca Supabase/prod'da mevcut; Schema Reproducibility (DR) sıfırdan
+-- replay'i vanilla postgres kullanır (pg_cron yok). Eklentiyi yalnızca mevcutsa
+-- kur — fonksiyon (şema) her koşulda oluşur, cron zamanlaması runtime altyapısıdır.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_cron;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.release_stale_pending_orders()
 RETURNS int
@@ -47,8 +55,13 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
-SELECT cron.schedule(
-  'release-stale-pending-orders',
-  '*/10 * * * *',
-  $$SELECT public.release_stale_pending_orders()$$
-);
+-- Zamanlama: pg_cron varsa kur, yoksa (DR replay) sessizce atla.
+DO $$
+BEGIN
+  PERFORM cron.schedule(
+    'release-stale-pending-orders',
+    '*/10 * * * *',
+    $job$SELECT public.release_stale_pending_orders()$job$
+  );
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;

@@ -72,14 +72,16 @@ CREATE POLICY "Admins can view email queue"
 -- email_unsubscribes: Contains PII (email, IP, user_agent)
 ALTER TABLE IF EXISTS public.email_unsubscribes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can manage own unsubscribes" ON public.email_unsubscribes;
+-- email_unsubscribes'ta user_id kolonu YOK (email ile anahtarlanır — 20260115000000).
+-- Kullanıcı, kendi hesap e-postasına ait kayıtları yönetebilir.
 CREATE POLICY "Users can manage own unsubscribes"
   ON public.email_unsubscribes FOR ALL
   USING (
-    user_id = auth.uid()
+    email = (SELECT p.email FROM public.profiles p WHERE p.id = auth.uid())
     OR public.is_admin()
   )
   WITH CHECK (
-    user_id = auth.uid()
+    email = (SELECT p.email FROM public.profiles p WHERE p.id = auth.uid())
     OR public.is_admin()
   );
 

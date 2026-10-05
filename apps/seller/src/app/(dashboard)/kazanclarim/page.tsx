@@ -18,6 +18,7 @@ interface SettlementRow {
   commission_amount: number | null
   commission_rate: number | null
   seller_amount: number | null
+  withholding_amount: number | null
   iyzico_approval_status: string | null
   iyzico_approved_at: string | null
   orders: {
@@ -28,6 +29,10 @@ interface SettlementRow {
     iyzico_cargo_deducted_amount: number | null
   } | null
 }
+
+// Satıcıya giden net: iyzico subMerchantPrice (seller_amount) - e-ticaret stopajı
+const net = (r: { seller_amount: number | null; withholding_amount: number | null }) =>
+  Number(r.seller_amount || 0) - Number(r.withholding_amount || 0)
 
 const fmt = (n: number) => `₺${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -51,7 +56,7 @@ export default function EarningsPage() {
       const { data } = await (supabase as any)
         .from('order_items')
         .select(`
-          id, name, quantity, total, commission_amount, commission_rate, seller_amount,
+          id, name, quantity, total, commission_amount, commission_rate, seller_amount, withholding_amount,
           iyzico_approval_status, iyzico_approved_at,
           orders!inner ( order_number, created_at, delivered_at, payment_status, iyzico_cargo_deducted_amount )
         `)
@@ -70,11 +75,12 @@ export default function EarningsPage() {
 
   const pending = rows
     .filter((r) => r.iyzico_approval_status !== 'approved')
-    .reduce((a, r) => a + Number(r.seller_amount || 0), 0)
+    .reduce((a, r) => a + net(r), 0)
   const sent = rows
     .filter((r) => r.iyzico_approval_status === 'approved')
-    .reduce((a, r) => a + Number(r.seller_amount || 0), 0)
+    .reduce((a, r) => a + net(r), 0)
   const commission = rows.reduce((a, r) => a + Number(r.commission_amount || 0), 0)
+  const withholding = rows.reduce((a, r) => a + Number(r.withholding_amount || 0), 0)
 
   const statusBadge = (r: SettlementRow) => {
     if (r.iyzico_approval_status === 'approved') {
@@ -121,7 +127,8 @@ export default function EarningsPage() {
               Ödemeleriniz <strong>iyzico</strong> üzerinden otomatik yapılır; para çekme talebi oluşturmanıza gerek yoktur.
             </p>
             <p>
-              Sipariş teslim edildikten sonra 14 günlük yasal iade süresi dolunca, komisyon ve gerçek kargo bedeli düşülerek
+              Sipariş teslim edildikten sonra 14 günlük yasal iade süresi dolunca, komisyon, %1 e-ticaret stopajı (KDV hariç
+              tutar üzerinden, 9284 sayılı CBK) ve gerçek kargo bedeli düşülerek
               kalan tutar mağazanızın iyzico&apos;ya kayıtlı IBAN&apos;ına gönderilir. Açık iade talebi olan siparişler iade
               sonuçlanana kadar bekletilir.
             </p>
@@ -162,7 +169,9 @@ export default function EarningsPage() {
               <div>
                 <p className="text-sm text-gray-600 mb-1">Kesilen Komisyon</p>
                 <p className="text-3xl font-bold text-purple-600">{fmt(commission)}</p>
-                <p className="text-sm text-gray-500 mt-1">KDV hariç tutar üzerinden</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  KDV hariç tutar üzerinden · Stopaj: {fmt(withholding)}
+                </p>
               </div>
               <TrendingUp className="w-12 h-12 text-purple-500" />
             </div>
@@ -191,6 +200,7 @@ export default function EarningsPage() {
                     <th className="text-left p-3 font-semibold text-sm">Ürün</th>
                     <th className="text-right p-3 font-semibold text-sm">Satış</th>
                     <th className="text-right p-3 font-semibold text-sm">Komisyon</th>
+                    <th className="text-right p-3 font-semibold text-sm">Stopaj (%1)</th>
                     <th className="text-right p-3 font-semibold text-sm">Hak ediş</th>
                     <th className="text-right p-3 font-semibold text-sm">Kargo kesintisi</th>
                     <th className="text-left p-3 font-semibold text-sm">Durum</th>
@@ -213,7 +223,10 @@ export default function EarningsPage() {
                         {fmt(Number(r.commission_amount || 0))}
                         {r.commission_rate != null ? <span className="text-xs"> (%{Number(r.commission_rate)})</span> : null}
                       </td>
-                      <td className="p-3 text-sm text-right font-semibold">{fmt(Number(r.seller_amount || 0))}</td>
+                      <td className="p-3 text-sm text-right text-gray-600">
+                        {Number(r.withholding_amount || 0) > 0 ? fmt(Number(r.withholding_amount)) : '-'}
+                      </td>
+                      <td className="p-3 text-sm text-right font-semibold">{fmt(net(r))}</td>
                       <td className="p-3 text-sm text-right text-gray-600">
                         {r.orders?.iyzico_cargo_deducted_amount ? `−${fmt(Number(r.orders.iyzico_cargo_deducted_amount))}` : '-'}
                       </td>

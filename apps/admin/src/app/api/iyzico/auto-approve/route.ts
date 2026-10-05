@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       iyzico_shipping_transaction_id, iyzico_shipping_sub_merchant_key,
       iyzico_shipping_seller_amount, iyzico_shipping_approval_status,
       iyzico_cargo_deducted_at,
-      order_items!inner ( id, seller_amount, iyzico_payment_transaction_id, iyzico_approval_status, iyzico_sub_merchant_key ),
+      order_items!inner ( id, seller_amount, withholding_amount, iyzico_payment_transaction_id, iyzico_approval_status, iyzico_sub_merchant_key ),
       order_shipments ( cargo_fee ),
       return_requests ( status )
     `)
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
         console.warn(`[iyzico auto-approve] ${orderNo}: kargo faturası bulunamadı, kargo düşülmeden onaylanıyor`)
       } else if (fee > 0) {
         // Hedefler: önce kargo kalemi, sonra ürün kalemleri (büyükten küçüğe)
-        const targets: { kind: 'shipping' | 'item'; txId: string; key: string; price: number }[] = []
+        const targets: { kind: 'shipping' | 'item'; txId: string; key: string; price: number; withholding: number }[] = []
         if (
           order.iyzico_shipping_transaction_id &&
           order.iyzico_shipping_sub_merchant_key &&
@@ -136,11 +136,12 @@ export async function POST(req: NextRequest) {
             txId: order.iyzico_shipping_transaction_id,
             key: order.iyzico_shipping_sub_merchant_key,
             price: Number(order.iyzico_shipping_seller_amount),
+            withholding: 0,
           })
         }
         for (const it of [...order.order_items].sort((a: any, b: any) => Number(b.seller_amount) - Number(a.seller_amount))) {
           if (it.iyzico_sub_merchant_key && Number(it.seller_amount) > 0) {
-            targets.push({ kind: 'item', txId: it.iyzico_payment_transaction_id, key: it.iyzico_sub_merchant_key, price: Number(it.seller_amount) })
+            targets.push({ kind: 'item', txId: it.iyzico_payment_transaction_id, key: it.iyzico_sub_merchant_key, price: Number(it.seller_amount), withholding: Number(it.withholding_amount || 0) })
           }
         }
 
@@ -149,7 +150,8 @@ export async function POST(req: NextRequest) {
         let updateFailed = false
         for (const t of targets) {
           if (remaining <= 0) break
-          const take = round2(Math.min(remaining, t.price - MIN_SUB_MERCHANT_PRICE))
+          // Stopaj (withholdingTax) satıcı tutarından düşüldüğü için tutar stopajın altına inemez
+          const take = round2(Math.min(remaining, t.price - t.withholding - MIN_SUB_MERCHANT_PRICE))
           if (take <= 0) continue
           try {
             const res = await call(iyzipay, 'paymentItem', 'update', {
@@ -158,6 +160,8 @@ export async function POST(req: NextRequest) {
               paymentTransactionId: t.txId,
               subMerchantKey: t.key,
               subMerchantPrice: round2(t.price - take).toFixed(2),
+              // Güncellemede gönderilmezse ödeme anındaki stopaj kaybolabilir
+              ...(t.withholding > 0 && { withholdingTax: t.withholding.toFixed(2) }),
             })
             if (res.status !== 'success') {
               updateFailed = true

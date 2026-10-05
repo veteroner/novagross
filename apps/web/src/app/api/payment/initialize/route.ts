@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     const { data: productsForItems, error: productsForItemsError } = await db
       .from('products')
-      .select('id, name, price, compare_at_price, store_id, sku, stores(iyzico_sub_merchant_key, commission_rate, kdv_rate, free_shipping_threshold)')
+      .select('id, name, price, compare_at_price, store_id, sku, stores(iyzico_sub_merchant_key, commission_rate, kdv_rate, free_shipping_threshold, is_platform_store, is_withholding_exempt, withholding_exempt_verified, taxpayer_type)')
       .in('id', productIds)
 
     if (productsForItemsError) {
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const productMap = new Map<string, { store_id: string | null; sku: string | null; subMerchantKey: string | null; commissionRate: number; kdvRate: number; freeShippingThreshold: number | null; price: number; name: string }>()
+    const productMap = new Map<string, { store_id: string | null; sku: string | null; subMerchantKey: string | null; commissionRate: number; kdvRate: number; withholdingExempt: boolean; freeShippingThreshold: number | null; price: number; name: string }>()
     for (const product of productsForItems || []) {
       const store = (product as any).stores
       productMap.set(product.id, {
@@ -154,6 +154,12 @@ export async function POST(request: NextRequest) {
         subMerchantKey: store?.iyzico_sub_merchant_key ?? null,
         commissionRate: Number(store?.commission_rate ?? 0),
         kdvRate: Number(store?.kdv_rate ?? 20),
+        // E-ticaret stopajı muafiyeti — process_order_commissions ile AYNI kural
+        withholdingExempt: Boolean(
+          store?.is_platform_store ||
+            (store?.is_withholding_exempt && store?.withholding_exempt_verified) ||
+            store?.taxpayer_type === 'simple_method'
+        ),
         freeShippingThreshold: store?.free_shipping_threshold == null ? null : Number(store.free_shipping_threshold),
         price: Number((product as any).price),
         name: (product as any).name || '',
@@ -326,7 +332,7 @@ export async function POST(request: NextRequest) {
     // ve iyzico'da üye işyeri (platform) payı olarak kalır; iyzico ücreti de bu paydan düşer.
     // Aynı değerler order_items'a yazılır → iç defter iyzico ile birebir aynı olur.
     let firstSubMerchantKey: string | null = null
-    const itemSettlements: { commissionRate: number; commissionAmount: number; sellerAmount: number }[] = []
+    const itemSettlements: { commissionRate: number; commissionAmount: number; sellerAmount: number; withholdingAmount: number }[] = []
     const basketItems = items.map((item: any) => {
       const productInfo = productMap.get(item.productId)
       const subMerchantKey = productInfo?.subMerchantKey ?? null
@@ -335,12 +341,17 @@ export async function POST(request: NextRequest) {
       const commissionRate = discountedRateByProduct.get(item.productId) ?? (productInfo?.commissionRate ?? 0)
       // Komisyon KDV hariç tutar üzerinden: itemTotal / (1 + KDV) × oran
       const kdvRate = productInfo?.kdvRate ?? 20
-      const commissionAmount = Number(((itemTotal / (1 + kdvRate / 100)) * (commissionRate / 100)).toFixed(2))
+      const netOfKdv = itemTotal / (1 + kdvRate / 100)
+      const commissionAmount = Number((netOfKdv * (commissionRate / 100)).toFixed(2))
       const subMerchantPrice = Number((itemTotal - commissionAmount).toFixed(2))
+      // E-ticaret stopajı (9284 sayılı CBK): KDV hariç tutarın %1'i. iyzico
+      // withholdingTax'ı alt üye işyeri ödemesinden düşer (hesaplama yapmaz).
+      const withholdingAmount = productInfo?.withholdingExempt ? 0 : Number((netOfKdv * 0.01).toFixed(2))
       itemSettlements.push({
         commissionRate,
         commissionAmount,
         sellerAmount: subMerchantPrice,
+        withholdingAmount,
       })
       return {
         id: item.productId,
@@ -350,6 +361,7 @@ export async function POST(request: NextRequest) {
         price: itemTotal.toFixed(2),
         subMerchantKey: subMerchantKey || undefined,
         subMerchantPrice: subMerchantKey ? subMerchantPrice.toFixed(2) : undefined,
+        withholdingTax: subMerchantKey && withholdingAmount > 0 ? withholdingAmount.toFixed(2) : undefined,
       }
     })
 
@@ -387,6 +399,8 @@ export async function POST(request: NextRequest) {
           const st = itemSettlements[i]
           const itemTotal = Number(bi.price)
           st.sellerAmount = Number((st.sellerAmount * ratio).toFixed(2))
+          st.withholdingAmount = Math.min(st.withholdingAmount, Number((st.sellerAmount - 0.01).toFixed(2)))
+          if (st.withholdingAmount > 0) bi.withholdingTax = st.withholdingAmount.toFixed(2)
           st.commissionAmount = Number((itemTotal - st.sellerAmount).toFixed(2))
           bi.subMerchantPrice = st.sellerAmount.toFixed(2)
         })
@@ -515,6 +529,7 @@ export async function POST(request: NextRequest) {
       commission_rate: itemSettlements[idx]?.commissionRate ?? 0,
       commission_amount: itemSettlements[idx]?.commissionAmount ?? 0,
       seller_amount: itemSettlements[idx]?.sellerAmount ?? 0,
+      withholding_amount: itemSettlements[idx]?.withholdingAmount ?? 0,
       iyzico_sub_merchant_key: productMap.get(item.productId)?.subMerchantKey ?? null,
     }))
 

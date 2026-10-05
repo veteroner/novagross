@@ -61,7 +61,7 @@ async function main() {
   }
 
   console.log('📦 Fetching stores from database...');
-  const stores = await supabaseFetch('/stores?select=id,store_name,store_slug,email,phone,address,city,iban,tax_number,tax_office,company_name,iyzico_sub_merchant_key,commission_rate&status=eq.active');
+  const stores = await supabaseFetch('/stores?select=id,store_name,store_slug,email,phone,address,city,iban,tax_number,tax_office,company_name,account_holder,taxpayer_type,iyzico_sub_merchant_key,commission_rate&status=eq.active');
   
   console.log(`Found ${stores.length} active store(s)\n`);
 
@@ -73,37 +73,44 @@ async function main() {
       continue;
     }
 
-    // iyzico sub-merchant registration requires IBAN and identity/tax info
-    // For PERSONAL type: identityNumber required
-    // For PRIVATE_COMPANY: taxNumber + legalCompanyTitle required
-    // For LIMITED_OR_JOINT_STOCK_COMPANY: taxNumber + taxOffice + legalCompanyTitle required
+    // Para gönderimi IBAN sahibinin adıyla yapılır; ad tutmazsa banka EFT'yi
+    // reddeder. Yer tutucu TC/IBAN ile ASLA kayıt açma — eksik bilgide atla.
+    // Şirket mağazaları LIMITED_OR_JOINT_STOCK_COMPANY + legalCompanyTitle =
+    // bankadaki hesap sahibi adı ile kaydedilmeli. (Admin'de satıcı detayındaki
+    // "iyzico Alt Üye İşyeri" kartı aynı kaydı önizlemeli yapar — tercih edilen yol.)
+    const isCompany = ['limited_company', 'joint_stock_company'].includes(store.taxpayer_type);
+    const legalCompanyTitle = (store.account_holder || store.company_name || '').trim();
+    const iban = (store.iban || '').replace(/\s/g, '').toUpperCase();
+    const missing = [];
+    if (!isCompany) missing.push('taxpayer_type şirket değil (bireysel kayıt TC kimlik no gerektirir, desteklenmiyor)');
+    if (!legalCompanyTitle) missing.push('account_holder/company_name');
+    if (!/^\d{10}$/.test(store.tax_number || '')) missing.push('tax_number (10 hane VKN)');
+    if (!store.tax_office) missing.push('tax_office');
+    if (!/^TR\d{24}$/.test(iban)) missing.push('iban');
+    if (!store.email) missing.push('email');
+    if (!store.phone) missing.push('phone');
+    if (!store.address) missing.push('address');
+    if (missing.length > 0) {
+      console.error(`❌ Atlandı — eksik/uygunsuz: ${missing.join(', ')}\n`);
+      continue;
+    }
 
-    const subMerchantType = store.tax_number && store.company_name 
-      ? 'LIMITED_OR_JOINT_STOCK_COMPANY' 
-      : 'PERSONAL';
-
+    const subMerchantType = 'LIMITED_OR_JOINT_STOCK_COMPANY';
     const request = {
       locale: 'tr',
       conversationId: `reg_${store.id.substring(0, 8)}`,
       subMerchantExternalId: store.id,
       subMerchantType,
-      address: store.address || 'Istanbul, Turkey',
-      email: store.email || 'info@novagross.com',
-      gsmNumber: store.phone || '+905000000000',
+      address: store.address,
+      email: store.email,
+      gsmNumber: store.phone,
       name: store.store_name,
-      iban: store.iban || 'TR000000000000000000000000', // Placeholder - must be updated
+      iban,
       currency: 'TRY',
+      taxNumber: store.tax_number,
+      taxOffice: store.tax_office,
+      legalCompanyTitle,
     };
-
-    if (subMerchantType === 'PERSONAL') {
-      request.identityNumber = '11111111111'; // Must be updated with real TC
-      request.contactName = store.store_name;
-      request.contactSurname = 'Store';
-    } else {
-      request.taxNumber = store.tax_number;
-      request.taxOffice = store.tax_office || 'Istanbul';
-      request.legalCompanyTitle = store.company_name || store.store_name;
-    }
 
     console.log('Registering with iyzico...');
     console.log('Type:', subMerchantType);

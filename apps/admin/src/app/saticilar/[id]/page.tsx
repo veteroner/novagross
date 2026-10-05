@@ -7,7 +7,8 @@ import { createServiceRoleClient } from '@/lib/supabase/service'
 import { TaxEditor } from './tax-editor'
 import { StoreInfoEditor } from './store-info-editor'
 import { SellerIncentives } from './seller-incentives'
-import { Megaphone } from 'lucide-react'
+import { IyzicoSubMerchant } from './iyzico-sub-merchant'
+import { Megaphone, CreditCard } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,7 @@ export default async function SellerDetailPage({
       is_withholding_exempt, withholding_exempt_verified, withholding_exempt_verified_at,
       tradesman_certificate_url,
       email, phone, city, district, address, postal_code, iban, bank_name, account_holder,
-      total_sales, total_revenue, rating, total_reviews,
+      total_sales, total_revenue, rating, total_reviews, iyzico_sub_merchant_key,
       owner:owner_id ( id, email, first_name, last_name, phone )
     `)
     .eq('id', id)
@@ -193,6 +194,18 @@ export default async function SellerDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* iyzico alt üye işyeri kaydı */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" /> iyzico Alt Üye İşyeri
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <IyzicoSubMerchant storeId={store.id} currentKey={store.iyzico_sub_merchant_key ?? null} />
+        </CardContent>
+      </Card>
 
       {/* Reklam bakiyesi & hediye kuponları */}
       <Card>

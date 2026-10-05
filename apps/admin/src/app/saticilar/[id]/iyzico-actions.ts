@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
+import { syncStoreSubMerchants, type SubMerchantSyncResult } from '@/lib/iyzico/sub-merchant-sync'
 
 // iyzico alt üye işyeri (sub-merchant) kaydı.
 //
@@ -26,7 +27,7 @@ async function loadStore(storeId: string) {
   const { data: store, error } = await (supabase as any)
     .from('stores')
     .select(
-      'id, store_name, taxpayer_type, tax_number, tax_office, company_name, account_holder, iban, email, phone, address, district, city, iyzico_sub_merchant_key'
+      'id, store_name, taxpayer_type, tax_number, tax_office, company_name, account_holder, iban, email, phone, address, district, city, iyzico_sub_merchant_key, iyzico_sub_merchant_external_id, iyzico_legacy_sub_merchant_external_ids'
     )
     .eq('id', storeId)
     .maybeSingle()
@@ -129,10 +130,20 @@ export async function registerIyzicoSubMerchant(storeId: string) {
   }
 
   const previousKey = store.iyzico_sub_merchant_key ?? null
+  // Eski kayıtlar (register-sub-merchants.js) dış no olarak mağaza id'sini kullanıyordu
+  const previousExternalId = previousKey ? store.iyzico_sub_merchant_external_id || store.id : null
   const supabase = createServiceRoleClient()
   const { error } = await (supabase as any)
     .from('stores')
-    .update({ iyzico_sub_merchant_key: result.subMerchantKey, updated_at: new Date().toISOString() })
+    .update({
+      iyzico_sub_merchant_key: result.subMerchantKey,
+      iyzico_sub_merchant_external_id: request.subMerchantExternalId,
+      // Eski kayıt senkronizasyonda güncellenmeye devam eder (başarısız gönderimler için)
+      iyzico_legacy_sub_merchant_external_ids: previousExternalId
+        ? Array.from(new Set([...(store.iyzico_legacy_sub_merchant_external_ids ?? []), previousExternalId]))
+        : store.iyzico_legacy_sub_merchant_external_ids ?? [],
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', storeId)
   if (error) {
     // Kayıt iyzico'da açıldı ama DB'ye yazılamadı — anahtarı kaybetmemek için mesajda döndür.
@@ -142,4 +153,12 @@ export async function registerIyzicoSubMerchant(storeId: string) {
   console.log('[iyzico SubMerchant] registered:', { storeId, previousKey, newKey: result.subMerchantKey })
   revalidatePath(`/saticilar/${storeId}`)
   return { subMerchantKey: result.subMerchantKey as string, previousKey }
+}
+
+/** Mağaza bilgilerini iyzico'daki aktif + eski alt üye işyeri kayıtlarına gönderir. */
+export async function syncIyzicoSubMerchants(storeId: string): Promise<SubMerchantSyncResult[]> {
+  await requireAdmin('/saticilar')
+  const results = await syncStoreSubMerchants(createServiceRoleClient(), storeId)
+  revalidatePath(`/saticilar/${storeId}`)
+  return results
 }

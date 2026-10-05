@@ -56,6 +56,8 @@ export default async function SellerDetailPage({
       tradesman_certificate_url,
       email, phone, city, district, address, postal_code, iban, bank_name, account_holder,
       total_sales, total_revenue, rating, total_reviews, iyzico_sub_merchant_key,
+      iyzico_sub_merchant_external_id, iyzico_legacy_sub_merchant_external_ids,
+      iyzico_synced_at, iyzico_sync_error, iyzico_sync_needed,
       owner:owner_id ( id, email, first_name, last_name, phone )
     `)
     .eq('id', id)
@@ -203,7 +205,17 @@ export default async function SellerDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <IyzicoSubMerchant storeId={store.id} currentKey={store.iyzico_sub_merchant_key ?? null} />
+          <IyzicoSubMerchant
+            storeId={store.id}
+            currentKey={store.iyzico_sub_merchant_key ?? null}
+            externalIds={[
+              store.iyzico_sub_merchant_external_id,
+              ...(store.iyzico_legacy_sub_merchant_external_ids ?? []),
+            ].filter(Boolean)}
+            syncedAt={store.iyzico_synced_at ?? null}
+            syncError={store.iyzico_sync_error ?? null}
+            syncNeeded={Boolean(store.iyzico_sync_needed)}
+          />
         </CardContent>
       </Card>
 

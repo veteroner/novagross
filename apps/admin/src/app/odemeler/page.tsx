@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, Badge, PageHeader, StatCard } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { createServiceRoleClient } from '@/lib/supabase/service'
-import { PayoutBatchActions } from '@/components/admin/payout/payout-batch-actions'
 
 type SearchParams = { asOf?: string }
 
@@ -77,7 +76,11 @@ export default async function OdemelerPage({
         actions={<Badge variant="secondary">Haftalık · Çarşamba</Badge>}
       />
 
-      <PayoutBatchActions asOf={asOf} candidates={candidates} />
+      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        Haftalık ödeme <strong>kapalı</strong>: satıcı ödemeleri iyzico pazaryeri üzerinden, teslimden 14 gün sonra
+        otomatik onayla doğrudan satıcının IBAN&apos;ına gönderiliyor. Buradan ayrıca ödeme yapmak çift ödeme olur.
+        Aşağıdaki liste yalnızca bilgi amaçlıdır.
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard label="Mağaza" value={candidates.length} />

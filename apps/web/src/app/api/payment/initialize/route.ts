@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       customer, 
       shippingAddress, 
       totalPrice,
-      shippingCost = 0,
+      shippingCost: clientShippingCost = 0,
       discountAmount = 0,
       couponCode = null,
       basketId: existingBasketId
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     const { data: productsForItems, error: productsForItemsError } = await db
       .from('products')
-      .select('id, name, price, compare_at_price, store_id, sku, stores(iyzico_sub_merchant_key, commission_rate)')
+      .select('id, name, price, compare_at_price, store_id, sku, stores(iyzico_sub_merchant_key, commission_rate, kdv_rate, free_shipping_threshold)')
       .in('id', productIds)
 
     if (productsForItemsError) {
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const productMap = new Map<string, { store_id: string | null; sku: string | null; subMerchantKey: string | null; commissionRate: number; price: number; name: string }>()
+    const productMap = new Map<string, { store_id: string | null; sku: string | null; subMerchantKey: string | null; commissionRate: number; kdvRate: number; freeShippingThreshold: number | null; price: number; name: string }>()
     for (const product of productsForItems || []) {
       const store = (product as any).stores
       productMap.set(product.id, {
@@ -153,6 +153,8 @@ export async function POST(request: NextRequest) {
         sku: (product as any).sku ?? null,
         subMerchantKey: store?.iyzico_sub_merchant_key ?? null,
         commissionRate: Number(store?.commission_rate ?? 0),
+        kdvRate: Number(store?.kdv_rate ?? 20),
+        freeShippingThreshold: store?.free_shipping_threshold == null ? null : Number(store.free_shipping_threshold),
         price: Number((product as any).price),
         name: (product as any).name || '',
       })
@@ -223,10 +225,11 @@ export async function POST(request: NextRequest) {
 
     // Server-side coupon validation
     let serverDiscountAmount = 0
+    let couponFreeShipping = false
     if (couponCode) {
       const { data: couponData } = await db
         .from('coupons')
-        .select('id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, is_active, expires_at')
+        .select('id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, is_active, expires_at, free_shipping')
         .eq('code', couponCode)
         .eq('is_active', true)
         .single()
@@ -238,6 +241,7 @@ export async function POST(request: NextRequest) {
         const isBelowMin = couponData.min_order_amount && serverSubtotal < Number(couponData.min_order_amount)
 
         if (!isExpired && !isOverLimit && !isBelowMin) {
+          couponFreeShipping = Boolean((couponData as any).free_shipping)
           if (couponData.discount_type === 'percentage') {
             serverDiscountAmount = Number((serverSubtotal * Number(couponData.discount_value) / 100).toFixed(2))
           } else {
@@ -256,10 +260,29 @@ export async function POST(request: NextRequest) {
     // Recalculate total server-side
     const serverTotalPrice = Number((serverSubtotal - serverDiscountAmount).toFixed(2))
 
+    // iyzico: price = sepet kalemleri toplamı (indirimsiz), paidPrice = müşterinin
+    // ödediği (indirimli) tutar. Aradaki fark üye işyeri (platform) payından düşer.
+    // Eskiden price = paidPrice gönderiliyordu → kuponlu siparişte toplam tutmuyor,
+    // iyzico ödeme formunu açmıyordu.
+    // Kargo ücreti sunucuda hesaplanır (istemciden gelen değere güvenilmez — eskiden
+    // müşteri shippingCost=0 gönderebiliyordu). Kural use-shipping-config.ts ile aynı:
+    // sepetteki mağazaların en düşük ücretsiz kargo eşiği, standart 29,99 / ekspres 49,99.
+    const shippingMethod: 'standard' | 'express' = body.shippingMethod === 'express' ? 'express' : 'standard'
+    const thresholds = Array.from(productMap.values())
+      .map((p) => p.freeShippingThreshold)
+      .filter((t): t is number => t !== null && Number.isFinite(t))
+    const freeShippingThreshold = thresholds.length > 0 ? Math.min(...thresholds) : 500
+    let shippingCost: number
+    if (couponFreeShipping && shippingMethod === 'standard') shippingCost = 0
+    else if (shippingMethod === 'express') shippingCost = 49.99
+    else if (freeShippingThreshold === 0) shippingCost = 0
+    else shippingCost = serverTotalPrice >= freeShippingThreshold ? 0 : 29.99
+    if (Math.abs(shippingCost - Number(clientShippingCost)) > 0.01) {
+      console.warn(`[payment] Shipping mismatch: client=${clientShippingCost}, server=${shippingCost}`)
+    }
+
     const paidPrice = (serverTotalPrice + shippingCost).toFixed(2)
-    // iyzico requires: price = sum of all basketItems prices
-    // Since shipping is added as a basket item, price must include it
-    const price = paidPrice
+    const price = (serverSubtotal + Number(shippingCost)).toFixed(2)
 
     // Get client IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 
@@ -288,16 +311,37 @@ export async function POST(request: NextRequest) {
       console.error('[payment] commission campaign lookup error:', e)
     }
 
+    // Sipariş oluşmadan önce dönülen hatalarda rezerve edilen stoğu geri bırak
+    const releaseReservedStock = async () => {
+      if (stockPayload.length === 0) return
+      try {
+        await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+      } catch (e) {
+        console.error('[payment init] stock release error:', e)
+      }
+    }
+
     // Prepare basket items for iyzico (marketplace: subMerchantKey + subMerchantPrice required)
+    // subMerchantPrice = satıcının IBAN'ına gidecek tutar. Komisyon = itemTotal - subMerchantPrice
+    // ve iyzico'da üye işyeri (platform) payı olarak kalır; iyzico ücreti de bu paydan düşer.
+    // Aynı değerler order_items'a yazılır → iç defter iyzico ile birebir aynı olur.
     let firstSubMerchantKey: string | null = null
+    const itemSettlements: { commissionRate: number; commissionAmount: number; sellerAmount: number }[] = []
     const basketItems = items.map((item: any) => {
       const productInfo = productMap.get(item.productId)
       const subMerchantKey = productInfo?.subMerchantKey ?? null
       if (subMerchantKey && !firstSubMerchantKey) firstSubMerchantKey = subMerchantKey
       const itemTotal = Number((item.price * item.quantity).toFixed(2))
       const commissionRate = discountedRateByProduct.get(item.productId) ?? (productInfo?.commissionRate ?? 0)
-      // subMerchantPrice = amount transferred to sub-merchant (after commission)
-      const subMerchantPrice = Number((itemTotal * (1 - commissionRate / 100)).toFixed(2))
+      // Komisyon KDV hariç tutar üzerinden: itemTotal / (1 + KDV) × oran
+      const kdvRate = productInfo?.kdvRate ?? 20
+      const commissionAmount = Number(((itemTotal / (1 + kdvRate / 100)) * (commissionRate / 100)).toFixed(2))
+      const subMerchantPrice = Number((itemTotal - commissionAmount).toFixed(2))
+      itemSettlements.push({
+        commissionRate,
+        commissionAmount,
+        sellerAmount: subMerchantPrice,
+      })
       return {
         id: item.productId,
         name: item.name.substring(0, 50), // iyzico max 50 char
@@ -309,31 +353,51 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Marketplace: subMerchantKey varsa kullan, hiç yoksa basit ödeme (ana hesap)
-    // Sub-merchant kaydı yapılmadan da ödeme akışı çalışır (admin sonradan
-    // register-sub-merchants.js ile satıcıları register edip key'leri doldurur).
     const missingSubMerchantItems = basketItems.filter((bi: any) => !bi.subMerchantKey)
     const hasAnySubMerchant = firstSubMerchantKey !== null
     if (missingSubMerchantItems.length > 0 && hasAnySubMerchant) {
-      // Karışık durum: bazı satıcılar register edilmiş bazıları değil
-      // → kayıtsız itemleri ilk register'lı sub-merchant'a yönlendir
-      for (const bi of basketItems) {
-        if (!(bi as any).subMerchantKey) {
-          ;(bi as any).subMerchantKey = firstSubMerchantKey
-          ;(bi as any).subMerchantPrice = (bi as any).price
-        }
-      }
+      // Karışık sepet: bazı satıcıların iyzico alt üye işyeri kaydı yok. Eskiden bu
+      // kalemler ilk kayıtlı satıcıya tam fiyatla yönlendiriliyordu (A'nın parası B'ye
+      // gidiyordu). Artık ödeme başlatılmaz.
+      console.error('[payment] Mixed basket: items without sub-merchant key', missingSubMerchantItems.map((bi: any) => bi.id))
+      await releaseReservedStock()
+      return NextResponse.json(
+        { error: 'Sepetteki bazı ürünlerin satıcısı ödeme almaya henüz hazır değil. Lütfen bu ürünleri ayrı sipariş edin veya daha sonra tekrar deneyin.' },
+        { status: 400 }
+      )
     } else if (!hasAnySubMerchant) {
-      // Hiç sub-merchant yok → basit (non-marketplace) ödeme akışı
-      // basketItems'tan subMerchantKey/subMerchantPrice alanlarını temizle
-      for (const bi of basketItems) {
-        delete (bi as any).subMerchantKey
-        delete (bi as any).subMerchantPrice
+      // Hiç alt üye işyeri yok. Eskiden "basit ödeme"ye düşüp parayı platform hesabına
+      // alıyordu; satıcıya ödeme yapacak bir mekanizma olmadığı için (para çekme
+      // kapatıldı) bu sipariş askıda kalırdı. Tek model: iyzico pazaryeri.
+      console.error('[payment] No sub-merchant keys for basket', basketItems.map((bi: any) => bi.id))
+      await releaseReservedStock()
+      return NextResponse.json(
+        { error: 'Bu ürünlerin satıcısı ödeme almaya henüz hazır değil. Lütfen daha sonra tekrar deneyin.' },
+        { status: 400 }
+      )
+    } else {
+      // İndirim (kupon) platform payından karşılanır. Platform payı indirimi
+      // karşılamıyorsa satıcı tutarları orantılı düşürülür; aksi halde satıcılara
+      // müşterinin ödediğinden fazlası gönderilmiş olurdu.
+      const sellerTotal = itemSettlements.reduce((a, st) => a + st.sellerAmount, 0)
+      const productPaid = serverTotalPrice
+      if (sellerTotal > productPaid && sellerTotal > 0) {
+        const ratio = productPaid / sellerTotal
+        basketItems.forEach((bi: any, i: number) => {
+          const st = itemSettlements[i]
+          const itemTotal = Number(bi.price)
+          st.sellerAmount = Number((st.sellerAmount * ratio).toFixed(2))
+          st.commissionAmount = Number((itemTotal - st.sellerAmount).toFixed(2))
+          bi.subMerchantPrice = st.sellerAmount.toFixed(2)
+        })
+        console.warn('[payment] Discount exceeds platform share; seller amounts scaled by', ratio.toFixed(4))
       }
-      console.warn('[payment] No sub-merchant keys; falling back to non-marketplace flow')
     }
 
-    // Add shipping as basket item if exists
+    // Add shipping as basket item if exists.
+    // Müşterinin ödediği kargo ücreti satıcıya gider; MNG'nin gerçek bedeli onay
+    // öncesinde (admin /api/iyzico/auto-approve) PUT /payment/item ile satıcı
+    // tutarından düşülür.
     if (shippingCost > 0) {
       const shippingItem: any = {
         id: 'SHIPPING',
@@ -369,7 +433,9 @@ export async function POST(request: NextRequest) {
       discount_amount: Number(serverDiscountAmount),
       total: Number(paidPrice),
       notes: couponCode ? `coupon:${couponCode}` : null,
-      shipping_method: body.shippingMethod || 'standard',
+      shipping_method: shippingMethod,
+      iyzico_shipping_sub_merchant_key: shippingCost > 0 ? firstSubMerchantKey : null,
+      iyzico_shipping_seller_amount: shippingCost > 0 ? Number(shippingCost.toFixed(2)) : null,
       shipping_address: {
         first_name: customer.firstName,
         last_name: customer.lastName,
@@ -436,7 +502,7 @@ export async function POST(request: NextRequest) {
     // Replace order items
     await db.from('order_items').delete().eq('order_id', orderId)
 
-    const orderItems = items.map((item: any) => ({
+    const orderItems = items.map((item: any, idx: number) => ({
       order_id: orderId,
       product_id: item.productId,
       name: productMap.get(item.productId)?.name || item.name,
@@ -445,6 +511,11 @@ export async function POST(request: NextRequest) {
       price: Number(productMap.get(item.productId)?.price ?? item.price),
       total: Number(productMap.get(item.productId)?.price ?? item.price) * Number(item.quantity),
       store_id: productMap.get(item.productId)?.store_id ?? null,
+      // iyzico'ya gönderilen bölüşüm — defter (process_order_commissions) bunu esas alır
+      commission_rate: itemSettlements[idx]?.commissionRate ?? 0,
+      commission_amount: itemSettlements[idx]?.commissionAmount ?? 0,
+      seller_amount: itemSettlements[idx]?.sellerAmount ?? 0,
+      iyzico_sub_merchant_key: productMap.get(item.productId)?.subMerchantKey ?? null,
     }))
 
     const { error: itemsInsertError } = await db

@@ -22,6 +22,13 @@ export async function runWeeklyPayoutBatch({
   processedBy,
   adminUrl,
 }: RunWeeklyPayoutParams) {
+  // Satıcı ödemeleri iyzico pazaryeri üzerinden otomatik yapılıyor (onaydan sonra
+  // doğrudan alt üye işyeri IBAN'ına). Platformdan ayrıca haftalık ödeme yapmak
+  // çift ödeme olur — bu akış kapatıldı. Bkz /api/iyzico/auto-approve.
+  if (process.env.LEGACY_WEEKLY_PAYOUT_ENABLED !== 'true') {
+    throw new Error('Haftalık ödeme kapalı: satıcı ödemeleri iyzico üzerinden otomatik yapılıyor.')
+  }
+
   const { data, error } = await service.rpc('mark_weekly_payouts_paid' as any, {
     p_as_of: asOf,
     p_reference: reference ?? null,

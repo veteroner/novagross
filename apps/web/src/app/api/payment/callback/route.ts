@@ -386,7 +386,9 @@ export async function POST(request: NextRequest) {
     // Save iyzico paymentTransactionId to each order_item (needed for marketplace approval API)
     // itemTransactionMap: productId → paymentTransactionId
     if (Object.keys(itemTransactionMap).length > 0) {
-      const productIds = Object.keys(itemTransactionMap)
+      // 'SHIPPING' uuid değil — sorguya girerse tüm sorgu hata verip hiçbir kalemin
+      // transaction id'si kaydedilmiyordu (kargo ücretli siparişler onaylanamıyordu).
+      const productIds = Object.keys(itemTransactionMap).filter((id) => id !== 'SHIPPING')
       const { data: orderItemRows } = await db
         .from('order_items')
         .select('id, product_id')
@@ -407,6 +409,18 @@ export async function POST(request: NextRequest) {
           }
         }
         console.log('[iyzico Callback] Saved paymentTransactionIds to order_items:', orderItemRows.length)
+      }
+
+      // Kargo kalemi ayrı bir kırılım; onaylanmazsa kargo ücreti iyzico'da takılı kalır
+      const shippingTxId = itemTransactionMap['SHIPPING']
+      if (shippingTxId) {
+        await db
+          .from('orders')
+          .update({
+            iyzico_shipping_transaction_id: shippingTxId,
+            iyzico_shipping_approval_status: 'pending',
+          } as any)
+          .eq('id', orderId)
       }
     }
 

@@ -2,32 +2,38 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@novagross/ui'
-import { Button } from '@novagross/ui'
-import { DollarSign, TrendingUp, ArrowDownToLine, Clock, CheckCircle, AlertCircle, Wallet } from 'lucide-react'
+import { TrendingUp, Clock, CheckCircle, Info, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-interface WithdrawalRequest {
+// Satıcı ödemeleri iyzico pazaryeri üzerinden yapılır: müşteri ödemesi iyzico'da
+// korunur, teslimden 14 gün sonra (iade süresi) onaylanır ve satıcı tutarı
+// doğrudan mağazanın iyzico'ya kayıtlı IBAN'ına gönderilir. Bu yüzden "para çek"
+// yoktur; bu sayfa sipariş bazında hak edişleri gösterir.
+
+interface SettlementRow {
   id: string
-  amount: number
-  status: string | null
-  iban: string
-  created_at: string | null
-  completed_at: string | null
-  admin_notes: string | null
-  [key: string]: any
+  name: string
+  quantity: number
+  total: number
+  commission_amount: number | null
+  commission_rate: number | null
+  seller_amount: number | null
+  iyzico_approval_status: string | null
+  iyzico_approved_at: string | null
+  orders: {
+    order_number: string
+    created_at: string
+    delivered_at: string | null
+    payment_status: string
+    iyzico_cargo_deducted_amount: number | null
+  } | null
 }
+
+const fmt = (n: number) => `₺${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export default function EarningsPage() {
   const [loading, setLoading] = useState(true)
-  const [balance, setBalance] = useState({ available: 0, pending: 0, total_earned: 0 })
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([])
-  const [showWithdrawForm, setShowWithdrawForm] = useState(false)
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [withdrawIban, setWithdrawIban] = useState('')
-  const [withdrawAccountHolder, setWithdrawAccountHolder] = useState('')
-  const [withdrawBankName, setWithdrawBankName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [storeId, setStoreId] = useState<string | null>(null)
+  const [rows, setRows] = useState<SettlementRow[]>([])
 
   useEffect(() => {
     fetchEarnings()
@@ -39,44 +45,22 @@ export default function EarningsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: store } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('id', ((await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id) ?? '')
-        .single()
+      const storeId = (await (supabase as any).rpc('get_my_store')).data?.[0]?.store_id
+      if (!storeId) return
 
-      if (!store) return
-      setStoreId(store.id)
-
-      // Get store balance — tablo adı 'store_balance' (tekil); 404'ün sebebi
-      // yanlış 'store_balances' çağrısıydı.
-      const { data: balanceData } = await (supabase as any)
-        .from('store_balance')
-        .select('available_balance, pending_balance, total_withdrawn')
-        .eq('store_id', store.id)
-        .maybeSingle()
-
-      if (balanceData) {
-        const available = Number(balanceData.available_balance || 0)
-        const pending = Number(balanceData.pending_balance || 0)
-        const withdrawn = Number(balanceData.total_withdrawn || 0)
-        setBalance({
-          available,
-          pending,
-          // Toplam kazanç = mevcut + bekleyen + çekilmiş
-          total_earned: available + pending + withdrawn,
-        })
-      }
-
-      // Get withdrawal requests
-      const { data: withdrawalData } = await supabase
-        .from('withdrawal_requests')
-        .select('*')
-        .eq('store_id', store.id)
+      const { data } = await (supabase as any)
+        .from('order_items')
+        .select(`
+          id, name, quantity, total, commission_amount, commission_rate, seller_amount,
+          iyzico_approval_status, iyzico_approved_at,
+          orders!inner ( order_number, created_at, delivered_at, payment_status, iyzico_cargo_deducted_amount )
+        `)
+        .eq('store_id', storeId)
+        .eq('orders.payment_status', 'paid')
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(100)
 
-      setWithdrawals(withdrawalData || [])
+      setRows((data || []) as SettlementRow[])
     } catch (error) {
       console.error('Failed to fetch earnings:', error)
     } finally {
@@ -84,74 +68,31 @@ export default function EarningsPage() {
     }
   }
 
-  const requestWithdrawal = async () => {
-    if (!storeId) return
+  const pending = rows
+    .filter((r) => r.iyzico_approval_status !== 'approved')
+    .reduce((a, r) => a + Number(r.seller_amount || 0), 0)
+  const sent = rows
+    .filter((r) => r.iyzico_approval_status === 'approved')
+    .reduce((a, r) => a + Number(r.seller_amount || 0), 0)
+  const commission = rows.reduce((a, r) => a + Number(r.commission_amount || 0), 0)
 
-    const amount = parseFloat(withdrawAmount)
-    if (!amount || amount <= 0) {
-      alert('Geçerli bir tutar girin')
-      return
+  const statusBadge = (r: SettlementRow) => {
+    if (r.iyzico_approval_status === 'approved') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <CheckCircle className="w-3 h-3" />
+          IBAN&apos;a gönderildi{r.iyzico_approved_at ? ` (${new Date(r.iyzico_approved_at).toLocaleDateString('tr-TR')})` : ''}
+        </span>
+      )
     }
-
-    if (amount > balance.available) {
-      alert('Bakiyeniz yetersiz')
-      return
-    }
-
-    if (!withdrawIban || withdrawIban.length < 20) {
-      alert('Geçerli bir IBAN girin')
-      return
-    }
-
-    if (!withdrawAccountHolder.trim()) {
-      alert('Hesap sahibi adını girin')
-      return
-    }
-
-    if (!withdrawBankName.trim()) {
-      alert('Banka adını girin')
-      return
-    }
-
-    setSubmitting(true)
-
-    try {
-      const supabase = createClient()
-
-      const { error } = await supabase.from('withdrawal_requests').insert({
-        store_id: storeId,
-        amount,
-        net_amount: amount,
-        iban: withdrawIban.replace(/\s/g, ''),
-        account_holder: withdrawAccountHolder.trim(),
-        bank_name: withdrawBankName.trim(),
-        status: 'pending',
-      })
-
-      if (error) throw error
-
-      alert('Çekim talebi oluşturuldu. Admin onayı bekleniyor.')
-      setShowWithdrawForm(false)
-      setWithdrawAmount('')
-      setWithdrawIban('')
-      setWithdrawAccountHolder('')
-      setWithdrawBankName('')
-      fetchEarnings()
-    } catch (error: any) {
-      console.error('Withdrawal error:', error)
-      alert(error.message || 'Çekim talebi oluşturulamadı')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle className="w-3 h-3" />Tamamlandı</span>
-      case 'approved': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><CheckCircle className="w-3 h-3" />Onaylandı</span>
-      case 'rejected': return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><AlertCircle className="w-3 h-3" />Reddedildi</span>
-      default: return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3" />Beklemede</span>
-    }
+    const delivered = r.orders?.delivered_at ? new Date(r.orders.delivered_at) : null
+    const releaseDate = delivered ? new Date(delivered.getTime() + 14 * 24 * 60 * 60 * 1000) : null
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        <Clock className="w-3 h-3" />
+        {releaseDate ? `Tahmini gönderim: ${releaseDate.toLocaleDateString('tr-TR')} sonrası` : 'Teslimat bekleniyor'}
+      </span>
+    )
   }
 
   if (loading) {
@@ -167,39 +108,35 @@ export default function EarningsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Kazançlarım</h1>
-          <p className="text-gray-600">Bakiye ve çekim işlemlerinizi yönetin</p>
-        </div>
-        <Button onClick={() => setShowWithdrawForm(!showWithdrawForm)} className="flex items-center gap-2">
-          <ArrowDownToLine className="w-4 h-4" />
-          Para Çek
-        </Button>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Kazançlarım</h1>
+        <p className="text-gray-600">Sipariş bazında hak edişleriniz ve ödeme durumları</p>
       </div>
 
-      {/* Balance Cards */}
+      <Card className="mb-8 border-blue-200 bg-blue-50">
+        <CardContent className="pt-6 flex gap-3 text-sm text-blue-900">
+          <Info className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p>
+              Ödemeleriniz <strong>iyzico</strong> üzerinden otomatik yapılır; para çekme talebi oluşturmanıza gerek yoktur.
+            </p>
+            <p>
+              Sipariş teslim edildikten sonra 14 günlük yasal iade süresi dolunca, komisyon ve gerçek kargo bedeli düşülerek
+              kalan tutar mağazanızın iyzico&apos;ya kayıtlı IBAN&apos;ına gönderilir. Açık iade talebi olan siparişler iade
+              sonuçlanana kadar bekletilir.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid md:grid-cols-3 gap-6 mb-8">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Kullanılabilir Bakiye</p>
-                <p className="text-3xl font-bold text-green-600">₺{balance.available.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
-                <p className="text-sm text-gray-500 mt-1">Çekim yapılabilir</p>
-              </div>
-              <Wallet className="w-12 h-12 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Bekleyen Bakiye</p>
-                <p className="text-3xl font-bold text-orange-600">₺{balance.pending.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
-                <p className="text-sm text-gray-500 mt-1">İşleme alınacak</p>
+                <p className="text-sm text-gray-600 mb-1">Gönderim Bekleyen</p>
+                <p className="text-3xl font-bold text-orange-600">{fmt(pending)}</p>
+                <p className="text-sm text-gray-500 mt-1">İade süresi / onay bekliyor</p>
               </div>
               <Clock className="w-12 h-12 text-orange-500" />
             </div>
@@ -210,9 +147,22 @@ export default function EarningsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Toplam Kazanç</p>
-                <p className="text-3xl font-bold text-purple-600">₺{balance.total_earned.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
-                <p className="text-sm text-gray-500 mt-1">Tüm zamanlar</p>
+                <p className="text-sm text-gray-600 mb-1">IBAN&apos;a Gönderilen</p>
+                <p className="text-3xl font-bold text-green-600">{fmt(sent)}</p>
+                <p className="text-sm text-gray-500 mt-1">Son 100 sipariş kalemi</p>
+              </div>
+              <Send className="w-12 h-12 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Kesilen Komisyon</p>
+                <p className="text-3xl font-bold text-purple-600">{fmt(commission)}</p>
+                <p className="text-sm text-gray-500 mt-1">KDV hariç tutar üzerinden</p>
               </div>
               <TrendingUp className="w-12 h-12 text-purple-500" />
             </div>
@@ -220,104 +170,54 @@ export default function EarningsPage() {
         </Card>
       </div>
 
-      {/* Withdrawal Form */}
-      {showWithdrawForm && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Para Çekim Talebi</CardTitle>
-            <CardDescription>Bakiyenizden hesabınıza para çekin</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Tutar (₺)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1"
-                  max={balance.available}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-gray-500 mt-1">Maks: ₺{balance.available.toFixed(2)}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">IBAN</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  value={withdrawIban}
-                  onChange={(e) => setWithdrawIban(e.target.value)}
-                  placeholder="TR00 0000 0000 0000 0000 0000 00"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Hesap Sahibi</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  value={withdrawAccountHolder}
-                  onChange={(e) => setWithdrawAccountHolder(e.target.value)}
-                  placeholder="Ad Soyad"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Banka Adı</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  value={withdrawBankName}
-                  onChange={(e) => setWithdrawBankName(e.target.value)}
-                  placeholder="Ziraat Bankası, İş Bankası, vb."
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={requestWithdrawal} disabled={submitting}>
-                {submitting ? 'İşleniyor...' : 'Çekim Talebi Oluştur'}
-              </Button>
-              <Button variant="outline" onClick={() => setShowWithdrawForm(false)}>
-                İptal
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Withdrawal History */}
       <Card>
         <CardHeader>
-          <CardTitle>Çekim Geçmişi</CardTitle>
-          <CardDescription>Son çekim talepleriniz</CardDescription>
+          <CardTitle>Hak Ediş Detayı</CardTitle>
+          <CardDescription>
+            Gönderilen tutar kargo bedeli düşülmeden önceki değerdir; kargo bedeli gönderimden hemen önce düşülür.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {withdrawals.length === 0 ? (
+          {rows.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Henüz çekim talebi yok</p>
+              <p>Henüz ödenmiş sipariş yok</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-3 font-semibold text-sm">Tarih</th>
-                    <th className="text-left p-3 font-semibold text-sm">Tutar</th>
-                    <th className="text-left p-3 font-semibold text-sm">IBAN</th>
+                    <th className="text-left p-3 font-semibold text-sm">Sipariş</th>
+                    <th className="text-left p-3 font-semibold text-sm">Ürün</th>
+                    <th className="text-right p-3 font-semibold text-sm">Satış</th>
+                    <th className="text-right p-3 font-semibold text-sm">Komisyon</th>
+                    <th className="text-right p-3 font-semibold text-sm">Hak ediş</th>
+                    <th className="text-right p-3 font-semibold text-sm">Kargo kesintisi</th>
                     <th className="text-left p-3 font-semibold text-sm">Durum</th>
-                    <th className="text-left p-3 font-semibold text-sm">Not</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {withdrawals.map((w) => (
-                    <tr key={w.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 text-sm">{w.created_at ? new Date(w.created_at).toLocaleDateString('tr-TR') : '-'}</td>
-                      <td className="p-3 text-sm font-semibold">₺{w.amount.toFixed(2)}</td>
-                      <td className="p-3 text-xs font-mono">{w.iban}</td>
-                      <td className="p-3">{getStatusBadge(w.status || 'pending')}</td>
-                      <td className="p-3 text-sm text-gray-600">{w.admin_notes || '-'}</td>
+                  {rows.map((r) => (
+                    <tr key={r.id} className="border-b hover:bg-gray-50">
+                      <td className="p-3 text-sm">
+                        <div className="font-mono">{r.orders?.order_number}</div>
+                        <div className="text-xs text-gray-500">
+                          {r.orders?.created_at ? new Date(r.orders.created_at).toLocaleDateString('tr-TR') : ''}
+                        </div>
+                      </td>
+                      <td className="p-3 text-sm">
+                        {r.name} {r.quantity > 1 ? `× ${r.quantity}` : ''}
+                      </td>
+                      <td className="p-3 text-sm text-right">{fmt(Number(r.total || 0))}</td>
+                      <td className="p-3 text-sm text-right text-gray-600">
+                        {fmt(Number(r.commission_amount || 0))}
+                        {r.commission_rate != null ? <span className="text-xs"> (%{Number(r.commission_rate)})</span> : null}
+                      </td>
+                      <td className="p-3 text-sm text-right font-semibold">{fmt(Number(r.seller_amount || 0))}</td>
+                      <td className="p-3 text-sm text-right text-gray-600">
+                        {r.orders?.iyzico_cargo_deducted_amount ? `−${fmt(Number(r.orders.iyzico_cargo_deducted_amount))}` : '-'}
+                      </td>
+                      <td className="p-3">{statusBadge(r)}</td>
                     </tr>
                   ))}
                 </tbody>

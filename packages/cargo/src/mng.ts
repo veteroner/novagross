@@ -779,12 +779,81 @@ export class MngKargoClient {
    * Format: dd-MM-yyyy ve HH:mm:ss (MNG örnek formatı). Günlük senkronizasyon için kullanılır.
    */
   async getStatusChangedShipments(date: string, time: string): Promise<MngBulkShipmentRow[]> {
-    const { ok, data } = await this.authedFetch(
+    const res = await this.authedFetch(
       `/mngapi/api/bulkqueryapi/getStatusChangedShipments/${encodeURIComponent(date)}/${encodeURIComponent(time)}`,
       { method: 'GET' }
     )
-    if (!ok || !Array.isArray(data)) return []
-    return data
+    if (res.ok && Array.isArray(res.data)) return res.data
+    // 404 + gövdede MNG hata kodu yok = "bu aralıkta değişen gönderi yok" (normal).
+    // Diğer her şey gerçek hata — eskiden sessizce [] dönüp "değişiklik yok" sanılıyordu.
+    if (this.isPlainNotFound(res)) return []
+    throw new Error(`MNG getStatusChangedShipments ${this.describeError(res)}`)
+  }
+
+  /**
+   * Standard Query getorder: sipariş MNG'de gönderiye dönüştü mü?
+   * isTransformedToShipment=0 → paket şubede bizim referansla okutulmamış.
+   * Kayıt yoksa null döner.
+   */
+  async getOrder(referenceId: string): Promise<{
+    isTransformedToShipment: boolean
+    shipmentId: string | null
+    billOfLandingId: string | null
+    raw: any
+  } | null> {
+    const res = await this.authedFetch(
+      `/mngapi/api/standardqueryapi/getorder/${encodeURIComponent(trUpper(referenceId))}`,
+      { method: 'GET' }
+    )
+    if (res.ok) {
+      const rec = Array.isArray(res.data) ? res.data[0] : res.data
+      const order = rec?.order ?? rec
+      if (!order) return null
+      return {
+        isTransformedToShipment: Number(order.isTransformedToShipment) === 1,
+        shipmentId: order.shipmentId ? String(order.shipmentId) : null,
+        billOfLandingId: order.billOfLandingId ? String(order.billOfLandingId) : null,
+        raw: rec,
+      }
+    }
+    if (this.isPlainNotFound(res)) return null
+    throw new Error(`MNG getorder ${referenceId}: ${this.describeError(res)}`)
+  }
+
+  /**
+   * Standard Query getshipment: gönderinin güncel durumu. Bulk Query satırıyla
+   * aynı şekle (shipment.shipmentStatusCode vb.) normalize edilir. Gerçek bir
+   * gönderide yanıt şeması henüz doğrulanmadı — alan bulunamazsa shipment null
+   * kalır ve ham yanıt döner (çağıran loglar).
+   */
+  async getShipment(referenceId: string): Promise<{ row: MngBulkShipmentRow | null; raw: any } | null> {
+    const res = await this.authedFetch(
+      `/mngapi/api/standardqueryapi/getshipment/${encodeURIComponent(trUpper(referenceId))}`,
+      { method: 'GET' }
+    )
+    if (res.ok) {
+      const rec = Array.isArray(res.data) ? res.data[0] : res.data
+      const shipment = rec?.shipment ?? (rec && 'shipmentStatusCode' in rec ? rec : null)
+      return { row: shipment ? { ...rec, shipment } : null, raw: rec }
+    }
+    if (this.isPlainNotFound(res)) return null
+    throw new Error(`MNG getshipment ${referenceId}: ${this.describeError(res)}`)
+  }
+
+  /** 404 ve gövdede MNG hata kodu yok (RFC "Not Found") → kayıt yok */
+  private isPlainNotFound(res: { status: number; data: any }): boolean {
+    // RFC 9110 gövdesi ({type,title:"Not Found",status:404}) = kayıt yok.
+    // MNG doğrulama hataları da 404 dönebiliyor ama gövdede error.Code taşır (örn. 26154).
+    const d = res.data
+    return res.status === 404 && !d?.error?.Code && !d?.errorCode && !d?.code
+  }
+
+  private describeError(res: { status: number; data: any }): string {
+    const err = res.data?.error
+    const detail = err?.Code
+      ? `${err.Code} ${err.Message || ''} ${err.Description || ''}`.trim()
+      : this.extractError(res.data) || (typeof res.data === 'string' ? res.data.slice(0, 200) : JSON.stringify(res.data)?.slice(0, 200))
+    return `HTTP ${res.status}: ${detail}`
   }
 
   /** Bulk Query: belirli tarihte teslim edilmiş tüm gönderiler */

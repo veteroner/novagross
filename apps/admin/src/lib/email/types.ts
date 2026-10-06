@@ -1,6 +1,8 @@
 // Email System Type Definitions
 
 export type EmailTemplate =
+  // Cargo
+  | 'cargo/not-scanned-alert'
   // Auth
   | 'auth/password-reset'
   | 'auth/password-changed'

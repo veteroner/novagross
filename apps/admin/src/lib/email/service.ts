@@ -249,6 +249,13 @@ export class EmailService {
           TemplateComponent = StoreInvitation;
           break;
 
+        case 'cargo/not-scanned-alert':
+          const { default: CargoNotScannedAlert } = await import(
+            './templates/cargo/not-scanned-alert'
+          );
+          TemplateComponent = CargoNotScannedAlert;
+          break;
+
         default:
           throw new Error(`Unknown template: ${template}`);
       }

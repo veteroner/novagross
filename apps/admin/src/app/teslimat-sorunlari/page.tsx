@@ -31,6 +31,8 @@ export default function DeliveryProblemsPage() {
   const [answering, setAnswering] = useState<string | null>(null)
   const [answerText, setAnswerText] = useState<Record<string, string>>({})
   const [syncing, setSyncing] = useState(false)
+  const [runs, setRuns] = useState<any[]>([])
+  const [notScanned, setNotScanned] = useState<any[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -41,6 +43,22 @@ export default function DeliveryProblemsPage() {
       .order('created_at', { ascending: false })
       .limit(100)
     setItems(data || [])
+
+    // Kargo takip senkronizasyonu: son çalışmalar + MNG'de okutulmamış paketler
+    const [{ data: runRows }, { data: ns }] = await Promise.all([
+      (supabase as any).from('cargo_sync_runs').select('*').order('ran_at', { ascending: false }).limit(10),
+      (supabase as any)
+        .from('order_shipments')
+        .select('id, tracking_number, created_at, mng_last_checked_at, mng_not_scanned_alerted_at, orders(order_number)')
+        .eq('provider_code', 'mng')
+        .is('mng_shipment_id', null)
+        .not('mng_last_checked_at', 'is', null)
+        .not('status', 'in', '(delivered,returned,failed,cancelled)')
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
+    setRuns(runRows || [])
+    setNotScanned((ns || []).filter((r: any) => !String(r.tracking_number).startsWith('MOCK')))
     setLoading(false)
   }, [])
 
@@ -108,6 +126,62 @@ export default function DeliveryProblemsPage() {
           </Button>
         }
       />
+
+      {!loading && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Kargo takip senkronizasyonu (MNG)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {notScanned.length > 0 && (
+              <div className="rounded border border-amber-300 bg-amber-50 p-3">
+                <p className="font-medium text-amber-900 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" /> MNG&apos;de gönderiye dönüşmemiş (şubede okutulmamış) paketler
+                </p>
+                <ul className="mt-2 space-y-1 text-amber-900">
+                  {notScanned.map((r) => (
+                    <li key={r.id}>
+                      #{r.orders?.order_number} · {r.tracking_number} · etiket{' '}
+                      {new Date(r.created_at).toLocaleString('tr-TR')}
+                      {r.mng_not_scanned_alerted_at ? ' · uyarı gönderildi' : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {runs.length === 0 ? (
+              <p className="text-gray-500">Henüz kayıtlı çalışma yok (6 saatte bir çalışır).</p>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b text-left text-gray-600">
+                    <th className="py-2">Zaman</th>
+                    <th>Durum</th>
+                    <th>Toplu</th>
+                    <th>Kontrol</th>
+                    <th>Güncellenen</th>
+                    <th>Okutulmamış</th>
+                    <th>Hatalar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.id} className="border-b align-top">
+                      <td className="py-2">{new Date(r.ran_at).toLocaleString('tr-TR')}</td>
+                      <td>{r.ok ? <Badge variant="success">OK</Badge> : <Badge variant="destructive">Hata</Badge>}</td>
+                      <td>{r.summary?.bulkFetched ?? 0}</td>
+                      <td>{r.summary?.checked ?? 0}</td>
+                      <td>{r.summary?.updated ?? 0}</td>
+                      <td>{r.summary?.notScanned ?? 0}</td>
+                      <td className="text-red-700 text-xs break-all">{(r.errors || []).join(' · ') || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">

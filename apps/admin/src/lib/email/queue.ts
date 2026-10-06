@@ -22,7 +22,8 @@ type EmailTemplate =
   | 'returns/request-received-admin'
   | 'returns/approved'
   | 'returns/rejected'
-  | 'returns/refunded';
+  | 'returns/refunded'
+  | 'cargo/not-scanned-alert';
 
 type EmailPriority = 'low' | 'medium' | 'high' | 'critical';
 

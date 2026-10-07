@@ -17,6 +17,10 @@ export type SellerProduct = {
   description: string | null
   created_at: string
   image: string | null
+  /** Onaylı ürünün admin onayı bekleyen içerik taslağı (eski hal yayında) */
+  pending_changes: Record<string, any> | null
+  pending_changes_status: 'pending' | 'rejected' | null
+  pending_changes_reason: string | null
 }
 
 export const APPROVAL: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' }> = {
@@ -34,7 +38,7 @@ export function useProducts() {
       const { data, error } = await supabase
         .from('products')
         .select(
-          'id, name, slug, price, compare_at_price, stock, is_active, approval_status, rejection_reason, category_id, description, created_at, product_images(url, is_primary, sort_order)'
+          'id, name, slug, price, compare_at_price, stock, is_active, approval_status, rejection_reason, category_id, description, created_at, pending_changes, pending_changes_status, pending_changes_reason, product_images(url, is_primary, sort_order)'
         )
         .eq('store_id', store!.storeId)
         .order('created_at', { ascending: false })

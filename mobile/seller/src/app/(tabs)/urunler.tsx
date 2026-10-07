@@ -62,6 +62,8 @@ export default function Products() {
                   <View style={{ flexDirection: 'row', gap: space(2), alignItems: 'center', flexWrap: 'wrap' }}>
                     <Badge label={a.label} tone={a.tone} />
                     {!p.is_active ? <Badge label="Satışta değil" /> : null}
+                    {p.pending_changes_status === 'pending' ? <Badge label="Değişiklik onayda" tone="primary" /> : null}
+                    {p.pending_changes_status === 'rejected' ? <Badge label="Değişiklik reddedildi" tone="danger" /> : null}
                     {p.stock <= 0 ? <Badge label="Stok yok" tone="danger" /> : null}
                   </View>
                   <Muted>

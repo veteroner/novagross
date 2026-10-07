@@ -27,6 +27,14 @@ export default function EditProductPage() {
   const [existingImages, setExistingImages] = useState<any[]>([])
   const [newImages, setNewImages] = useState<File[]>([])
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([])
+  // Onaylı ürünün admin onayı bekleyen içerik taslağı (eski hal yayında kalır)
+  const [draft, setDraft] = useState<{
+    approval: string
+    changes: Record<string, any> | null
+    status: 'pending' | 'rejected' | null
+    reason: string | null
+  }>({ approval: 'pending', changes: null, status: null, reason: null })
+  const [discarding, setDiscarding] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -82,24 +90,34 @@ export default function EditProductPage() {
           return
         }
 
+        // Taslak varsa formu taslaktaki değerlerle aç
+        const pc: Record<string, any> = (product as any).pending_changes ?? {}
+        const v = (k: string) => (k in pc ? pc[k] : (product as any)[k])
+        setDraft({
+          approval: (product as any).approval_status,
+          changes: (product as any).pending_changes ?? null,
+          status: (product as any).pending_changes_status ?? null,
+          reason: (product as any).pending_changes_reason ?? null,
+        })
+
         setFormData({
-          name: product.name || '',
-          slug: product.slug || '',
-          description: product.description || '',
+          name: v('name') || '',
+          slug: v('slug') || '',
+          description: v('description') || '',
           price: product.price?.toString() || '',
           compare_at_price: product.compare_at_price?.toString() || '',
           cost_price: product.cost_price?.toString() || '',
           sku: product.sku || '',
-          barcode: product.barcode || '',
+          barcode: v('barcode') || '',
           stock: (product.stock ?? 0).toString(),
           low_stock_threshold: (product.low_stock_threshold ?? 5).toString(),
-          category_id: product.category_id || '',
-          brand: product.brand || '',
+          category_id: v('category_id') || '',
+          brand: v('brand') || '',
           is_active: product.is_active ?? true,
           is_featured: product.is_featured ?? false,
           weight: product.weight?.toString() || '',
-          meta_title: product.meta_title || '',
-          meta_description: product.meta_description || '',
+          meta_title: v('meta_title') || '',
+          meta_description: v('meta_description') || '',
         })
 
         // Fetch existing images
@@ -109,7 +127,9 @@ export default function EditProductPage() {
           .eq('product_id', productId)
           .order('sort_order')
 
-        setExistingImages(images || [])
+        // Taslakta silinmesi istenen görselleri gösterme
+        const removeIds: string[] = pc.images_remove ?? []
+        setExistingImages((images || []).filter((img: any) => !removeIds.includes(img.id)))
       } catch (error) {
         console.error('Error fetching product:', error)
       } finally {
@@ -221,6 +241,9 @@ export default function EditProductPage() {
         if (imgError) throw imgError
       }
 
+      if (draft.approval === 'approved') {
+        alert('Fiyat/stok değişiklikleri hemen uygulandı. İçerik değişiklikleri (ad, açıklama, görsel vb.) admin onayına gönderildi; onaylanana kadar ürün eski haliyle yayında kalır.')
+      }
       router.push('/urunler')
     } catch (error: any) {
       console.error('Error updating product:', error)
@@ -228,6 +251,27 @@ export default function EditProductPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function DiscardDraft() {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={discarding}
+        onClick={async () => {
+          if (!confirm('Bekleyen değişiklikler silinsin mi? Ürün mevcut (yayındaki) haliyle kalır.')) return
+          setDiscarding(true)
+          const { error } = await (createClient() as any).rpc('discard_product_changes', { p_product_id: productId })
+          setDiscarding(false)
+          if (error) return alert(error.message)
+          window.location.reload()
+        }}
+      >
+        Değişiklikleri iptal et
+      </Button>
+    )
   }
 
   if (fetching) {
@@ -252,11 +296,33 @@ export default function EditProductPage() {
         <h1 className="text-3xl font-bold">Ürünü Düzenle</h1>
       </div>
 
-      <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        Ürün adı, açıklama, kategori, marka, barkod, SEO metni, görsel veya varyant bilgisi değişirse ürün
-        <strong> yeniden admin onayına</strong> düşer ve onaylanana kadar mağazada görünmez. Fiyat, stok, SKU,
-        ağırlık ve satış durumu değişiklikleri onay gerektirmez.
-      </div>
+      {draft.status === 'pending' && (
+        <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 space-y-2">
+          <p>
+            <strong>Değişiklikleriniz admin onayı bekliyor.</strong> Onaylanana kadar ürün eski haliyle yayında.
+            Aşağıdaki form bekleyen değişikliklerinizi gösteriyor
+            {(draft.changes?.images_add?.length ?? 0) > 0 ? ` (+${draft.changes!.images_add.length} yeni görsel)` : ''}
+            {(draft.changes?.images_remove?.length ?? 0) > 0 ? ` (−${draft.changes!.images_remove.length} görsel)` : ''}.
+          </p>
+          <DiscardDraft />
+        </div>
+      )}
+      {draft.status === 'rejected' && (
+        <div className="mb-6 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900 space-y-2">
+          <p>
+            <strong>Değişikliğiniz onaylanmadı:</strong> {draft.reason}. Ürün eski haliyle yayında. Düzeltip kaydederseniz
+            yeniden onaya gönderilir.
+          </p>
+          <DiscardDraft />
+        </div>
+      )}
+      {draft.approval === 'approved' && !draft.status && (
+        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          Fiyat, stok, SKU, ağırlık ve satış durumu değişiklikleri hemen uygulanır. Ad, açıklama, kategori, marka, barkod,
+          SEO metni ve görsel değişiklikleri <strong>admin onayından sonra</strong> yayına girer; o zamana kadar ürün eski
+          haliyle satışta kalır.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Temel Bilgiler */}

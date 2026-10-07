@@ -18,6 +18,7 @@ export default function ProductEdit() {
   const [stock, setStock] = useState('')
   const [active, setActive] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
 
   useEffect(() => {
     if (!p) return
@@ -29,6 +30,22 @@ export default function ProductEdit() {
   if (isLoading) return <Loading />
   if (!p) return <Empty text="Ürün bulunamadı" />
   const a = APPROVAL[p.approval_status] ?? { label: p.approval_status, tone: 'warning' as const }
+
+  const discard = () =>
+    Alert.alert('Değişiklikleri iptal et', 'Bekleyen değişiklikler silinsin mi? Ürün yayındaki haliyle kalır.', [
+      { text: 'Vazgeç', style: 'cancel' },
+      {
+        text: 'İptal et',
+        style: 'destructive',
+        onPress: async () => {
+          setDiscarding(true)
+          const { error } = await (supabase as any).rpc('discard_product_changes', { p_product_id: p.id })
+          setDiscarding(false)
+          if (error) return Alert.alert('İptal edilemedi', error.message)
+          qc.invalidateQueries({ queryKey: ['products'] })
+        },
+      },
+    ])
 
   const save = async () => {
     const priceN = Number(price.replace(',', '.'))
@@ -57,6 +74,19 @@ export default function ProductEdit() {
         ) : null}
         {p.approval_status === 'pending' ? <Muted>Admin onayından sonra mağazanızda yayınlanır; size bildirim gelir.</Muted> : null}
       </Card>
+
+      {p.pending_changes_status ? (
+        <Card style={{ borderColor: p.pending_changes_status === 'rejected' ? colors.danger : colors.primary }}>
+          <Title>{p.pending_changes_status === 'rejected' ? 'Değişikliğiniz onaylanmadı' : 'Değişiklikleriniz onay bekliyor'}</Title>
+          {p.pending_changes_status === 'rejected' && p.pending_changes_reason ? (
+            <Text style={{ color: colors.danger }}>Neden: {p.pending_changes_reason}</Text>
+          ) : null}
+          <Muted>Ürün eski haliyle yayında. Bekleyen: {describeDraft(p.pending_changes)}</Muted>
+          <Button title="Değişiklikleri iptal et" variant="outline" onPress={discard} loading={discarding} />
+        </Card>
+      ) : p.approval_status === 'approved' ? (
+        <Muted>Ad, açıklama, kategori ve görsel değişiklikleri admin onayından sonra yayına girer; ürün o sırada eski haliyle satışta kalır.</Muted>
+      ) : null}
 
       <Card style={{ gap: space(3) }}>
         <Title>Hızlı düzenleme</Title>
@@ -87,3 +117,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 })
+
+const DRAFT_LABELS: Record<string, string> = {
+  name: 'ad',
+  slug: 'URL',
+  description: 'açıklama',
+  category_id: 'kategori',
+  brand: 'marka',
+  barcode: 'barkod',
+  meta_title: 'SEO başlığı',
+  meta_description: 'SEO açıklaması',
+  is_digital: 'dijital ürün',
+}
+
+function describeDraft(c: Record<string, any> | null) {
+  if (!c) return '-'
+  const parts = Object.keys(DRAFT_LABELS).filter((k) => k in c).map((k) => DRAFT_LABELS[k])
+  if (c.images_add?.length) parts.push(`+${c.images_add.length} görsel`)
+  if (c.images_remove?.length) parts.push(`−${c.images_remove.length} görsel`)
+  return parts.join(', ') || '-'
+}

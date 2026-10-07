@@ -20,6 +20,7 @@ const CRON_ROUTE_PREFIXES = [
   '/api/email/process-queue',
   '/api/iyzico/auto-approve',
   '/api/iyzico/sync-sub-merchants',
+  '/api/push/dispatch',
   '/api/marketing/weekly-seller-insights',
   '/api/marketing/abandoned-cart-reminders',
   '/api/cargo/sync-shipment-status',

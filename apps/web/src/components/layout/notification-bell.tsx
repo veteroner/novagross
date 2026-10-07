@@ -29,6 +29,7 @@ export function NotificationBell({ userId }: { userId: string }) {
       const { data } = await (supabase as any)
         .from('user_notifications')
         .select('id, type, title, body, link, read_at, created_at')
+        .eq('app', 'store') // satıcı bildirimleri Novagross Satıcı uygulamasında
         .order('created_at', { ascending: false })
         .limit(15)
       const list: Notification[] = data || []

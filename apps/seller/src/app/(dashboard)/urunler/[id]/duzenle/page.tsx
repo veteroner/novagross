@@ -252,6 +252,12 @@ export default function EditProductPage() {
         <h1 className="text-3xl font-bold">Ürünü Düzenle</h1>
       </div>
 
+      <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        Ürün adı, açıklama, kategori, marka, barkod, SEO metni, görsel veya varyant bilgisi değişirse ürün
+        <strong> yeniden admin onayına</strong> düşer ve onaylanana kadar mağazada görünmez. Fiyat, stok, SKU,
+        ağırlık ve satış durumu değişiklikleri onay gerektirmez.
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Temel Bilgiler */}
         <Card>

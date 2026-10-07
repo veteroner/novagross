@@ -234,8 +234,23 @@ Olay (sipariş ödendi, kargo durumu değişti, iade talebi…)
 3. **Apple incelemesi** — misafir alışverişe izin yoksa giriş zorunluluğu sorun olabilir: ürünler girişsiz gezilebilmeli, giriş yalnızca sepet/ödeme adımında istenmeli.
 4. **Kampanya bildirimleri ve İYS** — ticari ileti onayı ve İYS kaydı netleşmeden kampanya push'u açılmamalı.
 5. **Satıcı etiket basımı** — MNG etiketi ZPL; telefondan normal yazıcıya PDF'e çevirip basmak gerekiyor (dönüşüm sunucuda mı yapılacak netleşmeli).
-6. **Açık sorular:**
-   - Misafir (girişsiz) satın alma olacak mı?
-   - Satıcı uygulamasında ürün **oluşturma** da olsun mu, yoksa yalnızca hızlı düzenleme mi?
-   - Kampanya bildirimleri ilk sürümde açılacak mı (İYS kaydı var mı)?
-   - Uygulama adları ve ikonları kesin mi?
+6. **Kararlar (2026-10-07):**
+   - Misafir (girişsiz) satın alma **yok** — ürünler girişsiz gezilebilir, sepete ekleme/ödeme girişle.
+   - Satıcı uygulamasında ürün **oluşturma var**, Trendyol/Hepsiburada/Amazon gibi **admin onayına bağlı**
+     (`products.approval_status = 'pending'`, `enforce_product_moderation` trigger'ı sunucuda zorunlu tutar;
+     onay/red satıcıya bildirim olarak gider).
+   - Kampanya bildirimleri: İYS kaydı henüz yok → `marketing` kategorisi varsayılan **kapalı**, yalnızca
+     kullanıcının açıkça açtığı (opt-in) cihazlara gider; her rıza `marketing_consent_log`'a yazılır. İYS kaydı
+     yapılmadan kampanya push'u gönderilmeyecek.
+   - Uygulama adları: **Novagross** ve **Novagross Satıcı** (`com.novagross.app`, `com.novagross.seller`).
+
+## 11. İlerleme
+
+| Tarih | Adım | Durum |
+|---|---|---|
+| 2026-10-07 | API'lerde Bearer token (web + seller), mobil ödeme dönüşü (`novagross://odeme/sonuc`) | ✅ canlıda |
+| 2026-10-07 | Bildirim omurgası: `push_devices`, `notification_preferences`, `notification_outbox`, `notify()/notify_store()`, olay trigger'ları, `/api/push/dispatch` (dakikada bir) | ✅ canlıda |
+| 2026-10-07 | Novagross Satıcı v0.1 iskeleti (`mobile/seller`, Expo SDK 57): giriş, push kaydı, Bugün, Siparişler, sipariş detayı (MNG kargola, etiket yazdır/paylaş, fatura yükle), Bildirimler, bildirim ayarları | 🚧 geliştirme |
+
+**Konum notu:** Mobil uygulamalar pnpm workspace'inin **dışında** (`mobile/`). Web/seller React 18 + Next 14
+kullanırken Expo SDK 57 React 19 istiyor; aynı `node_modules`'te birleşirse Netlify derlemeleri bozulabilir.

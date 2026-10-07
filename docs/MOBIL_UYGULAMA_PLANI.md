@@ -252,5 +252,8 @@ Olay (sipariş ödendi, kargo durumu değişti, iade talebi…)
 | 2026-10-07 | Bildirim omurgası: `push_devices`, `notification_preferences`, `notification_outbox`, `notify()/notify_store()`, olay trigger'ları, `/api/push/dispatch` (dakikada bir) | ✅ canlıda |
 | 2026-10-07 | Novagross Satıcı v0.1 iskeleti (`mobile/seller`, Expo SDK 57): giriş, push kaydı, Bugün, Siparişler, sipariş detayı (MNG kargola, etiket yazdır/paylaş, fatura yükle), Bildirimler, bildirim ayarları | 🚧 geliştirme |
 
+| 2026-10-07 | Ürün moderasyonu: içerik değişikliği **taslağa** (`products.pending_changes`), eski hal yayında kalır; admin "Onay Bekleyenler"de yayındaki/önerilen karşılaştırması + onay/red; satıcı taslak iptali (web + mobil) | ✅ canlıda |
+| 2026-10-07 | Ürünler sekmesi (mobil): liste, hızlı fiyat/stok, fotoğraflı yeni ürün → onaya | 🚧 geliştirme |
+
 **Konum notu:** Mobil uygulamalar pnpm workspace'inin **dışında** (`mobile/`). Web/seller React 18 + Next 14
 kullanırken Expo SDK 57 React 19 istiyor; aynı `node_modules`'te birleşirse Netlify derlemeleri bozulabilir.

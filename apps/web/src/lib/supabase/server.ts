@@ -1,8 +1,15 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
+import { createBearerClient, getBearerToken } from './bearer'
 import type { Database } from '@novagross/database'
 
 export async function createClient() {
+  // Mobil uygulama: Authorization: Bearer <access_token> → cookie yerine token oturumu
+  const bearer = getBearerToken(await headers())
+  if (bearer) {
+    return createBearerClient(bearer) as unknown as ReturnType<typeof createServerClient<Database, 'public'>>
+  }
+
   const cookieStore = cookies()
 
   return createServerClient<Database, 'public'>(

@@ -3,6 +3,7 @@
 
 import { NextRequest } from 'next/server'
 import { getSiteUrlObject } from '@/lib/site-url'
+import { getBearerToken } from '@/lib/supabase/bearer'
 
 function buildAllowedOrigins(): Set<string> {
   const siteOrigin = getSiteUrlObject().origin
@@ -118,6 +119,11 @@ export function validateOrigin(request: NextRequest): boolean {
 }
 
 export function csrfProtection(request: NextRequest): Response | null {
+  // Mobil uygulama Bearer token ile gelir; CSRF ortam çerezine (cookie) dayalı
+  // saldırıdır ve tarayıcı başka siteden Authorization başlığı ekleyemez (CORS
+  // izni yok) → token'lı isteklerde Origin kontrolü gereksiz.
+  if (getBearerToken(request.headers)) return null
+
   if (!validateOrigin(request)) {
     if (shouldDebugCsrf()) {
       const originHeader = request.headers.get('origin')

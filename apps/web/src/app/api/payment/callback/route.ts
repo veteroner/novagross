@@ -26,7 +26,29 @@ function getRequestOrigin(request: NextRequest): string | null {
   }
 }
 
+// Mobil uygulama ödemesi (initialize'da ?client=mobile ile callbackUrl verilir):
+// iyzico formu uygulama içi WebView'da açılır; bu callback'in ürettiği web
+// yönlendirmesi (/siparis-basarili, /odeme?error=…) uygulamanın derin bağlantısına
+// çevrilir — WebView novagross:// adresini yakalayıp sonuç ekranını açar.
+const MOBILE_RESULT_URL = 'novagross://odeme/sonuc'
+
 export async function POST(request: NextRequest) {
+  const response = await handleCallback(request)
+  if (request.nextUrl.searchParams.get('client') !== 'mobile') return response
+
+  const location = response.headers.get('location')
+  if (!location || response.status < 300 || response.status >= 400) return response
+  let path = location
+  try {
+    const u = new URL(location)
+    path = u.pathname + u.search
+  } catch {
+    // zaten göreli yol
+  }
+  return NextResponse.redirect(`${MOBILE_RESULT_URL}?path=${encodeURIComponent(path)}`, 303)
+}
+
+async function handleCallback(request: NextRequest): Promise<NextResponse> {
   try {
     const apiKey = process.env.IYZICO_API_KEY
     const secretKey = process.env.IYZICO_SECRET_KEY

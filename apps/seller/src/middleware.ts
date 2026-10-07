@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createBearerClient, getBearerToken } from '@/lib/supabase/bearer'
 
 function safeRedirectPath(pathname: string) {
   if (!pathname.startsWith('/')) return '/'
@@ -23,7 +24,11 @@ export async function middleware(req: NextRequest) {
     },
   })
 
-  const supabase = createServerClient(
+  // Mobil uygulama (Novagross Satıcı): Authorization: Bearer <access_token>
+  const bearer = getBearerToken(req.headers)
+  const supabase: any = bearer
+    ? createBearerClient(bearer)
+    : createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

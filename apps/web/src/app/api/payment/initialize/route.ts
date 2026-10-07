@@ -618,7 +618,8 @@ export async function POST(request: NextRequest) {
         zipCode: shippingAddress.postalCode || '34000'
       },
       basketItems,
-      callbackUrl: `${siteUrl}/api/payment/callback`,
+      // Mobil uygulama: callback sonucu novagross:// derin bağlantısına yönlendirir
+      callbackUrl: `${siteUrl}/api/payment/callback${body.client === 'mobile' ? '?client=mobile' : ''}`,
       enabledInstallments: [1, 2, 3, 6, 9, 12]
     }
 

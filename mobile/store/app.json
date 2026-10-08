@@ -10,7 +10,8 @@
     "ios": {
       "bundleIdentifier": "com.novagross.app",
       "icon": "./assets/expo.icon",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "appleTeamId": "29D6U2Z923"
     },
     "android": {
       "package": "com.novagross.app",
@@ -28,7 +29,8 @@
       [
         "expo-notifications",
         {
-          "color": "#EA580C"
+          "color": "#EA580C",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

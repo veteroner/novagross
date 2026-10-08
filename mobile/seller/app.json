@@ -15,7 +15,8 @@
         "NSCameraUsageDescription": "Fatura ve ürün fotoğrafı çekmek için kameranıza erişilir.",
         "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı ve fatura seçmek için fotoğraflarınıza erişilir.",
         "NSFaceIDUsageDescription": "Hızlı ve güvenli giriş için Face ID kullanılır."
-      }
+      },
+      "appleTeamId": "29D6U2Z923"
     },
     "android": {
       "package": "com.novagross.seller",
@@ -33,7 +34,8 @@
       [
         "expo-notifications",
         {
-          "color": "#EA580C"
+          "color": "#EA580C",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

@@ -254,6 +254,8 @@ Olay (sipariş ödendi, kargo durumu değişti, iade talebi…)
 
 | 2026-10-07 | Ürün moderasyonu: içerik değişikliği **taslağa** (`products.pending_changes`), eski hal yayında kalır; admin "Onay Bekleyenler"de yayındaki/önerilen karşılaştırması + onay/red; satıcı taslak iptali (web + mobil) | ✅ canlıda |
 | 2026-10-07 | Ürünler sekmesi (mobil): liste, hızlı fiyat/stok, fotoğraflı yeni ürün → onaya | 🚧 geliştirme |
+| 2026-10-08 | Satıcı uygulamasında 2FA (web ile aynı kod akışı, cihazda 30 gün hatırlanır) | 🚧 geliştirme |
+| 2026-10-08 | Novagross müşteri v0.1 (`mobile/store`): ana sayfa, keşfet/arama, kategori, ürün, sepet (web ile senkron), favoriler, adresler, ödeme (iyzico WebView + `novagross://` dönüşü), siparişler + kargo zaman çizelgesi + fatura PDF, bildirimler, bildirim ayarları (kampanya opt-in), hesap silme (`/api/account/delete`) | 🚧 geliştirme |
 
 **Konum notu:** Mobil uygulamalar pnpm workspace'inin **dışında** (`mobile/`). Web/seller React 18 + Next 14
 kullanırken Expo SDK 57 React 19 istiyor; aynı `node_modules`'te birleşirse Netlify derlemeleri bozulabilir.

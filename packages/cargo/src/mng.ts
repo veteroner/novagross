@@ -22,6 +22,8 @@
  *   MNG_BASE_URL (ops, default https://api.mngkargo.com.tr)
  */
 
+import { normalizeTrCityDistrict } from './tr-address'
+
 export interface MngShipmentRequest {
   senderName: string
   senderAddress: string
@@ -240,9 +242,11 @@ export class MngKargoClient {
       return { success: false, error: `MNG entegrasyonu için eksik ayar: ${cfg.missing.join(', ')}`, errorCode: 'NOT_CONFIGURED' }
     }
     try {
-      const recvCityCode = await this.resolveCityCode(data.receiverCity)
+      // İl alanına ilçe yazılmış adresler ("yenimahalle", ilçe boş) → il/ilçe düzeltilir
+      const recv = normalizeTrCityDistrict(data.receiverCity, data.receiverDistrict)
+      const recvCityCode = await this.resolveCityCode(recv.city)
       if (!recvCityCode) return { success: false, error: `Alıcı şehri MNG koduna çevrilemedi: ${data.receiverCity}`, errorCode: 'CITY_NOT_FOUND' }
-      const recvDistrictCode = await this.resolveDistrictCode(recvCityCode, data.receiverDistrict)
+      const recvDistrictCode = await this.resolveDistrictCode(recvCityCode, recv.district)
       const kg = Math.max(1, Math.ceil(data.weight || 1))
       const desi = Math.max(1, Math.ceil((data.weight || 1) * 3))
       const recipient = {
@@ -566,9 +570,10 @@ export class MngKargoClient {
       return { success: false, error: `MNG entegrasyonu için eksik ayar: ${cfg.missing.join(', ')}`, errorCode: 'NOT_CONFIGURED' }
     }
     try {
-      const cityCode = await this.resolveCityCode(data.senderCity)
+      const sender = normalizeTrCityDistrict(data.senderCity, data.senderDistrict)
+      const cityCode = await this.resolveCityCode(sender.city)
       if (!cityCode) return { success: false, error: `Gönderici şehri MNG koduna çevrilemedi: ${data.senderCity}`, errorCode: 'CITY_NOT_FOUND' }
-      const districtCode = await this.resolveDistrictCode(cityCode, data.senderDistrict)
+      const districtCode = await this.resolveDistrictCode(cityCode, sender.district)
 
       const reference = trUpper((data.referenceNumber || data.invoiceNumber || `NGRET${Date.now()}`).replace(/[^A-Za-z0-9]/g, ''))
       const kg = Math.max(1, Math.ceil(data.weight || 1))
@@ -708,9 +713,10 @@ export class MngKargoClient {
     serviceType?: 'STANDARD' | 'EXPRESS'
   }): Promise<{ success: boolean; cost?: number; error?: string }> {
     try {
-      const cityCode = await this.resolveCityCode(params.receiverCity)
+      const recv = normalizeTrCityDistrict(params.receiverCity, params.receiverDistrict)
+      const cityCode = await this.resolveCityCode(recv.city)
       if (!cityCode) return { success: false, error: `Şehir koduna çevrilemedi: ${params.receiverCity}` }
-      const districtCode = await this.resolveDistrictCode(cityCode, params.receiverDistrict)
+      const districtCode = await this.resolveDistrictCode(cityCode, recv.district)
       const kg = Math.max(1, Math.ceil(params.weight || 1))
       const desi = Math.max(1, Math.ceil((params.weight || 1) * 3))
 

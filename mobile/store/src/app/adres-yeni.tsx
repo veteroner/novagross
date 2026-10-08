@@ -6,8 +6,24 @@ import { useAuth } from '@/providers/auth'
 import { useAddresses } from '@/lib/account'
 import { supabase } from '@/lib/supabase'
 import { Field, FormError } from '@/components/field'
+import { SelectField } from '@/components/select-field'
+import { TR_PROVINCES } from '@/lib/tr-provinces'
 import { Button } from '@/components/ui'
 import { colors, space } from '@/lib/theme'
+
+const PROVINCES = Object.keys(TR_PROVINCES).sort((a, b) => a.localeCompare(b, 'tr'))
+const fold = (s: string) => (s || '').toLocaleLowerCase('tr-TR').trim()
+
+// Eski adreslerde il alanına ilçe yazılmış olabiliyor ("yenimahalle", ilçe boş) → ili ilçeden bul
+function fixCityDistrict(city: string, district: string) {
+  const c = PROVINCES.find((p) => fold(p) === fold(city))
+  if (c) return { city: c, district: TR_PROVINCES[c].find((d) => fold(d) === fold(district)) ?? '' }
+  for (const cand of [city, district]) {
+    const owners = PROVINCES.filter((p) => TR_PROVINCES[p].some((d) => fold(d) === fold(cand)))
+    if (cand && owners.length === 1) return { city: owners[0], district: TR_PROVINCES[owners[0]].find((d) => fold(d) === fold(cand))! }
+  }
+  return { city: '', district: '' }
+}
 
 const EMPTY = { title: 'Ev', first_name: '', last_name: '', phone: '', address_line1: '', district: '', city: '', postal_code: '' }
 
@@ -37,8 +53,7 @@ export default function AddressForm() {
         last_name: existing.last_name,
         phone: existing.phone,
         address_line1: existing.address_line1,
-        district: existing.district ?? '',
-        city: existing.city,
+        ...fixCityDistrict(existing.city, existing.district ?? ''),
         postal_code: existing.postal_code ?? '',
       })
       setIsDefault(existing.is_default)
@@ -54,7 +69,8 @@ export default function AddressForm() {
     if (!f.first_name.trim() || !f.last_name.trim()) return setError('Ad ve soyad girin.')
     if (!/^05\d{9}$/.test(phone)) return setError('Telefonu 05XX XXX XX XX biçiminde girin.')
     if (f.address_line1.trim().length < 10) return setError('Açık adresi mahalle, sokak ve numara ile girin.')
-    if (!f.district.trim() || !f.city.trim()) return setError('İl ve ilçe girin.')
+    if (!TR_PROVINCES[f.city]) return setError('İl seçin.')
+    if (!TR_PROVINCES[f.city].includes(f.district)) return setError('İlçe seçin.')
     setBusy(true)
     const uid = session!.user.id
     if (isDefault) await supabase.from('addresses').update({ is_default: false }).eq('user_id', uid)
@@ -95,10 +111,17 @@ export default function AddressForm() {
         <Field label="Cep telefonu" value={f.phone} onChangeText={set('phone')} keyboardType="phone-pad" textContentType="telephoneNumber" placeholder="05XX XXX XX XX" />
         <View style={{ flexDirection: 'row', gap: space(3) }}>
           <View style={{ flex: 1 }}>
-            <Field label="İl" value={f.city} onChangeText={set('city')} textContentType="addressCity" />
+            <SelectField label="İl" value={f.city} options={PROVINCES} onChange={(city) => setF((x) => ({ ...x, city, district: '' }))} placeholder="İl seçin" />
           </View>
           <View style={{ flex: 1 }}>
-            <Field label="İlçe" value={f.district} onChangeText={set('district')} />
+            <SelectField
+              label="İlçe"
+              value={f.district}
+              options={TR_PROVINCES[f.city] ?? []}
+              onChange={set('district')}
+              disabled={!TR_PROVINCES[f.city]}
+              placeholder={f.city ? 'İlçe seçin' : 'Önce il'}
+            />
           </View>
         </View>
         <Field label="Açık adres" value={f.address_line1} onChangeText={set('address_line1')} multiline style={{ minHeight: 90 }} textContentType="fullStreetAddress" />

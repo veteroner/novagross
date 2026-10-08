@@ -13,6 +13,14 @@ npm install
 npm run ios            # önce ._ AppleDouble dosyalarını temizler (LaCie notu: mobile/seller/README.md)
 ```
 
+**LaCie (exFAT) yavaşlığı:** macOS 27'de exFAT kullanıcı alanında çalışıyor; `pod install` harici diskte
+takılabiliyor. Simülatör derlemesini dahili diskte yapın:
+
+```bash
+rsync -a --exclude node_modules --exclude ios --exclude '._*' mobile/store/ ~/build/novagross-store/
+cd ~/build/novagross-store && npm ci && npx expo prebuild -p ios && npx expo run:ios
+```
+
 ## Akışlar
 
 - **Gezinme girişsiz**, sepet / favori / ödeme / hesap **girişli** (karar: girişsiz satın alma yok).

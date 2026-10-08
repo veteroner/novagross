@@ -10,6 +10,18 @@ import { parsePath } from '@/lib/format'
 // Bu adresi WebView'da yakalayıp sonuç ekranına geçiyoruz (WebView özel şemayı yükleyemez).
 const RESULT_PREFIX = 'novagross://odeme/sonuc'
 
+// iOS, yazı boyutu 16px altındaki alana odaklanınca sayfayı yakınlaştırıp sağ kenarı kesiyor
+// (kart alanları taşıyor). Viewport'u cihaz genişliğine sabitleyip yakınlaştırmayı kapatıyoruz.
+const FIT_VIEWPORT = `(function () {
+  function fit() {
+    var m = document.querySelector('meta[name=viewport]');
+    if (!m) { m = document.createElement('meta'); m.name = 'viewport'; (document.head || document.documentElement).appendChild(m); }
+    m.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+  }
+  fit();
+  document.addEventListener('DOMContentLoaded', fit);
+})(); true;`
+
 export default function IyzicoPayment() {
   const { url } = useLocalSearchParams<{ url: string }>()
   const [loading, setLoading] = useState(true)
@@ -49,6 +61,10 @@ export default function IyzicoPayment() {
         onError={(e) => e.nativeEvent.url?.startsWith(RESULT_PREFIX) && finish(e.nativeEvent.url)}
         onNavigationStateChange={(s) => s.url.startsWith(RESULT_PREFIX) && finish(s.url)}
         onLoadEnd={() => setLoading(false)}
+        injectedJavaScriptBeforeContentLoaded={FIT_VIEWPORT}
+        injectedJavaScript={FIT_VIEWPORT}
+        scalesPageToFit={false}
+        automaticallyAdjustContentInsets={false}
         sharedCookiesEnabled
         javaScriptEnabled
         domStorageEnabled

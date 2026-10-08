@@ -34,11 +34,13 @@ function useNotificationTaps(enabled: boolean) {
 }
 
 function RootNavigator() {
-  const { loading, session, store } = useAuth()
-  const signedIn = !!session && !!store
+  const { loading, session, store, twoFactor } = useAuth()
+  const hasStore = !!session && !!store
+  const signedIn = hasStore && twoFactor === 'ok'
+  const needsCode = hasStore && twoFactor === 'required'
   useNotificationTaps(signedIn)
 
-  if (loading) return <Loading />
+  if (loading || (hasStore && twoFactor === 'checking')) return <Loading />
 
   return (
     <Stack
@@ -49,8 +51,11 @@ function RootNavigator() {
         headerBackTitle: 'Geri',
       }}
     >
-      <Stack.Protected guard={!signedIn}>
+      <Stack.Protected guard={!hasStore}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={needsCode}>
+        <Stack.Screen name="dogrulama" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

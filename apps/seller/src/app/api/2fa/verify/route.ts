@@ -57,7 +57,10 @@ export async function POST(req: NextRequest) {
   const expMs = Date.now() + (remember ? REMEMBER_MS : DEFAULT_MS)
   const token = signToken(user.id, expMs)
 
-  const res = NextResponse.json({ ok: true })
+  // Mobil (Bearer token, cookie yok): imzalı 2FA token'ını gövdede döndür; uygulama
+  // güvenli depoda saklar ve süresi dolana kadar kod sormaz.
+  const isBearer = /^Bearer\s+/i.test(req.headers.get('authorization') || '')
+  const res = NextResponse.json(isBearer ? { ok: true, token, expiresAt: expMs } : { ok: true })
   res.cookies.set(TWO_FA_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

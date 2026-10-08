@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { cargoService, type CargoProvider } from '@novagross/cargo'
 import { assertSellerOwnsOrder } from '@/lib/order-ownership'
 
 export const runtime = 'nodejs'
@@ -30,17 +31,41 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
 
     const { data: shipment, error: shipmentError } = await (supabase as any)
       .from('order_shipments')
-      .select('label_zpl')
+      .select('id, label_zpl, tracking_number, provider_code')
       .eq('order_id', params.orderId)
       .maybeSingle()
 
-    if (shipmentError || !shipment?.label_zpl) {
+    if (shipmentError || !shipment) {
+      return NextResponse.json({ error: 'Kargo kaydı bulunamadı' }, { status: 404 })
+    }
+
+    // Kargo oluşturulurken resmi barkod alınamadıysa (createbarcode geçici hata
+    // vb.) burada yeniden iste ve kaydet; olmazsa MNG'nin gerçek hatasını göster.
+    let zpl: string | null = shipment.label_zpl
+    if (!zpl && shipment.tracking_number && (shipment.provider_code || '').toLowerCase() === 'mng') {
+      const bc = await cargoService.getBarcode('mng' as CargoProvider, shipment.tracking_number)
+      if (bc.success && bc.zpl) {
+        zpl = bc.zpl
+        await (supabase as any)
+          .from('order_shipments')
+          .update({
+            label_zpl: bc.zpl,
+            official_barcode: bc.officialBarcode || null,
+            barcode_data: bc.barcodeBase64 || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', shipment.id)
+      } else {
+        console.error('[label] MNG createbarcode başarısız', shipment.tracking_number, bc.error)
+        return NextResponse.json({ error: `MNG resmi etiketi alınamadı: ${bc.error || 'bilinmeyen hata'}` }, { status: 502 })
+      }
+    }
+    if (!zpl) {
       return NextResponse.json({ error: 'Resmi MNG etiketi henüz alınamadı' }, { status: 404 })
     }
 
     // Etiket boyutu ZPL'deki ^PW (print width) / ^LL (label length) alanlarından
     // (203dpi = 8 nokta/mm varsayımıyla) çıkarılıyor; bulunamazsa 4x6" varsayılan.
-    const zpl: string = shipment.label_zpl
     const pw = Number(zpl.match(/\^PW(\d+)/)?.[1] || 0)
     const ll = Number(zpl.match(/\^LL(\d+)/)?.[1] || 0)
     const widthIn = pw ? (pw / 203).toFixed(2) : '4'

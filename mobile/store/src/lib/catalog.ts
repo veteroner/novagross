@@ -133,3 +133,30 @@ export function useProduct(id: string) {
     },
   })
 }
+
+export type ProductReview = {
+  id: string
+  rating: number
+  title: string | null
+  comment: string | null
+  created_at: string
+  seller_reply: string | null
+  seller_reply_approved: boolean | null
+}
+
+/** Onaylı yorumlar (RLS: herkese açık yalnızca is_approved) */
+export function useProductReviews(productId: string) {
+  return useQuery({
+    queryKey: ['reviews', productId],
+    queryFn: async (): Promise<ProductReview[]> => {
+      const { data } = await (supabase as any)
+        .from('reviews')
+        .select('id, rating, title, comment, created_at, seller_reply, seller_reply_approved')
+        .eq('product_id', productId)
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      return data ?? []
+    },
+  })
+}

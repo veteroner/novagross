@@ -2,26 +2,29 @@
   "expo": {
     "name": "Novagross",
     "slug": "novagross-store",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "novagross",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.novagross.app",
-      "icon": "./assets/expo.icon",
       "supportsTablet": true,
-      "appleTeamId": "29D6U2Z923"
+      "appleTeamId": "29D6U2Z923",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.novagross.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFF4EC",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
@@ -30,15 +33,16 @@
         "expo-notifications",
         {
           "color": "#EA580C",
-          "enableBackgroundRemoteNotifications": true
+          "enableBackgroundRemoteNotifications": true,
+          "icon": "./assets/images/android-icon-monochrome.png"
         }
       ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#EA580C",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 140
         }
       ],
       "expo-sqlite",

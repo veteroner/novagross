@@ -63,6 +63,9 @@ function RootNavigator() {
         <Stack.Screen name="bildirim-ayarlari" options={{ title: 'Bildirim ayarları' }} />
         <Stack.Screen name="urun/[id]" options={{ title: 'Ürün' }} />
         <Stack.Screen name="urun/yeni" options={{ title: 'Yeni ürün', presentation: 'modal' }} />
+        <Stack.Screen name="kazanclarim" options={{ title: 'Kazançlarım' }} />
+        <Stack.Screen name="iadeler" options={{ title: 'İade talepleri' }} />
+        <Stack.Screen name="sorular" options={{ title: 'Soru-cevap ve yorumlar' }} />
       </Stack.Protected>
     </Stack>
   )

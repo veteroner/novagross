@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Linking, Text, View } from 'react-native'
-import { Stack, useLocalSearchParams } from 'expo-router'
+import { Stack, router, useLocalSearchParams } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { File, Paths } from 'expo-file-system'
 import { useOrderDetail } from '@/lib/account'
@@ -8,6 +8,13 @@ import { WEB_URL, webApiBinary } from '@/lib/api'
 import { Badge, Button, Card, Empty, Loading, Muted, Row, Screen, Title } from '@/components/ui'
 import { ORDER_STATUS, SHIPMENT_STATUS, fmtDate, fmtTRY, orderStatusTone } from '@/lib/format'
 import { colors, space } from '@/lib/theme'
+
+const RETURN_STATUS: Record<string, string> = {
+  pending: 'İnceleniyor',
+  approved: 'Onaylandı — ürünü iade kargosuyla gönderin',
+  refunded: 'İade edildi',
+  rejected: 'Reddedildi',
+}
 
 function Timeline({ events }: { events: { status: string; description: string | null; location: string | null; timestamp: string }[] }) {
   const sorted = [...events].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
@@ -59,6 +66,7 @@ export default function OrderDetail() {
   }
 
   const addr = o.shipping_address ?? {}
+  const canReturn = !!o.delivered_at && Date.now() - new Date(o.delivered_at).getTime() < 14 * 86400000
 
   return (
     <Screen refreshing={isRefetching} onRefresh={refetch}>
@@ -133,7 +141,34 @@ export default function OrderDetail() {
       ) : null}
 
       {o.status === 'delivered' ? (
-        <Button title="İade talebi oluştur" variant="outline" onPress={() => Linking.openURL(`${WEB_URL}/hesabim/siparislerim/${o.id}`)} />
+        <Card>
+          <Title>İade</Title>
+          {canReturn ? <Muted>Teslimden itibaren 14 gün içinde iade talep edebilirsiniz.</Muted> : <Muted>İade süresi doldu.</Muted>}
+          {(o.order_items ?? []).map((i: any) => {
+            const rr = data!.returns.find((r) => r.order_item_id === i.id && r.status !== 'cancelled')
+            return (
+              <View key={i.id} style={{ gap: 6 }}>
+                <Text style={{ color: colors.text }} numberOfLines={1}>
+                  {i.quantity} × {i.name}
+                </Text>
+                {rr ? (
+                  <Muted>
+                    İade talebi: {RETURN_STATUS[rr.status] ?? rr.status}
+                    {rr.return_tracking_number ? ` · iade kargo kodu ${rr.return_tracking_number}` : ''}
+                  </Muted>
+                ) : canReturn ? (
+                  <Button
+                    title="İade talebi oluştur"
+                    variant="outline"
+                    onPress={() =>
+                      router.push({ pathname: '/iade/[itemId]', params: { itemId: i.id, orderId: o.id, name: i.name, max: String(i.quantity) } })
+                    }
+                  />
+                ) : null}
+              </View>
+            )
+          })}
+        </Card>
       ) : null}
     </Screen>
   )

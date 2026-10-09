@@ -64,6 +64,8 @@ function Navigator() {
         <Stack.Screen name="adres-yeni" options={{ title: 'Yeni adres', presentation: 'modal' }} />
         <Stack.Screen name="bildirimler" options={{ title: 'Bildirimler' }} />
         <Stack.Screen name="bildirim-ayarlari" options={{ title: 'Bildirim ayarları' }} />
+        <Stack.Screen name="profil" options={{ title: 'Profilim' }} />
+        <Stack.Screen name="iade/[itemId]" options={{ title: 'İade talebi', presentation: 'modal' }} />
       </Stack.Protected>
     </Stack>
   )

@@ -61,6 +61,7 @@ export default function Account() {
       </Card>
       <Card style={{ gap: 0, paddingVertical: space(1) }}>
         <Item icon="receipt-outline" label="Siparişlerim" onPress={go('/siparisler')} />
+        <Item icon="person-outline" label="Profilim ve şifre" onPress={go('/profil')} />
         <Item icon="location-outline" label="Adreslerim" onPress={go('/adresler')} />
         <Item icon="notifications-outline" label="Bildirimler" badge={unread} onPress={go('/bildirimler')} />
         <Item icon="options-outline" label="Bildirim ayarları" onPress={go('/bildirim-ayarlari')} />

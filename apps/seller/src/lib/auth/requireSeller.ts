@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { isTwoFactorEnabled, verifyToken, TWO_FA_COOKIE } from './two-factor'
+import { isTwoFactorEnabled, isTwoFactorExempt, verifyToken, TWO_FA_COOKIE } from './two-factor'
 
 export type StoreRole = 'owner' | 'manager' | 'staff'
 
@@ -65,7 +65,7 @@ export async function requireSeller(redirectTo: string = '/'): Promise<SellerRes
   }
 
   // 2FA zorunluluğu (kill-switch ile kontrol edilir)
-  if (isTwoFactorEnabled()) {
+  if (isTwoFactorEnabled() && !isTwoFactorExempt(user.email)) {
     const cookieStore = await cookies()
     const token = cookieStore.get(TWO_FA_COOKIE)?.value
     if (!verifyToken(token, user.id)) {

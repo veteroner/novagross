@@ -10,6 +10,20 @@ export function isTwoFactorEnabled(): boolean {
   return process.env.TWO_FACTOR_ENABLED === 'true'
 }
 
+/**
+ * Mağaza incelemesi (Apple/Google) demo hesapları e-postayla gelen 2FA kodunu
+ * alamaz → TWO_FACTOR_EXEMPT_EMAILS (virgülle ayrılmış) listesindekiler muaf.
+ * Yalnızca demo mağaza hesapları buraya yazılmalı.
+ */
+export function isTwoFactorExempt(email: string | null | undefined): boolean {
+  if (!email) return false
+  const list = (process.env.TWO_FACTOR_EXEMPT_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  return list.includes(email.toLowerCase())
+}
+
 function signingSecret(): string {
   return (
     process.env.OTP_SIGNING_SECRET ||

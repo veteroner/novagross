@@ -24,9 +24,24 @@ export default function More() {
         <Muted>Hangi bildirimleri alacağınızı seçin</Muted>
       </Card>
 
-      <Card onPress={() => Linking.openURL(`${WEB}/kazanclarim`)}>
-        <Text style={{ fontWeight: '600' }}>Kazançlar, soru-cevap ve raporlar</Text>
-        <Muted>Uygulamaya ekleniyor — şimdilik satıcı panelinde açılır</Muted>
+      <Card onPress={() => router.push('/kazanclarim')}>
+        <Text style={{ fontWeight: '600' }}>Kazançlarım</Text>
+        <Muted>Hak edişler, komisyon, stopaj ve iyzico gönderim durumu</Muted>
+      </Card>
+
+      <Card onPress={() => router.push('/iadeler')}>
+        <Text style={{ fontWeight: '600' }}>İade talepleri</Text>
+        <Muted>Müşteri iadelerinin durumu</Muted>
+      </Card>
+
+      <Card onPress={() => router.push('/sorular')}>
+        <Text style={{ fontWeight: '600' }}>Soru-cevap ve yorumlar</Text>
+        <Muted>Ürün sorularını ve yorumları yanıtlayın</Muted>
+      </Card>
+
+      <Card onPress={() => Linking.openURL(`${WEB}/raporlar`)}>
+        <Text style={{ fontWeight: '600' }}>Raporlar ve mağaza ayarları</Text>
+        <Muted>Satıcı panelinde açılır</Muted>
       </Card>
 
       <View style={{ marginTop: space(4) }}>

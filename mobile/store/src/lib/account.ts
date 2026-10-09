@@ -64,7 +64,7 @@ export function useOrderDetail(id: string) {
   return useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
-      const [{ data: order, error }, { data: shipments }, { data: invoices }] = await Promise.all([
+      const [{ data: order, error }, { data: shipments }, { data: invoices }, { data: returns }] = await Promise.all([
         supabase
           .from('orders')
           .select('id, order_number, status, payment_status, subtotal, shipping_cost, discount_amount, total, created_at, delivered_at, shipping_address, refund_amount, refund_status, order_items(id, name, quantity, price, total, product_id)')
@@ -75,9 +75,10 @@ export function useOrderDetail(id: string) {
           .select('id, status, tracking_number, shipped_at, delivered_at, created_at, shipping_status_history(status, description, location, timestamp)')
           .eq('order_id', id),
         (supabase as any).from('order_invoices').select('id, invoice_number, uploaded_at').eq('order_id', id),
+        (supabase as any).from('return_requests').select('id, order_item_id, status, return_tracking_number, created_at').eq('order_id', id),
       ])
       if (error) throw error
-      return { order: order as any, shipments: (shipments ?? []) as any[], invoices: (invoices ?? []) as any[] }
+      return { order: order as any, shipments: (shipments ?? []) as any[], invoices: (invoices ?? []) as any[], returns: (returns ?? []) as any[] }
     },
   })
 }

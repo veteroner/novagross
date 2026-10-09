@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import { Alert, Pressable, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native'
 import { Image } from 'expo-image'
 import { Stack, router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { useProduct } from '@/lib/catalog'
+import { useProduct, useProductReviews } from '@/lib/catalog'
+import { WEB_URL } from '@/lib/api'
 import { useCartActions, useWishlist } from '@/lib/cart'
 import { useAuth } from '@/providers/auth'
 import { Price } from '@/components/product'
@@ -27,6 +28,7 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { session } = useAuth()
   const { data: p, isLoading } = useProduct(id)
+  const { data: reviews } = useProductReviews(id)
   const { add } = useCartActions()
   const wishlist = useWishlist()
   const { width } = useWindowDimensions()
@@ -63,6 +65,14 @@ export default function ProductScreen() {
         options={{
           title: '',
           headerRight: () => (
+            <View style={{ flexDirection: 'row', gap: space(4) }}>
+            <Pressable
+              hitSlop={10}
+              accessibilityLabel="Paylaş"
+              onPress={() => Share.share({ message: `${p.name} — ${WEB_URL}/urun/${p.slug}` })}
+            >
+              <Ionicons name="share-outline" size={24} color={colors.primary} />
+            </Pressable>
             <Pressable
               hitSlop={10}
               accessibilityLabel={fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
@@ -70,6 +80,7 @@ export default function ProductScreen() {
             >
               <Ionicons name={fav ? 'heart' : 'heart-outline'} size={24} color={colors.primary} />
             </Pressable>
+            </View>
           ),
         }}
       />
@@ -108,6 +119,25 @@ export default function ProductScreen() {
                     : `${fmtTRY(p.store.free_shipping_threshold)} ve üzeri kargo bedava`}
                 </Muted>
               ) : null}
+            </Card>
+          ) : null}
+
+          {reviews?.length ? (
+            <Card>
+              <Title>
+                Değerlendirmeler · {(reviews.reduce((t, r) => t + r.rating, 0) / reviews.length).toFixed(1)} ★ ({reviews.length})
+              </Title>
+              {reviews.slice(0, 5).map((r) => (
+                <View key={r.id} style={{ gap: 2, paddingTop: space(2), borderTopWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ color: colors.warning, fontWeight: '700' }}>
+                    {'★'.repeat(r.rating)}
+                    {'☆'.repeat(Math.max(0, 5 - r.rating))}
+                  </Text>
+                  {r.title ? <Text style={{ fontWeight: '600', color: colors.text }}>{r.title}</Text> : null}
+                  {r.comment ? <Text style={{ color: colors.text }}>{r.comment}</Text> : null}
+                  {r.seller_reply && r.seller_reply_approved ? <Muted>Satıcı yanıtı: {r.seller_reply}</Muted> : null}
+                </View>
+              ))}
             </Card>
           ) : null}
 

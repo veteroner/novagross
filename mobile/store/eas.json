@@ -7,7 +7,9 @@
     "development": {
       "developmentClient": false,
       "distribution": "internal",
-      "ios": { "buildConfiguration": "Debug" }
+      "ios": {
+        "buildConfiguration": "Debug"
+      }
     },
     "preview": {
       "distribution": "internal"
@@ -17,6 +19,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6821018373",
+        "appleTeamId": "29D6U2Z923"
+      }
+    }
   }
 }

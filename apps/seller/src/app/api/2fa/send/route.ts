@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
-import { isTwoFactorEnabled, isTwoFactorExempt, generateCode, hashCode, OTP_TTL_MS } from '@/lib/auth/two-factor'
+import { isTwoFactorEnabled, generateCode, hashCode, OTP_TTL_MS } from '@/lib/auth/two-factor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +15,6 @@ export async function POST() {
   if (!user || !user.email) {
     return NextResponse.json({ error: 'Oturum bulunamadı.' }, { status: 401 })
   }
-  if (isTwoFactorExempt(user.email)) return NextResponse.json({ skipped: true })
 
   const db = createServiceRoleClient()
 

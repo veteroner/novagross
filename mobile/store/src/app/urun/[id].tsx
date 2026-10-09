@@ -92,7 +92,7 @@ export default function ProductScreen() {
           onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
         >
           {(p.images.length ? p.images : [null]).map((url, i) => (
-            <Image key={i} source={url ?? undefined} style={{ width, height: width, backgroundColor: '#fff' }} contentFit="contain" />
+            <Image key={i} source={url ?? undefined} style={{ width, height: Math.min(width, 560), backgroundColor: '#fff' }} contentFit="contain" />
           ))}
         </ScrollView>
         {p.images.length > 1 ? (

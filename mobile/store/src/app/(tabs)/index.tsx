@@ -1,10 +1,27 @@
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { useHome } from '@/lib/catalog'
 import { ProductGrid } from '@/components/product'
 import { Empty, Loading, Screen, Title } from '@/components/ui'
 import { colors, radius, space } from '@/lib/theme'
+
+// Görseli olmayan kategoriler için ada göre ikon
+function categoryIcon(name: string): keyof typeof Ionicons.glyphMap {
+  const n = name.toLocaleLowerCase('tr-TR')
+  if (/telefon|kılıf/.test(n)) return 'phone-portrait-outline'
+  if (/tablet/.test(n)) return 'tablet-portrait-outline'
+  if (/saat/.test(n)) return 'watch-outline'
+  if (/kuş/.test(n)) return 'leaf-outline'
+  if (/evcil|kedi|köpek|hayvan/.test(n)) return 'paw-outline'
+  if (/oto|araç|araba/.test(n)) return 'car-outline'
+  if (/bilgisayar|laptop/.test(n)) return 'laptop-outline'
+  if (/kulaklık|ses/.test(n)) return 'headset-outline'
+  if (/ev|mutfak/.test(n)) return 'home-outline'
+  if (/giyim|moda/.test(n)) return 'shirt-outline'
+  return 'pricetags-outline'
+}
 
 // Banner link_type: product | category | url (web ile aynı alanlar)
 function openBanner(b: { link_type: string | null; link_value: string | null }) {
@@ -33,7 +50,7 @@ export default function Home() {
             <Pressable key={b.id} onPress={() => openBanner(b)} style={{ width, paddingHorizontal: space(4) }}>
               <Image
                 source={b.image_url}
-                style={{ width: '100%', aspectRatio: 2.4, borderRadius: radius.lg, backgroundColor: '#F3F4F6' }}
+                style={{ width: '100%', aspectRatio: width >= 600 ? 3.6 : 2.4, borderRadius: radius.lg, backgroundColor: '#F3F4F6' }}
                 contentFit="cover"
                 accessibilityLabel={b.title}
               />
@@ -52,8 +69,14 @@ export default function Home() {
                 onPress={() => router.push({ pathname: '/kategori/[id]', params: { id: c.id, name: c.name } })}
                 style={{ width: 76, alignItems: 'center', gap: 6 }}
               >
-                <View style={{ width: 64, height: 64, borderRadius: 32, overflow: 'hidden', backgroundColor: colors.primarySoft }}>
-                  {c.image_url ? <Image source={c.image_url} style={{ width: 64, height: 64 }} contentFit="cover" /> : null}
+                <View
+                  style={{ width: 64, height: 64, borderRadius: 32, overflow: 'hidden', backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {c.image_url ? (
+                    <Image source={c.image_url} style={{ width: 64, height: 64 }} contentFit="cover" />
+                  ) : (
+                    <Ionicons name={categoryIcon(c.name)} size={28} color={colors.primary} />
+                  )}
                 </View>
                 <Text numberOfLines={2} style={{ fontSize: 12, textAlign: 'center', color: colors.text }}>
                   {c.name}

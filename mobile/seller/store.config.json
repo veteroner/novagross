@@ -1,0 +1,92 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0",
+    "release": {
+      "automaticRelease": true
+    },
+    "info": {
+      "tr": {
+        "marketingUrl": "https://novagross.com",
+        "supportUrl": "https://novagross.com/iletisim",
+        "privacyPolicyUrl": "https://novagross.com/gizlilik-politikasi",
+        "title": "Novagross Satıcı",
+        "subtitle": "Mağazanızı cepten yönetin",
+        "promoText": "Yeni siparişi anında duyun, MNG etiketini telefondan yazdırın.",
+        "description": "Novagross Satıcı, Novagross pazaryerinde mağazası olan satıcılar için resmi uygulamadır.\n\n• Yeni sipariş geldiğinde yüksek öncelikli anlık bildirim\n• Siparişleri tek dokunuşla MNG Kargo ile kargolayın, resmi barkodlu etiketi yazdırın veya PDF olarak paylaşın\n• e-Arşiv faturayı kamera ya da dosyadan yükleyin\n• Siparişi iptal edin; müşteriye iade otomatik yapılır\n• Ürün ekleyin (Novagross onayıyla yayına girer), fiyat ve stoğu hızlıca güncelleyin\n• Ürün sorularını ve yorumları yanıtlayın\n• Kazançlarım: komisyon, %1 e-ticaret stopajı, kargo kesintisi ve iyzico ödeme durumunu sipariş bazında görün\n• İade taleplerini takip edin\n• İki adımlı doğrulama ve Sahip / Yönetici / Personel rolleri\n\nUygulamayı kullanmak için seller.novagross.com üzerinden açılmış bir satıcı hesabı gerekir.",
+        "keywords": [
+          "satıcı",
+          "mağaza",
+          "pazaryeri",
+          "sipariş",
+          "kargo",
+          "mng",
+          "e-ticaret",
+          "satış",
+          "stok",
+          "novagross"
+        ],
+        "releaseNotes": "İlk sürüm."
+      },
+      "en-US": {
+        "marketingUrl": "https://novagross.com",
+        "supportUrl": "https://novagross.com/iletisim",
+        "privacyPolicyUrl": "https://novagross.com/gizlilik-politikasi",
+        "title": "Novagross Satıcı",
+        "subtitle": "Run your Novagross store",
+        "description": "The official app for sellers on the Novagross marketplace: instant new-order notifications, one-tap MNG Kargo shipping with official labels, e-invoice upload, order cancellation with automatic customer refunds, product creation (published after Novagross approval), quick price and stock edits, Q&A and review replies, earnings with commission and withholding breakdown, and return tracking. A seller account opened at seller.novagross.com is required.",
+        "keywords": [
+          "seller",
+          "store",
+          "marketplace",
+          "orders",
+          "shipping",
+          "novagross"
+        ],
+        "releaseNotes": "First release."
+      }
+    },
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": false,
+      "parentalControls": false,
+      "userGeneratedContent": false
+    },
+    "copyright": "2026 TEKNOVA TARIM HAYVANCILIK BİLİŞİM REKLAM LTD. ŞTİ.",
+    "categories": [
+      "BUSINESS",
+      "PRODUCTIVITY"
+    ],
+    "review": {
+      "firstName": "Öner",
+      "lastName": "Özbey",
+      "phone": "+90 850 850 20 20",
+      "email": "bilgi@teknovagroup.com",
+      "demoRequired": true,
+      "notes": "Uygulama yalnızca Novagross'ta mağazası olan satıcılar içindir. Girişten sonra hesabın e-posta adresine 6 haneli doğrulama kodu gönderilir.\nThe app is for registered Novagross sellers only. After sign-in a 6-digit verification code is sent to the account's e-mail address."
+    }
+  }
+}

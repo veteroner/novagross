@@ -40,10 +40,12 @@ export function ProductTile({ p, width }: { p: Card; width: number }) {
   )
 }
 
-/** İki sütunlu ürün ızgarası (ScrollView içinde) */
+/** Ürün ızgarası (ScrollView içinde), ekran genişliğine göre 2–4 sütun */
 export function ProductGrid({ items }: { items: Card[] }) {
   const { width } = useWindowDimensions()
-  const tile = (width - space(4) * 2 - space(3)) / 2
+  // Telefon 2, küçük tablet 3, büyük tablet 4 sütun
+  const cols = width >= 900 ? 4 : width >= 600 ? 3 : 2
+  const tile = Math.floor((width - space(4) * 2 - space(3) * (cols - 1)) / cols)
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(3) }}>
       {items.map((p) => (

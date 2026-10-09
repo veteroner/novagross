@@ -1,0 +1,91 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0",
+    "release": {
+      "automaticRelease": true
+    },
+    "info": {
+      "tr": {
+        "marketingUrl": "https://novagross.com",
+        "supportUrl": "https://novagross.com/iletisim",
+        "privacyPolicyUrl": "https://novagross.com/gizlilik-politikasi",
+        "title": "Novagross",
+        "subtitle": "Alışverişin Yeni Adresi",
+        "promoText": "Yüzlerce üründe güvenli ödeme, hızlı kargo ve anlık sipariş bildirimleri.",
+        "description": "Novagross, güvenilir satıcıların ürünlerini tek uygulamada buluşturan çok satıcılı alışveriş platformudur.\n\n• Kategorilere göz atın, arayın, fiyata göre sıralayın\n• Favorilerinizi ve sepetinizi web sitesiyle senkron tutun\n• iyzico güvencesiyle 3D Secure kartla ödeyin; kart bilgileriniz Novagross'ta saklanmaz\n• Siparişinizi MNG Kargo ile adım adım takip edin\n• Faturanızı uygulamadan açın ve paylaşın\n• 14 gün içinde uygulamadan iade talebi oluşturun; iptal edilen siparişlerde ödemeniz otomatik iade edilir\n• Sipariş, kargo ve iade gelişmelerinden anlık bildirimle haberdar olun\n• Kampanya bildirimleri yalnızca siz açarsanız gönderilir\n\nÜrünleri üye olmadan inceleyebilir, sipariş için ücretsiz hesap oluşturabilirsiniz. Hesabınızı dilediğiniz zaman uygulama içinden silebilirsiniz.",
+        "keywords": [
+          "alışveriş",
+          "pazaryeri",
+          "indirim",
+          "kampanya",
+          "kargo takip",
+          "sipariş",
+          "e-ticaret",
+          "novagross",
+          "aksesuar"
+        ],
+        "releaseNotes": "İlk sürüm."
+      },
+      "en-US": {
+        "marketingUrl": "https://novagross.com",
+        "supportUrl": "https://novagross.com/iletisim",
+        "privacyPolicyUrl": "https://novagross.com/gizlilik-politikasi",
+        "title": "Novagross",
+        "subtitle": "Shop from trusted sellers",
+        "description": "Novagross is a multi-seller marketplace from Türkiye. Browse categories, keep your cart and favourites in sync with novagross.com, pay securely by card with iyzico 3D Secure, track your MNG Kargo shipment, open your invoice, request returns within 14 days and get instant notifications about your orders. Cancelled orders are refunded automatically. Marketing notifications are sent only if you opt in, and you can delete your account in the app at any time.",
+        "keywords": [
+          "shopping",
+          "marketplace",
+          "turkey",
+          "deals",
+          "order tracking",
+          "novagross"
+        ],
+        "releaseNotes": "First release."
+      }
+    },
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": false,
+      "parentalControls": false,
+      "userGeneratedContent": true
+    },
+    "copyright": "2026 TEKNOVA TARIM HAYVANCILIK BİLİŞİM REKLAM LTD. ŞTİ.",
+    "categories": [
+      "SHOPPING",
+      "LIFESTYLE"
+    ],
+    "review": {
+      "firstName": "Öner",
+      "lastName": "Özbey",
+      "phone": "+90 850 850 20 20",
+      "email": "bilgi@teknovagroup.com",
+      "demoRequired": true,
+      "notes": "Ürünleri girişsiz gezebilirsiniz. Sepet, ödeme ve hesap için demo hesabı kullanın.\nÖdeme iyzico'nun güvenli ödeme sayfasında (WebView) yapılır; gerçek kart gerektirdiği için incelemede ödeme adımına kadar ilerlemeniz yeterlidir.\nHesap silme: Hesabım > Hesabımı sil.\nBrowsing works without login. Use the demo account for cart, checkout and account features. Payment is handled by iyzico's hosted page; a real card is required, so please stop at the payment page. Account deletion: Hesabım > Hesabımı sil."
+    }
+  }
+}

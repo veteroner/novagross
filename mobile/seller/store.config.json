@@ -26,7 +26,23 @@
           "stok",
           "novagross"
         ],
-        "releaseNotes": "İlk sürüm."
+        "releaseNotes": "İlk sürüm.",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "./store-assets/ios/iphone/01-bugun.png",
+            "./store-assets/ios/iphone/02-urunler.png",
+            "./store-assets/ios/iphone/03-daha.png",
+            "./store-assets/ios/iphone/04-kazanclarim.png",
+            "./store-assets/ios/iphone/05-yeni-urun.png"
+          ],
+          "APP_IPAD_PRO_3GEN_129": [
+            "./store-assets/ios/ipad/01-bugun.png",
+            "./store-assets/ios/ipad/02-urunler.png",
+            "./store-assets/ios/ipad/03-daha.png",
+            "./store-assets/ios/ipad/04-kazanclarim.png",
+            "./store-assets/ios/ipad/05-yeni-urun.png"
+          ]
+        }
       },
       "en-US": {
         "marketingUrl": "https://novagross.com",
@@ -43,7 +59,23 @@
           "shipping",
           "novagross"
         ],
-        "releaseNotes": "First release."
+        "releaseNotes": "First release.",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "./store-assets/ios/iphone/01-bugun.png",
+            "./store-assets/ios/iphone/02-urunler.png",
+            "./store-assets/ios/iphone/03-daha.png",
+            "./store-assets/ios/iphone/04-kazanclarim.png",
+            "./store-assets/ios/iphone/05-yeni-urun.png"
+          ],
+          "APP_IPAD_PRO_3GEN_129": [
+            "./store-assets/ios/ipad/01-bugun.png",
+            "./store-assets/ios/ipad/02-urunler.png",
+            "./store-assets/ios/ipad/03-daha.png",
+            "./store-assets/ios/ipad/04-kazanclarim.png",
+            "./store-assets/ios/ipad/05-yeni-urun.png"
+          ]
+        }
       }
     },
     "advisory": {
@@ -86,7 +118,7 @@
       "phone": "+90 850 850 20 20",
       "email": "bilgi@teknovagroup.com",
       "demoRequired": true,
-      "notes": "Uygulama yalnızca Novagross'ta mağazası olan satıcılar içindir. Girişten sonra hesabın e-posta adresine 6 haneli doğrulama kodu gönderilir.\nThe app is for registered Novagross sellers only. After sign-in a 6-digit verification code is sent to the account's e-mail address."
+      "notes": "Demo hesap (giriş bilgileri bu formdaki kullanıcı adı/parola alanlarında): yalnızca App Review için hazırlanmış, gerçek mağaza/müşteri/sipariş/ödeme verisine erişimi olmayan izole \"App Review Demo Mağaza\" sahibidir. Bu hesap inceleme süresince sınırlı süre (30 gün) e-posta doğrulama kodundan muaftır; girişten sonra kod istenmez. Diğer tüm satıcı hesaplarında girişte e-postaya 6 haneli doğrulama kodu gönderilir. Örnek ürünler yayında değildir (satışta değil). Yeni ürün eklemek admin onayına düşer.\nDemo account (credentials in the sign-in fields of this form): owner of an isolated \"App Review Demo Mağaza\" store created only for App Review, with no access to real stores, customers, orders or payments. For the review period it is exempt from the e-mail verification code for a limited time (30 days), so no code is requested after sign-in. All other seller accounts receive a 6-digit e-mail code at sign-in. Sample products are not on sale; new products go to admin approval."
     }
   }
 }

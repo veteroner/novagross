@@ -43,7 +43,7 @@ async function expoPost(url: string, body: unknown): Promise<any> {
   return json
 }
 
-type Msg = { outboxId: string; token: string; payload: Record<string, any> }
+type Msg = { outboxId: string; app: string; token: string; payload: Record<string, any> }
 
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       for (const token of tokens) {
         messages.push({
           outboxId: n.id,
+          app: n.app,
           token,
           payload: {
             to: token,
@@ -108,8 +109,16 @@ export async function POST(req: NextRequest) {
     const results = new Map<string, { tickets: { id: string; token: string }[]; errors: string[] }>()
     const disableTokens = new Set<string>()
 
-    for (let i = 0; i < messages.length; i += CHUNK) {
-      const chunk = messages.slice(i, i + CHUNK)
+    // Expo bir istekte yalnızca TEK projenin token'larını kabul ediyor
+    // (PUSH_TOO_MANY_EXPERIENCE_IDS → tüm paket reddedilir). Satıcı ve müşteri
+    // uygulamaları ayrı EAS projeleri → paketleri uygulamaya göre ayır.
+    const chunks: Msg[][] = []
+    for (const app of Array.from(new Set(messages.map((m) => m.app)))) {
+      const group = messages.filter((m) => m.app === app)
+      for (let i = 0; i < group.length; i += CHUNK) chunks.push(group.slice(i, i + CHUNK))
+    }
+
+    for (const chunk of chunks) {
       try {
         const res = await expoPost(EXPO_SEND, chunk.map((m) => m.payload))
         const tickets: any[] = res?.data ?? []

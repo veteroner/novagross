@@ -25,7 +25,22 @@
           "novagross",
           "aksesuar"
         ],
-        "releaseNotes": "İlk sürüm."
+        "releaseNotes": "İlk sürüm.",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "./store-assets/ios/iphone/01-home.png",
+            "./store-assets/ios/iphone/02-kesfet.png",
+            "./store-assets/ios/iphone/03-kategori.png",
+            "./store-assets/ios/iphone/04-urun.png",
+            "./store-assets/ios/iphone/05-arama.png"
+          ],
+          "APP_IPAD_PRO_3GEN_129": [
+            "./store-assets/ios/ipad/01-home.png",
+            "./store-assets/ios/ipad/02-kesfet.png",
+            "./store-assets/ios/ipad/03-kategori.png",
+            "./store-assets/ios/ipad/04-urun.png"
+          ]
+        }
       },
       "en-US": {
         "marketingUrl": "https://novagross.com",
@@ -42,7 +57,22 @@
           "order tracking",
           "novagross"
         ],
-        "releaseNotes": "First release."
+        "releaseNotes": "First release.",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "./store-assets/ios/iphone/01-home.png",
+            "./store-assets/ios/iphone/02-kesfet.png",
+            "./store-assets/ios/iphone/03-kategori.png",
+            "./store-assets/ios/iphone/04-urun.png",
+            "./store-assets/ios/iphone/05-arama.png"
+          ],
+          "APP_IPAD_PRO_3GEN_129": [
+            "./store-assets/ios/ipad/01-home.png",
+            "./store-assets/ios/ipad/02-kesfet.png",
+            "./store-assets/ios/ipad/03-kategori.png",
+            "./store-assets/ios/ipad/04-urun.png"
+          ]
+        }
       }
     },
     "advisory": {

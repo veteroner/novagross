@@ -12,23 +12,30 @@ export function isTwoFactorEnabled(): boolean {
 
 /**
  * Mağaza incelemesi (Apple App Review / Google Play) demo hesabı için SÜRELİ muafiyet.
- * İnceleme ekibi e-postaya gelen kodu alamaz. Yalnızca:
- *  - TWO_FACTOR_EXEMPT_EMAILS (virgülle) listesindeki e-postalar ve
- *  - TWO_FACTOR_EXEMPT_UNTIL (ISO tarih) geçmemişse
- * muaf tutulur. Tarih yoksa veya geçmişse muafiyet YOKTUR (varsayılan kapalı).
- * Yalnızca gerçek veriden yalıtılmış demo mağaza hesapları buraya yazılmalı.
+ * İnceleme ekibi e-postaya gelen kodu alamaz. Muafiyet kullanıcı KİMLİĞİNE bağlı ve
+ * bitiş tarihli: public.review_access_exemptions (two_factor = true, revoked_at yok,
+ * expires_at > now). Tabloyu yalnızca service role okur; satır yoksa muafiyet YOK.
+ * Süresi dolan satırları expire_review_access_exemptions() (pg_cron, saatlik) kapatır.
  */
-export function isTwoFactorExempt(email: string | null | undefined): boolean {
-  if (!email) return false
-  const until = Date.parse(process.env.TWO_FACTOR_EXEMPT_UNTIL || '')
-  if (!Number.isFinite(until) || Date.now() > until) return false
-  const list = (process.env.TWO_FACTOR_EXEMPT_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-  const exempt = list.includes(email.toLowerCase())
-  if (exempt) console.warn('[2fa] inceleme demo muafiyeti kullanıldı:', email, 'bitiş:', new Date(until).toISOString())
-  return exempt
+export async function isTwoFactorExempt(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const { createServiceRoleClient } = await import('@/lib/supabase/service')
+    const db: any = createServiceRoleClient()
+    const { data } = await db
+      .from('review_access_exemptions')
+      .select('expires_at')
+      .eq('user_id', userId)
+      .eq('two_factor', true)
+      .is('revoked_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle()
+    if (data) console.warn('[2fa] inceleme demo muafiyeti kullanıldı:', userId, 'bitiş:', data.expires_at)
+    return !!data
+  } catch (e) {
+    console.error('[2fa] muafiyet kontrolü başarısız — 2FA uygulanıyor', e)
+    return false
+  }
 }
 
 function signingSecret(): string {

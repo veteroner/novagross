@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Oturum bulunamadı.' }, { status: 401 })
-  if (isTwoFactorExempt(user.email)) return NextResponse.json({ ok: true, skipped: true })
+  if (await isTwoFactorExempt(user.id)) return NextResponse.json({ ok: true, skipped: true })
 
   const db = createServiceRoleClient()
   const { data: row } = await (db as any)

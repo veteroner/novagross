@@ -15,7 +15,7 @@ export async function POST() {
   if (!user || !user.email) {
     return NextResponse.json({ error: 'Oturum bulunamadı.' }, { status: 401 })
   }
-  if (isTwoFactorExempt(user.email)) return NextResponse.json({ skipped: true })
+  if (await isTwoFactorExempt(user.id)) return NextResponse.json({ skipped: true })
 
   const db = createServiceRoleClient()
 

@@ -65,7 +65,7 @@ export async function requireSeller(redirectTo: string = '/'): Promise<SellerRes
   }
 
   // 2FA zorunluluğu (kill-switch ile kontrol edilir)
-  if (isTwoFactorEnabled() && !isTwoFactorExempt(user.email)) {
+  if (isTwoFactorEnabled() && !(await isTwoFactorExempt(user.id))) {
     const cookieStore = await cookies()
     const token = cookieStore.get(TWO_FA_COOKIE)?.value
     if (!verifyToken(token, user.id)) {

@@ -10,6 +10,27 @@ export function isTwoFactorEnabled(): boolean {
   return process.env.TWO_FACTOR_ENABLED === 'true'
 }
 
+/**
+ * Mağaza incelemesi (Apple App Review / Google Play) demo hesabı için SÜRELİ muafiyet.
+ * İnceleme ekibi e-postaya gelen kodu alamaz. Yalnızca:
+ *  - TWO_FACTOR_EXEMPT_EMAILS (virgülle) listesindeki e-postalar ve
+ *  - TWO_FACTOR_EXEMPT_UNTIL (ISO tarih) geçmemişse
+ * muaf tutulur. Tarih yoksa veya geçmişse muafiyet YOKTUR (varsayılan kapalı).
+ * Yalnızca gerçek veriden yalıtılmış demo mağaza hesapları buraya yazılmalı.
+ */
+export function isTwoFactorExempt(email: string | null | undefined): boolean {
+  if (!email) return false
+  const until = Date.parse(process.env.TWO_FACTOR_EXEMPT_UNTIL || '')
+  if (!Number.isFinite(until) || Date.now() > until) return false
+  const list = (process.env.TWO_FACTOR_EXEMPT_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  const exempt = list.includes(email.toLowerCase())
+  if (exempt) console.warn('[2fa] inceleme demo muafiyeti kullanıldı:', email, 'bitiş:', new Date(until).toISOString())
+  return exempt
+}
+
 function signingSecret(): string {
   return (
     process.env.OTP_SIGNING_SECRET ||

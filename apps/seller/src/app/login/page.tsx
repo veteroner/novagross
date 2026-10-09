@@ -48,11 +48,11 @@ function LoginForm() {
   const sendCode = useCallback(async () => {
     setInfo(null)
     const res = await fetch('/api/2fa/send', { method: 'POST' })
+    const d = await res.json().catch(() => ({}))
+    if (res.ok && d?.skipped) return true // inceleme demo hesabı (süreli muafiyet)
     if (res.ok) setInfo('Doğrulama kodu e-postanıza gönderildi.')
-    else {
-      const d = await res.json().catch(() => ({}))
-      setError(d?.error || 'Kod gönderilemedi.')
-    }
+    else setError(d?.error || 'Kod gönderilemedi.')
+    return false
   }, [])
 
   useEffect(() => {
@@ -62,7 +62,7 @@ function LoginForm() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setStep('otp')
-        await sendCode()
+        if (await sendCode()) finish()
       }
     })()
   }, [searchParams, supabase, sendCode])
@@ -100,7 +100,7 @@ function LoginForm() {
 
       if (TWO_FA_ENABLED) {
         setStep('otp')
-        await sendCode()
+        if (await sendCode()) finish()
       } else {
         finish()
       }

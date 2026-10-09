@@ -67,7 +67,7 @@ export function useOrderDetail(id: string) {
       const [{ data: order, error }, { data: shipments }, { data: invoices }] = await Promise.all([
         supabase
           .from('orders')
-          .select('id, order_number, status, payment_status, subtotal, shipping_cost, discount_amount, total, created_at, delivered_at, shipping_address, order_items(id, name, quantity, price, total, product_id)')
+          .select('id, order_number, status, payment_status, subtotal, shipping_cost, discount_amount, total, created_at, delivered_at, shipping_address, refund_amount, refund_status, order_items(id, name, quantity, price, total, product_id)')
           .eq('id', id)
           .maybeSingle(),
         supabase

@@ -69,6 +69,11 @@ export default function OrderDetail() {
           <Badge label={ORDER_STATUS[o.status] ?? o.status} tone={orderStatusTone(o.status)} />
         </View>
         <Muted>{fmtDate(o.created_at, true)}</Muted>
+        {o.payment_status === 'refunded' ? (
+          <Badge label={`Ödemeniz iade edildi${o.refund_amount ? ` · ${fmtTRY(o.refund_amount)}` : ''}`} tone="success" />
+        ) : o.status === 'cancelled' && o.payment_status === 'paid' ? (
+          <Muted>Ödemeniz kartınıza iade ediliyor; birkaç dakika içinde onaylanır.</Muted>
+        ) : null}
       </Card>
 
       {data!.shipments.map((s) => (

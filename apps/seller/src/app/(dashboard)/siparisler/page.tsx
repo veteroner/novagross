@@ -144,6 +144,31 @@ export default function SellerOrders() {
     }
   }
 
+  // Kargolanmamış siparişi iptal — ödenmişse müşteriye iyzico iadesi otomatik yapılır
+  // (DB trigger → admin process-refunds cron, ~2 dk).
+  const cancelOrderAction = async (orderId: string) => {
+    const reason = window.prompt(
+      'Sipariş iptal edilecek ve müşterinin ödemesi otomatik olarak kartına iade edilecek.\n\nİptal gerekçesi:'
+    )
+    if (reason === null) return
+    try {
+      setShippingSubmittingForOrderId(orderId)
+      const res = await fetch(`/api/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'Satıcı iptali' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Sipariş iptal edilemedi')
+      await fetchOrders()
+      alert(data.refundQueued ? 'Sipariş iptal edildi. Müşteriye iade birkaç dakika içinde yapılacak.' : 'Sipariş iptal edildi.')
+    } catch (e: any) {
+      alert(e?.message || 'Sipariş iptal edilemedi')
+    } finally {
+      setShippingSubmittingForOrderId(null)
+    }
+  }
+
   const createShipment = async (orderId: string) => {
     try {
       if (!shippingForm.carrierId || !shippingForm.methodId) {
@@ -335,7 +360,7 @@ export default function SellerOrders() {
   }
 
   const cancelShipmentAction = async (orderId: string) => {
-    const reason = window.prompt('İptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
+    const reason = window.prompt('Kargo ve sipariş iptal edilecek; müşterinin ödemesi otomatik olarak kartına iade edilecek.\n\nİptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
     if (reason === null) return // vazgeçildi
     try {
       setShippingSubmittingForOrderId(orderId)
@@ -371,7 +396,7 @@ export default function SellerOrders() {
 
       setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
       await fetchOrders()
-      alert('Kargo iptal edildi.')
+      alert('Kargo ve sipariş iptal edildi. Müşteriye iade birkaç dakika içinde yapılacak.')
     } catch (e: any) {
       alert(e?.message || 'İptal edilemedi')
     } finally {
@@ -719,7 +744,12 @@ export default function SellerOrders() {
                     <Button onClick={() => updateOrderStatus(orderItem.order.id, 'processing')} className="flex-1">
                       Hazırlanıyor Olarak İşaretle
                     </Button>
-                    <Button variant="outline" onClick={() => updateOrderStatus(orderItem.order.id, 'cancelled')} className="text-red-600">
+                    <Button
+                      variant="outline"
+                      onClick={() => cancelOrderAction(orderItem.order.id)}
+                      disabled={shippingSubmittingForOrderId === orderItem.order.id}
+                      className="text-red-600"
+                    >
                       İptal Et
                     </Button>
                   </div>
@@ -738,6 +768,14 @@ export default function SellerOrders() {
                       disabled={shippingSubmittingForOrderId === orderItem.order.id}
                     >
                       Kargo Oluştur
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => cancelOrderAction(orderItem.order.id)}
+                      disabled={shippingSubmittingForOrderId === orderItem.order.id}
+                      className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                    >
+                      Siparişi İptal Et
                     </Button>
 
                     {shippingFormOpenForOrderId === orderItem.order.id && (

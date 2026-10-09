@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   const { data: orders, error } = await service
     .from('orders')
     .select(`
-      id, order_number, created_at, delivered_at, status,
+      id, order_number, created_at, delivered_at, status, refund_status,
       iyzico_shipping_transaction_id, iyzico_shipping_sub_merchant_key,
       iyzico_shipping_seller_amount, iyzico_shipping_approval_status,
       iyzico_cargo_deducted_at,
@@ -95,6 +95,12 @@ export async function POST(req: NextRequest) {
 
   for (const order of orders as any[]) {
     const orderNo = order.order_number || order.id
+
+    // İptal/iade sürecindeki sipariş asla satıcıya onaylanmaz
+    if (['cancelled', 'refunded'].includes(order.status) || order.refund_status) {
+      skipped.push({ order: orderNo, reason: 'iptal / iade süreci' })
+      continue
+    }
 
     // 1. İade süresi / açık iade
     const deliveredAt = order.delivered_at ? new Date(order.delivered_at).getTime() : null

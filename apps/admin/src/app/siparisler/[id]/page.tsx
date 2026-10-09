@@ -4,6 +4,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } f
 import { formatPrice } from '@novagross/utils'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { IyzicoApprovalCard } from '@/components/admin/IyzicoApprovalCard'
+import { RefundCard } from './refund-card'
 
 type OrderItemRow = {
   id: string
@@ -45,9 +46,9 @@ export default async function AdminOrderDetailPage({
   const { supabase } = await requireAdmin(`/siparisler/${id}`)
 
   const [{ data: order, error: orderError }, { data: items, error: itemsError }] = await Promise.all([
-    supabase
+    (supabase as any)
       .from('orders')
-      .select('id, order_number, status, payment_status, total, created_at, user_id, shipping_address')
+      .select('id, order_number, status, payment_status, total, created_at, user_id, shipping_address, refund_status, refund_method, refund_amount, refunded_at, refund_error, refund_attempts, refund_last_attempt_at')
       .eq('id', id)
       .maybeSingle(),
     supabase
@@ -125,7 +126,7 @@ export default async function AdminOrderDetailPage({
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Ödeme Durumu</span>
               <Badge variant={order.payment_status === 'paid' ? 'default' : 'secondary'}>
-                {order.payment_status === 'paid' ? 'Ödendi' : (order.payment_status ?? 'Bekliyor')}
+                {order.payment_status === 'paid' ? 'Ödendi' : order.payment_status === 'refunded' ? 'İade edildi' : (order.payment_status ?? 'Bekliyor')}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
@@ -171,6 +172,19 @@ export default async function AdminOrderDetailPage({
       </div>
 
       {/* iyzico Pazaryeri Onay Kartı */}
+      {(order as any).refund_status ? (
+        <RefundCard
+          orderId={order.id as string}
+          refundStatus={(order as any).refund_status}
+          refundMethod={(order as any).refund_method ?? null}
+          refundAmount={(order as any).refund_amount == null ? null : Number((order as any).refund_amount)}
+          refundedAt={(order as any).refunded_at ?? null}
+          refundError={(order as any).refund_error ?? null}
+          attempts={Number((order as any).refund_attempts ?? 0)}
+          lastAttemptAt={(order as any).refund_last_attempt_at ?? null}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -76,6 +76,50 @@ export default function OrderDetail() {
       },
     ])
 
+  // İptal: kargolanmışsa önce MNG kargo iptali (DELETE shipment, siparişi de iptal eder),
+  // değilse sipariş iptali. Ödenmiş siparişte müşteriye iyzico iadesi otomatik yapılır.
+  const activeShipment =
+    o.shipment && o.shipment.tracking_number && !['failed', 'returned', 'delivered'].includes(o.shipment.status)
+  const canCancel = !['cancelled', 'refunded', 'delivered'].includes(o.status) && o.shipment?.status !== 'delivered'
+
+  const doCancel = async (force = false) => {
+    setBusy('cancel')
+    try {
+      if (activeShipment) {
+        await sellerApi(`/api/orders/${o.id}/shipment`, { method: 'DELETE', body: { reason: 'Satıcı iptali', force } })
+      } else {
+        await sellerApi(`/api/orders/${o.id}/cancel`, { method: 'POST', body: { reason: 'Satıcı iptali' } })
+      }
+      await refresh()
+      Alert.alert('Sipariş iptal edildi', 'Müşterinin ödemesi birkaç dakika içinde kartına iade edilecek.')
+    } catch (e: any) {
+      if (activeShipment && !force && e?.status === 502) {
+        Alert.alert(
+          'MNG iptali reddetti',
+          `${e.message}\n\nGönderiyi MNG ile telefon/şube üzerinden durdurduysanız sistemde yine de iptal edebiliriz.`,
+          [
+            { text: 'Vazgeç', style: 'cancel' },
+            { text: 'Durdurdum, iptal et', style: 'destructive', onPress: () => doCancel(true) },
+          ]
+        )
+      } else {
+        Alert.alert('İptal edilemedi', e.message)
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const cancel = () =>
+    Alert.alert(
+      'Sipariş iptal edilsin mi?',
+      `${activeShipment ? 'MNG gönderisi iptal edilecek. ' : ''}Müşterinin ödemesi otomatik olarak kartına iade edilir. Bu işlem geri alınamaz.`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Siparişi iptal et', style: 'destructive', onPress: () => doCancel(false) },
+      ]
+    )
+
   const label = async (mode: 'print' | 'share') => {
     setBusy('label')
     try {
@@ -196,6 +240,7 @@ export default function OrderDetail() {
           />
         </Card>
       ) : null}
+      {canCancel ? <Button title="Siparişi iptal et" variant="danger" onPress={cancel} loading={busy === 'cancel'} /> : null}
     </Screen>
   )
 }

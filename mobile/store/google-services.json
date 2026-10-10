@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "260784126791",
+    "project_id": "novagross-68344",
+    "storage_bucket": "novagross-68344.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260784126791:android:6f0f87790465d53b182a62",
+        "android_client_info": {
+          "package_name": "com.novagross.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjm86BOykYFiczulhMjzAiCLBBquOMA4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260784126791:android:929bf7705b0deb71182a62",
+        "android_client_info": {
+          "package_name": "com.novagross.seller"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjm86BOykYFiczulhMjzAiCLBBquOMA4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

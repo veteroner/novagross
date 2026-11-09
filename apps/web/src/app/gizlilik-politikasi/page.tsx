@@ -32,6 +32,11 @@ export default function GizlilikPolitikasiPage() {
       <h1 className="text-4xl font-bold mb-8">Gizlilik Politikası</h1>
       
       <div className="prose prose-slate max-w-none space-y-6">
+        <section id="bilgoo-kampanyasi">
+          <h2 className="text-2xl font-semibold mb-4">Bilgoo iş birliği kampanyası</h2>
+          <p>NovaGross, indirim uygunluğunu kontrol etmek ve kampanyayı yürütmek için NovaGross hesap ve sipariş kimliğini, ilk sipariş durumunu, sepet tutarını ve ödeme sonucunu işler. Ödeme, mevcut iyzico altyapısıyla yürütülür.</p>
+          <p>NovaGross kampanya için Bilgoo oyuncu listesi, kullanıcı adı veya puan tablosu almaz. Bilgoo oyun bildirimleri NovaGross pazarlama izni olarak kullanılmaz.</p>
+        </section>
         <section>
           <h2 className="text-2xl font-semibold mb-4">1. Kişisel Verilerin Korunması</h2>
           <p className="text-muted-foreground">

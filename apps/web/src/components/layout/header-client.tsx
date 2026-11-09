@@ -135,7 +135,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-20 md:h-24 items-center justify-between">
-        <Link href="/" className="flex items-center" aria-label="Novagross Ana Sayfa">
+        <Link href="/" className="flex min-w-0 items-center" aria-label="Novagross Ana Sayfa">
           <Image
             src="/logo.webp"
             alt="Novagross"
@@ -143,7 +143,7 @@ export function Header() {
             height={160}
             priority
             unoptimized
-            className="h-40 md:h-48 w-auto max-w-[70vw]"
+            className="h-40 w-auto max-w-full object-contain md:h-48 md:max-w-[70vw]"
           />
         </Link>
 
@@ -178,7 +178,7 @@ export function Header() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link href="/favoriler" className="hidden sm:block" aria-label={favoritesAriaLabel}>
             <Button variant="ghost" size="icon" className="relative">
               <Heart className="h-5 w-5" />

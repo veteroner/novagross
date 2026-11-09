@@ -119,7 +119,7 @@ export function Footer() {
           </p>
           <div className="flex flex-col md:flex-row items-center gap-4">
             <span className="text-sm text-muted-foreground" aria-label="Güvenli ödeme seçenekleri">Güvenli Ödeme:</span>
-            <div className="flex gap-3 items-center" role="list" aria-label="Kabul edilen ödeme yöntemleri">
+            <div className="flex max-w-full flex-wrap items-center justify-center gap-3" role="list" aria-label="Kabul edilen ödeme yöntemleri">
               <Image 
                 src="/images/payment/visa.png" 
                 alt="Visa kartı kabul edilir" 
@@ -148,7 +148,7 @@ export function Footer() {
                 alt="iyzico ile güvenli ödeme" 
                 width={120} 
                 height={30} 
-                className="h-7 w-auto object-contain"
+                className="h-7 w-auto max-w-full object-contain"
                 role="listitem"
               />
             </div>

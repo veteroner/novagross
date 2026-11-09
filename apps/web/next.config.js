@@ -62,6 +62,10 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/kampanyalar/bilgoo',
+        headers: [{ key: 'X-NovaGross-Campaign', value: 'bilgoo' }],
+      },
+      {
         // X-Robots-Tag: noindex for non-page assets to prevent Google from trying to index them
         source: '/favicon.ico',
         headers: [

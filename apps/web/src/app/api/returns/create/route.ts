@@ -15,6 +15,17 @@ const REASON_CATEGORIES = [
   'other',
 ] as const
 
+// Klavye/yapıştırmadan gelen nesne yer tutucusu (U+FFFC), sıfır genişlikli ve kontrol
+// karakterlerini temizle (ör. "Ürünü almaktan vazgeçtim ￼").
+function sanitizeText(v: unknown): string {
+  if (typeof v !== 'string') return ''
+  return v
+    .replace(/[\uFFFC\uFFFD\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
@@ -27,7 +38,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { orderId, orderItemId, quantity, reasonCategory, reason, customerNote } = body
+    const { orderId, orderItemId, quantity, reasonCategory } = body
+    const reason = sanitizeText(body.reason)
+    const customerNote = sanitizeText(body.customerNote)
 
     // Doğrulama
     if (!orderId || !orderItemId) {
@@ -55,9 +68,9 @@ export async function POST(req: NextRequest) {
         order_item_id: orderItemId,
         user_id: user.id,
         quantity,
-        reason: reason.trim(),
+        reason,
         reason_category: reasonCategory,
-        customer_note: customerNote?.trim() || null,
+        customer_note: customerNote || null,
       })
       .select('id, refund_amount, store_id')
       .single()

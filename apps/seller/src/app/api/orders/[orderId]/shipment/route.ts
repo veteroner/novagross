@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { cargoService, type CargoProvider } from '@novagross/cargo'
 import { assertSellerOwnsOrder } from '@/lib/order-ownership'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 export const runtime = 'nodejs'
 // POST artık Standard Command deneyip başarısız olursa Plus Command'a düşüyor
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
             { status: 422 }
           )
         }
-        if (!ship.address_line1 || !ship.city) {
+        if (!fullAddressLine(ship) || !ship.city) {
           return NextResponse.json({ error: 'Sipariş teslimat adresi eksik.' }, { status: 422 })
         }
 
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
           senderPhone: store.phone || '',
 
           receiverName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
-          receiverAddress: ship.address_line1,
+          receiverAddress: fullAddressLine(ship),
           receiverCity: ship.city,
           receiverDistrict: ship.district || '',
           receiverPhone: ship.phone || '',

@@ -6,20 +6,26 @@ import { Card, CardContent, Badge, Button, Input } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
 import { MapPin, Plus, Edit, Trash2, X, Check, Loader2 } from 'lucide-react'
 import { AddressPicker, EMPTY_ADDRESS, type AddressValue } from '@/components/address/address-picker'
+import {
+  composeAddressLines,
+  toAddressMetadata,
+  fromAddressRow,
+  fullAddressLine,
+  type StructuredAddress,
+} from '@novagross/cargo/address'
 
-// AddressPicker (yapısal) → addresses tablosu (address_line1/line2) eşlemesi
-function composeAddressLines(a: AddressValue) {
-  const line1 = [
-    a.neighborhood ? `${a.neighborhood} Mah.` : '',
-    a.address,
-    a.building_no ? `No: ${a.building_no}` : '',
-  ].filter(Boolean).join(' ').trim()
-  const line2 = [
-    a.floor ? `Kat: ${a.floor}` : '',
-    a.apartment_no ? `Daire: ${a.apartment_no}` : '',
-    a.description,
-  ].filter(Boolean).join(' ').trim()
-  return { line1, line2 }
+// AddressPicker (yapısal) ↔ addresses tablosu: tek format, metadata = doğruluk kaynağı
+function toStructured(a: AddressValue): StructuredAddress {
+  return {
+    neighborhood: a.neighborhood,
+    street: a.address,
+    building_no: a.building_no,
+    floor: a.floor,
+    apartment_no: a.apartment_no,
+    description: a.description,
+    latitude: a.latitude ?? null,
+    longitude: a.longitude ?? null,
+  }
 }
 
 interface Address {
@@ -35,6 +41,7 @@ interface Address {
   postal_code: string | null
   is_default: boolean | null
   address_type: string | null
+  metadata?: Record<string, any> | null
 }
 
 const EMPTY_FORM = {
@@ -114,14 +121,21 @@ export default function AddressesPage() {
       is_default: address.is_default || false,
       address_type: address.address_type || 'both',
     })
-    // Mevcut kayıt → picker: il/ilçe/posta net; sokak satırı 'address' alanına gelir
+    // Mevcut kayıt → picker: önce metadata, eski kayıtlarda line1/line2 ayrıştırılır
+    const s = fromAddressRow(address)
     setAddressValue({
       ...EMPTY_ADDRESS,
       city: address.city || '',
       district: address.district || '',
-      address: address.address_line1 || '',
-      description: address.address_line2 || '',
+      neighborhood: s.neighborhood,
+      address: s.street,
+      building_no: s.building_no,
+      floor: s.floor,
+      apartment_no: s.apartment_no,
+      description: s.description,
       postal_code: address.postal_code || '',
+      latitude: s.latitude ?? null,
+      longitude: s.longitude ?? null,
     })
     setEditingId(address.id)
     setShowForm(true)
@@ -165,7 +179,8 @@ export default function AddressesPage() {
         return
       }
 
-      const { line1, line2 } = composeAddressLines(addressValue)
+      const structured = toStructured(addressValue)
+      const { address_line1: line1, address_line2: line2 } = composeAddressLines(structured)
       const addressData = {
         user_id: user.id,
         title: formData.title.trim(),
@@ -179,6 +194,7 @@ export default function AddressesPage() {
         postal_code: addressValue.postal_code.trim() || null,
         is_default: formData.is_default,
         address_type: formData.address_type,
+        metadata: toAddressMetadata(structured),
       }
 
       // If setting as default, unset other defaults first
@@ -420,10 +436,7 @@ export default function AddressesPage() {
 
                 <div className="space-y-1 text-sm text-muted-foreground mb-4">
                   <p className="font-medium text-foreground">{address.first_name} {address.last_name}</p>
-                  <p>
-                    {address.address_line1}
-                    {address.address_line2 ? ` ${address.address_line2}` : ''}
-                  </p>
+                  <p>{fullAddressLine(address)}</p>
                   <p>{address.district} / {address.city}</p>
                   {address.postal_code && <p>Posta Kodu: {address.postal_code}</p>}
                   <p>{address.phone}</p>

@@ -5,6 +5,7 @@ import { useAddresses } from '@/lib/account'
 import { supabase } from '@/lib/supabase'
 import { Badge, Button, Card, Empty, Loading, Muted, Screen } from '@/components/ui'
 import { colors, space } from '@/lib/theme'
+import { fullAddressLine } from '@/lib/address-format'
 
 export default function Addresses() {
   const { data, isLoading } = useAddresses()
@@ -37,7 +38,7 @@ export default function Addresses() {
               {a.first_name} {a.last_name} · {a.phone}
             </Text>
             <Muted>
-              {a.address_line1}, {a.district} / {a.city}
+              {fullAddressLine(a)}, {a.district} / {a.city}
             </Muted>
             <View style={{ flexDirection: 'row', gap: space(4) }}>
               <Text style={{ color: colors.primary }} onPress={() => router.push({ pathname: '/adres-yeni', params: { id: a.id } })}>

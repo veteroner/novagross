@@ -126,6 +126,7 @@ export type Database = {
           id: string
           is_default: boolean | null
           last_name: string
+          metadata: Json | null
           phone: string
           postal_code: string | null
           title: string
@@ -144,6 +145,7 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           last_name: string
+          metadata?: Json | null
           phone: string
           postal_code?: string | null
           title: string
@@ -162,6 +164,7 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           last_name?: string
+          metadata?: Json | null
           phone?: string
           postal_code?: string | null
           title?: string

@@ -5,6 +5,7 @@ import { Card } from '@novagross/ui/card'
 import { Badge } from '@novagross/ui/badge'
 import { safeExternalUrl } from '@novagross/utils'
 import { Package, MapPin, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 export const metadata: Metadata = {
   title: 'Kargo Takip',
@@ -119,7 +120,7 @@ export default async function CargoTrackingPage({ params }: PageProps) {
                 {(shipment.order.shipping_address as any).last_name}
               </p>
               <p className="text-gray-600">
-                {(shipment.order.shipping_address as any).address_line1}
+                {fullAddressLine(shipment.order.shipping_address as any)}
               </p>
               <p className="text-gray-600">
                 {(shipment.order.shipping_address as any).district},{' '}

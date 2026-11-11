@@ -1,5 +1,7 @@
 'use client'
 
+import { composeAddressLines, toAddressMetadata, fromAddressRow, fullAddressLine, type StructuredAddress } from '@novagross/cargo/address'
+
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -148,25 +150,37 @@ function CheckoutContent() {
   }, [])
 
   const fillFormFromAddress = (address: SavedAddress) => {
-    const m = ((address as any).metadata || {}) as Record<string, any>
+    // Önce metadata; eski kayıtlarda address_line1/2 ayrıştırılır (her şey "cadde"ye düşmesin)
+    const st = fromAddressRow(address as any)
     setFormData(prev => ({
       ...prev,
       firstName: address.first_name,
       lastName: address.last_name,
       phone: address.phone,
-      address: address.address_line1 || '',
+      address: st.street,
       city: address.city,
       district: address.district,
       postalCode: address.postal_code || '',
-      neighborhood: String(m.neighborhood ?? ''),
-      buildingNo: String(m.building_no ?? ''),
-      floor: String(m.floor ?? ''),
-      apartmentNo: String(m.apartment_no ?? ''),
-      addressDescription: String(m.description ?? address.address_line2 ?? ''),
-      latitude: typeof m.latitude === 'number' ? m.latitude : null,
-      longitude: typeof m.longitude === 'number' ? m.longitude : null,
+      neighborhood: st.neighborhood,
+      buildingNo: st.building_no,
+      floor: st.floor,
+      apartmentNo: st.apartment_no,
+      addressDescription: st.description,
+      latitude: st.latitude ?? null,
+      longitude: st.longitude ?? null,
     }))
   }
+
+  const structuredFromForm = (): StructuredAddress => ({
+    neighborhood: formData.neighborhood,
+    street: formData.address,
+    building_no: formData.buildingNo,
+    floor: formData.floor,
+    apartment_no: formData.apartmentNo,
+    description: formData.addressDescription,
+    latitude: formData.latitude,
+    longitude: formData.longitude,
+  })
 
   const subtotal = getTotalPrice()
   const discountAmount = appliedCoupon?.discountAmount || 0
@@ -263,12 +277,25 @@ function CheckoutContent() {
             phone: formData.phone,
             email: formData.email,
           },
-          shippingAddress: {
-            address: formData.address,
-            city: formData.city,
-            district: formData.district,
-            postalCode: formData.postalCode,
-          },
+          shippingAddress: (() => {
+            const st = structuredFromForm()
+            const lines = composeAddressLines(st)
+            return {
+              address: formData.address,
+              city: formData.city,
+              district: formData.district,
+              postalCode: formData.postalCode,
+              // Yapılandırılmış alanlar → sipariş snapshot'ı / kargo tam adresi
+              address_line1: lines.address_line1,
+              address_line2: lines.address_line2,
+              neighborhood: st.neighborhood,
+              street: st.street,
+              building_no: st.building_no,
+              floor: st.floor,
+              apartment_no: st.apartment_no,
+              description: st.description,
+            }
+          })(),
           totalPrice: afterDiscount,
           shippingCost: shippingCost,
           discountAmount: discountAmount,
@@ -342,30 +369,20 @@ function CheckoutContent() {
               first_name: formData.firstName.trim(),
               last_name: formData.lastName.trim(),
               phone: formData.phone.trim(),
-              // Yapılandırılmış adresi tek satıra formatlayıp address_line1'e yaz
-              address_line1: [
-                formData.address.trim(),
-                formData.buildingNo ? `No: ${formData.buildingNo}` : '',
-                formData.floor ? `K: ${formData.floor}` : '',
-                formData.apartmentNo ? `D: ${formData.apartmentNo}` : '',
-                formData.neighborhood ? `${formData.neighborhood} Mah.` : '',
-              ].filter(Boolean).join(' '),
-              address_line2: formData.addressDescription.trim() || null,
+              // Tek format: line1/line2 yapılandırılmış alanlardan, metadata doğruluk kaynağı
+              ...(() => {
+                const lines = composeAddressLines(structuredFromForm())
+                return {
+                  address_line1: lines.address_line1,
+                  address_line2: lines.address_line2 || null,
+                }
+              })(),
               city: formData.city.trim(),
               district: formData.district.trim(),
               postal_code: formData.postalCode.trim() || null,
               is_default: isFirst,
               address_type: 'both',
-              // Yapılandırılmış alanlar + harita koordinatları metadata'da
-              metadata: {
-                neighborhood: formData.neighborhood || null,
-                building_no: formData.buildingNo || null,
-                floor: formData.floor || null,
-                apartment_no: formData.apartmentNo || null,
-                description: formData.addressDescription || null,
-                latitude: formData.latitude,
-                longitude: formData.longitude,
-              },
+              metadata: toAddressMetadata(structuredFromForm()),
             } as any)
             .select()
             .single()
@@ -504,8 +521,7 @@ function CheckoutContent() {
                               {addr.first_name} {addr.last_name}
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
-                              {addr.address_line1}
-                              {addr.address_line2 && ` ${addr.address_line2}`}
+                              {fullAddressLine(addr as any)}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {addr.district} / {addr.city}

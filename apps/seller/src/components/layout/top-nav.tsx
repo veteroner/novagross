@@ -237,7 +237,7 @@ async function fetchCounters(
     .eq('store_id', storeId)
   const productIds = (productRows ?? []).map((p: any) => p.id)
 
-  const [a, b, c, d, e, f, g, h, i] = await Promise.all([
+  const [a, b, c, d, e, f, g, h, i, j] = await Promise.all([
     productIds.length > 0
       ? (supabase as any)
           .from('reviews')
@@ -288,13 +288,19 @@ async function fetchCounters(
       .select('order_id', { count: 'exact', head: true })
       .eq('store_id', storeId)
       .is('invoice_id', null),
+    // Onay bekleyen iade talepleri (/talepler?tab=iadeler)
+    (supabase as any)
+      .from('return_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .eq('status', 'pending'),
   ])
   return {
     pendingReviews: a.count ?? 0,
     pendingQuestions: b.count ?? 0,
     pendingOrders: c.count ?? 0,
     cartSuggestions: d.count ?? 0,
-    openClaims: e.count ?? 0,
+    openClaims: (e.count ?? 0) + (j.count ?? 0),
     pendingProducts: f.count ?? 0,
     pendingPlatformOffers: g.count ?? 0,
     pendingDeliveryProblems: h.count ?? 0,
@@ -408,7 +414,7 @@ export default function TopNav() {
     { count: counters.pendingDeliveryProblems, label: 'Kargo teslimat sorunu', href: '/siparisler', icon: AlertCircle },
     { count: counters.pendingReviews, label: 'Yanıtsız yorum', href: '/yorumlar', icon: MessageSquare },
     { count: counters.pendingQuestions, label: 'Yanıtsız ürün sorusu', href: '/sorular', icon: HelpCircle },
-    { count: counters.openClaims, label: 'Açık müşteri talebi', href: '/talepler', icon: RefreshCcw },
+    { count: counters.openClaims, label: 'Açık müşteri talebi / iade', href: '/talepler', icon: RefreshCcw },
     { count: counters.pendingProducts, label: 'Aksiyon bekleyen ürün', href: '/urunler/aksiyon-bekleyen', icon: BadgeCheck },
     { count: counters.cartSuggestions, label: 'Sepette bekleyen ürün (fiyat önerisi)', href: '/rota', icon: TrendingUp },
   ].filter((i) => i.count > 0)

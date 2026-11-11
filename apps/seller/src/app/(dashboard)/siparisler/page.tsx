@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { safeExternalUrl } from '@novagross/utils'
 import { code128Svg } from '@/lib/code128'
 import { InvoiceDialog } from './invoice-dialog'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([])
@@ -283,7 +284,7 @@ export default function SellerOrders() {
       String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const ship = orderItem?.order?.shipping_address || {}
     const receiverName = `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || '—'
-    const receiverAddr = [ship.address_line1, ship.district, ship.city].filter(Boolean).join(', ')
+    const receiverAddr = [fullAddressLine(ship) || ship.address, ship.district, ship.city].filter(Boolean).join(', ')
     const receiverPhone = ship.phone || orderItem?.order?.phone || ''
     const senderName = storeInfo?.store_name || 'Novagross Satıcısı'
     const senderAddr = [storeInfo?.address, storeInfo?.district, storeInfo?.city].filter(Boolean).join(', ')
@@ -579,7 +580,7 @@ export default function SellerOrders() {
                     {orderItem.order.shipping_address && (
                       <p>
                         {[
-                          (orderItem.order.shipping_address as any)?.address_line1 || (orderItem.order.shipping_address as any)?.address,
+                          fullAddressLine(orderItem.order.shipping_address as any) || (orderItem.order.shipping_address as any)?.address,
                           (orderItem.order.shipping_address as any)?.district,
                           (orderItem.order.shipping_address as any)?.city,
                         ].filter(Boolean).join(', ')}

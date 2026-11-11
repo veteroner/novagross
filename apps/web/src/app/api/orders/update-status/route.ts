@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createClient as createAuthClient } from '@/lib/supabase/server';
 import { queueBulkEmails } from '@/lib/email/queue';
 import { csrfProtection } from '@/lib/csrf';
+import { fullAddressLine } from '@novagross/cargo/address'
 
 export const dynamic = 'force-dynamic';
 
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
             })),
             shippingAddress: {
               fullName: order.shipping_address?.full_name || buyerName,
-              addressLine1: order.shipping_address?.address_line1 || '',
+              addressLine1: fullAddressLine(order.shipping_address as any) || '',
               addressLine2: order.shipping_address?.address_line2,
               city: order.shipping_address?.city || '',
               state: order.shipping_address?.state || '',

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Card, Badge, StatCard } from '@novagross/ui'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
+import { fullAddressLine } from '@novagross/cargo/address'
 import {
   ArrowLeft,
   Mail,
@@ -88,7 +89,7 @@ export default async function CustomerDetailPage({
     supabase
       .from('addresses')
       .select(
-        'id, title, first_name, last_name, phone, address_line1, address_line2, city, district, postal_code, country, is_default, address_type'
+        'id, title, first_name, last_name, phone, address_line1, address_line2, city, district, postal_code, country, is_default, address_type, metadata'
       )
       .eq('user_id', id)
       .order('is_default', { ascending: false }),
@@ -321,8 +322,7 @@ export default async function CustomerDetailPage({
                       {a.first_name} {a.last_name} · {a.phone}
                     </p>
                     <p className="text-gray-600">
-                      {a.address_line1}
-                      {a.address_line2 ? `, ${a.address_line2}` : ''}
+                      {fullAddressLine(a)}
                     </p>
                     <p className="text-gray-600">
                       {a.district}, {a.city} {a.postal_code ?? ''} · {a.country}

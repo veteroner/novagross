@@ -6,6 +6,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CopyTrackingButton } from '@/components/order/copy-tracking-button'
 import { ClaimButton } from './claim-button'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 const statusSteps = [
   { status: 'confirmed', label: 'Onaylandı', icon: CheckCircle },
@@ -319,7 +320,7 @@ export default async function OrderDetailPage({
             {shippingAddress.phone || '—'}
           </p>
           <p className="text-sm mt-2">
-            {shippingAddress.full_address || shippingAddress.address_line1 || shippingAddress.address || '—'}
+            {fullAddressLine(shippingAddress as any) || shippingAddress.address || '—'}
           </p>
           <p className="text-sm">
             {shippingAddress.district || '—'}, {shippingAddress.city || '—'} {shippingAddress.postal_code || ''}

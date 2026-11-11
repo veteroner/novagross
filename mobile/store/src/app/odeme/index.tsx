@@ -12,6 +12,7 @@ import { Field, FormError } from '@/components/field'
 import { Button, Card, Loading, Muted, Row, Screen, Title } from '@/components/ui'
 import { fmtTRY } from '@/lib/format'
 import { colors, space } from '@/lib/theme'
+import { fullAddressLine } from '@/lib/address-format'
 
 // Kargo tahmini: sunucu kuralıyla aynı (payment/initialize) — sepetteki mağazaların en düşük
 // ücretsiz kargo eşiği (yoksa 500), standart 29,99. Kesin tutarı sunucu hesaplar; kupon
@@ -69,8 +70,13 @@ export default function Checkout() {
             phone: address.phone,
             email: profile?.email ?? session?.user.email,
           },
+          // Sunucu snapshot'ı bu kayıttan kurar (kat/daire/mahalle dahil tam adres)
+          selectedShippingAddressId: address.id,
+          selectedBillingAddressId: address.id,
           shippingAddress: {
             address: address.address_line1,
+            address_line1: address.address_line1,
+            address_line2: address.address_line2 ?? null,
             city: address.city,
             district: address.district,
             postalCode: address.postal_code ?? '',
@@ -104,7 +110,7 @@ export default function Checkout() {
                   {a.title || 'Adres'} · {a.first_name} {a.last_name}
                 </Text>
                 <Muted>
-                  {a.address_line1}, {a.district} / {a.city}
+                  {fullAddressLine(a)}, {a.district} / {a.city}
                 </Muted>
               </View>
             </Pressable>

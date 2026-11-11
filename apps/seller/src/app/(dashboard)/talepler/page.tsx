@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { Card, Badge, PageHeader, EmptyState, TabBar, type TabItem } from '@novagross/ui'
-import { requireSeller } from '@/lib/auth/requireSeller'
+import { requireSeller, roleAtLeast } from '@/lib/auth/requireSeller'
 import { AlertCircle, Package, Mail, Phone } from 'lucide-react'
 import { ClaimActions } from './claim-actions'
+import { ReturnsSection } from './returns-section'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,11 +57,48 @@ function formatDate(iso: string | null) {
 export default async function SellerClaimsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string; tab?: string; status?: string }>
 }) {
-  const { supabase, storeId } = await requireSeller('/talepler')
+  const { supabase, storeId, role } = await requireSeller('/talepler')
   const sp = await searchParams
   const filter = parseFilter(sp.filter)
+  // İadeler (return_requests) varsayılan bölüm; ?tab=talepler → diğer müşteri talepleri
+  const section: 'iadeler' | 'talepler' = sp.tab === 'talepler' || sp.filter ? 'talepler' : 'iadeler'
+
+  const [{ count: pendingReturns }, { count: openClaims }] = await Promise.all([
+    (supabase as any)
+      .from('return_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .eq('status', 'pending'),
+    (supabase as any)
+      .from('customer_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('status', ['open', 'in_progress']),
+  ])
+  const sectionTabs: TabItem[] = [
+    { key: 'iadeler', label: 'İade Talepleri', count: pendingReturns ?? 0, href: '/talepler?tab=iadeler' },
+    { key: 'talepler', label: 'Değişim / Şikayet', count: openClaims ?? 0, href: '/talepler?tab=talepler' },
+  ]
+
+  if (section === 'iadeler') {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Müşteri Talepleri"
+          description="Siparişlerinize gelen iade, değişim ve şikayet taleplerini yönetin"
+        />
+        <TabBar items={sectionTabs} value={section} />
+        <ReturnsSection
+          supabase={supabase}
+          storeId={storeId}
+          canDecide={roleAtLeast(role, 'manager')}
+          status={sp.status}
+        />
+      </div>
+    )
+  }
 
   // Counts
   const counts: Record<string, number> = {}
@@ -101,7 +139,7 @@ export default async function SellerClaimsPage({
   const claims = (data ?? []) as any[]
 
   const tabs: TabItem[] = [
-    { key: 'all', label: 'Tümü', count: counts.all, href: '/talepler' },
+    { key: 'all', label: 'Tümü', count: counts.all, href: '/talepler?tab=talepler' },
     { key: 'open', label: 'Açık', count: counts.open ?? 0, href: '/talepler?filter=open' },
     {
       key: 'in_progress',
@@ -135,6 +173,8 @@ export default async function SellerClaimsPage({
         title="Müşteri Talepleri"
         description="Siparişlerinize gelen iade, değişim ve şikayet taleplerini yönetin"
       />
+
+      <TabBar items={sectionTabs} value={section} />
 
       <TabBar items={tabs} value={filter} />
 

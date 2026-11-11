@@ -124,7 +124,7 @@ export default async function MyReturnsPage({
                     ) : null}
                     {r.status === 'approved' && r.admin_note ? (
                       <p className="text-blue-700">
-                        <strong>Admin notu:</strong> {r.admin_note}
+                        <strong>Not:</strong> {r.admin_note}
                       </p>
                     ) : null}
                     {r.refunded_at ? (

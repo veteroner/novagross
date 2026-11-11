@@ -5,6 +5,7 @@ import { formatPrice } from '@novagross/utils'
 import { requireAdmin } from '@/lib/auth/requireAdmin'
 import { IyzicoApprovalCard } from '@/components/admin/IyzicoApprovalCard'
 import { RefundCard } from './refund-card'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 type OrderItemRow = {
   id: string
@@ -162,7 +163,7 @@ export default async function AdminOrderDetailPage({
             <div>
               <div className="text-muted-foreground">Adres</div>
               <div className="font-medium">
-                {[shipping?.address, shipping?.district, shipping?.city]
+                {[fullAddressLine(shipping) || shipping?.address, shipping?.district, shipping?.city]
                   .filter(Boolean)
                   .join(', ') || '—'}
               </div>

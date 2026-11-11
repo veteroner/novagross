@@ -1,3 +1,4 @@
+import { composeAddressLines, fromAddressRow, fullAddressLine } from '@novagross/cargo/address'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateOrderNumber } from '@novagross/utils'
 import { createClient } from '@/lib/supabase/server'
@@ -67,7 +68,9 @@ export async function POST(request: NextRequest) {
       shippingCost: clientShippingCost = 0,
       discountAmount = 0,
       couponCode = null,
-      basketId: existingBasketId
+      basketId: existingBasketId,
+      selectedShippingAddressId = null,
+      selectedBillingAddressId = null,
     } = body
 
     // Validate required fields
@@ -88,6 +91,63 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // ---- Adres snapshot'ı: kayıtlı adres seçildiyse SUNUCUDA addresses satırından,
+    // yoksa client'ın yapılandırılmış alanlarından. Kat/daire/mahalle dahil tam adres
+    // kargoya ve iyzico'ya gider (eskiden yalnızca "cadde" alanı gidiyordu).
+    const loadSavedAddress = async (id: unknown) => {
+      if (typeof id !== 'string' || !id) return null
+      const { data } = await (supabase as any)
+        .from('addresses')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      return data as Record<string, any> | null
+    }
+    const buildAddressSnapshot = (saved: Record<string, any> | null) => {
+      const src: Record<string, any> = saved ?? {
+        address_line1: shippingAddress.address_line1 || shippingAddress.address,
+        address_line2: shippingAddress.address_line2 || null,
+        neighborhood: shippingAddress.neighborhood,
+        // street yalnız yapılandırılmış alan geldiyse; aksi halde line1 ayrıştırılır
+        street: shippingAddress.street,
+        building_no: shippingAddress.building_no,
+        floor: shippingAddress.floor,
+        apartment_no: shippingAddress.apartment_no,
+        description: shippingAddress.description,
+      }
+      const st = fromAddressRow(src)
+      const lines = composeAddressLines(st)
+      const full = fullAddressLine(src)
+      return {
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        phone: customer.phone,
+        email: customer.email,
+        address_line1: lines.address_line1 || src.address_line1 || shippingAddress.address,
+        address_line2: lines.address_line2 || null,
+        neighborhood: st.neighborhood || null,
+        street: st.street || null,
+        building_no: st.building_no || null,
+        floor: st.floor || null,
+        apartment_no: st.apartment_no || null,
+        description: st.description || null,
+        full_address: full || shippingAddress.address,
+        district: saved?.district || shippingAddress.district,
+        city: saved?.city || shippingAddress.city,
+        postal_code: saved?.postal_code || shippingAddress.postalCode,
+        country: 'Turkey',
+        ...(saved?.id ? { address_id: saved.id } : {}),
+      }
+    }
+    const savedShipping = await loadSavedAddress(selectedShippingAddressId)
+    const savedBilling =
+      selectedBillingAddressId && selectedBillingAddressId !== selectedShippingAddressId
+        ? await loadSavedAddress(selectedBillingAddressId)
+        : savedShipping
+    const shippingSnapshot = buildAddressSnapshot(savedShipping)
+    const billingSnapshot = savedBilling === savedShipping ? shippingSnapshot : buildAddressSnapshot(savedBilling)
 
     // Use service-role client for DB writes when available.
     // This prevents RLS issues during callbacks and also allows creating missing profile rows.
@@ -450,28 +510,8 @@ export async function POST(request: NextRequest) {
       shipping_method: shippingMethod,
       iyzico_shipping_sub_merchant_key: shippingCost > 0 ? firstSubMerchantKey : null,
       iyzico_shipping_seller_amount: shippingCost > 0 ? Number(shippingCost.toFixed(2)) : null,
-      shipping_address: {
-        first_name: customer.firstName,
-        last_name: customer.lastName,
-        phone: customer.phone,
-        email: customer.email,
-        address_line1: shippingAddress.address,
-        district: shippingAddress.district,
-        city: shippingAddress.city,
-        postal_code: shippingAddress.postalCode,
-        country: 'Turkey',
-      },
-      billing_address: {
-        first_name: customer.firstName,
-        last_name: customer.lastName,
-        phone: customer.phone,
-        email: customer.email,
-        address_line1: shippingAddress.address,
-        district: shippingAddress.district,
-        city: shippingAddress.city,
-        postal_code: shippingAddress.postalCode,
-        country: 'Turkey',
-      },
+      shipping_address: shippingSnapshot,
+      billing_address: billingSnapshot,
     }
 
     const { data: existingOrder } = await db
@@ -597,25 +637,25 @@ export async function POST(request: NextRequest) {
         gsmNumber: customer.phone.replace(/\s/g, ''),
         email: customer.email,
         identityNumber: customer.identityNumber || '11111111111', // TC Kimlik
-        registrationAddress: shippingAddress.address,
+        registrationAddress: billingSnapshot.full_address,
         ip,
-        city: shippingAddress.city,
+        city: billingSnapshot.city,
         country: 'Turkey',
-        zipCode: shippingAddress.postalCode || '34000'
+        zipCode: billingSnapshot.postal_code || '34000'
       },
       shippingAddress: {
         contactName: `${customer.firstName} ${customer.lastName}`,
-        city: shippingAddress.city,
+        city: shippingSnapshot.city,
         country: 'Turkey',
-        address: shippingAddress.address,
-        zipCode: shippingAddress.postalCode || '34000'
+        address: `${shippingSnapshot.full_address} ${shippingSnapshot.district || ''}`.trim(),
+        zipCode: shippingSnapshot.postal_code || '34000'
       },
       billingAddress: {
         contactName: `${customer.firstName} ${customer.lastName}`,
-        city: shippingAddress.city,
+        city: billingSnapshot.city,
         country: 'Turkey',
-        address: shippingAddress.address,
-        zipCode: shippingAddress.postalCode || '34000'
+        address: `${billingSnapshot.full_address} ${billingSnapshot.district || ''}`.trim(),
+        zipCode: billingSnapshot.postal_code || '34000'
       },
       basketItems,
       // Mobil uygulama: callback sonucu novagross:// derin bağlantısına yönlendirir

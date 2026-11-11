@@ -9,6 +9,8 @@ export type Address = {
   last_name: string
   phone: string
   address_line1: string
+  address_line2: string | null
+  metadata: Record<string, any> | null
   district: string | null
   city: string
   postal_code: string | null
@@ -23,7 +25,7 @@ export function useAddresses() {
     queryFn: async (): Promise<Address[]> => {
       const { data, error } = await supabase
         .from('addresses')
-        .select('id, title, first_name, last_name, phone, address_line1, district, city, postal_code, is_default')
+        .select('id, title, first_name, last_name, phone, address_line1, address_line2, metadata, district, city, postal_code, is_default')
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: false })
       if (error) throw error

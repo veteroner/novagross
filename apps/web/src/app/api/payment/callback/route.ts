@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { queueBulkEmails } from '@/lib/email/queue'
 import { Resend } from 'resend'
 import { renderEmailTemplate } from '@/lib/email/render'
+import { fullAddressLine } from '@novagross/cargo/address'
 
 // Force Node.js runtime for iyzipay compatibility
 export const runtime = 'nodejs'
@@ -606,7 +607,7 @@ async function sendBuyerEmailDirect(args: {
 
   const shippingAddr = (order as any)?.shipping_address
   const shippingText = shippingAddr
-    ? `${shippingAddr.address_line1}, ${shippingAddr.district}, ${shippingAddr.city}`
+    ? `${fullAddressLine(shippingAddr)}, ${shippingAddr.district}, ${shippingAddr.city}`
     : undefined
 
   const orderDate = (order as any)?.created_at
@@ -745,7 +746,7 @@ async function queueOrderEmails(
 
   const shippingAddr = orderData.shipping_address as any;
   const shippingText = shippingAddr
-    ? `${shippingAddr.address_line1}, ${shippingAddr.district}, ${shippingAddr.city}`
+    ? `${fullAddressLine(shippingAddr)}, ${shippingAddr.district}, ${shippingAddr.city}`
     : undefined;
 
   const emails: any[] = [

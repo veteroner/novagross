@@ -10,6 +10,7 @@ import { SelectField } from '@/components/select-field'
 import { TR_PROVINCES } from '@/lib/tr-provinces'
 import { Button } from '@/components/ui'
 import { colors, space } from '@/lib/theme'
+import { composeAddressLines, fromAddressRow, toAddressMetadata } from '@/lib/address-format'
 
 const PROVINCES = Object.keys(TR_PROVINCES).sort((a, b) => a.localeCompare(b, 'tr'))
 const fold = (s: string) => (s || '').toLocaleLowerCase('tr-TR').trim()
@@ -25,7 +26,10 @@ function fixCityDistrict(city: string, district: string) {
   return { city: '', district: '' }
 }
 
-const EMPTY = { title: 'Ev', first_name: '', last_name: '', phone: '', address_line1: '', district: '', city: '', postal_code: '' }
+const EMPTY = {
+  title: 'Ev', first_name: '', last_name: '', phone: '', district: '', city: '', postal_code: '',
+  neighborhood: '', street: '', building_no: '', floor: '', apartment_no: '', description: '',
+}
 
 // Web ile aynı: 05XXXXXXXXX (iyzico buyer.gsmNumber bu alandan gider)
 const normalizePhone = (p: string) => {
@@ -52,7 +56,10 @@ export default function AddressForm() {
         first_name: existing.first_name,
         last_name: existing.last_name,
         phone: existing.phone,
-        address_line1: existing.address_line1,
+        // Önce metadata; eski kayıtlarda açık adres metni ayrıştırılır
+        ...(({ neighborhood, street, building_no, floor, apartment_no, description }) => ({
+          neighborhood, street, building_no, floor, apartment_no, description,
+        }))(fromAddressRow(existing)),
         ...fixCityDistrict(existing.city, existing.district ?? ''),
         postal_code: existing.postal_code ?? '',
       })
@@ -68,7 +75,9 @@ export default function AddressForm() {
     const phone = normalizePhone(f.phone)
     if (!f.first_name.trim() || !f.last_name.trim()) return setError('Ad ve soyad girin.')
     if (!/^05\d{9}$/.test(phone)) return setError('Telefonu 05XX XXX XX XX biçiminde girin.')
-    if (f.address_line1.trim().length < 10) return setError('Açık adresi mahalle, sokak ve numara ile girin.')
+    if (!f.neighborhood.trim()) return setError('Mahalle girin.')
+    if (f.street.trim().length < 3) return setError('Cadde / sokak girin.')
+    if (!f.building_no.trim()) return setError('Bina no girin.')
     if (!TR_PROVINCES[f.city]) return setError('İl seçin.')
     if (!TR_PROVINCES[f.city].includes(f.district)) return setError('İlçe seçin.')
     setBusy(true)
@@ -80,7 +89,11 @@ export default function AddressForm() {
       first_name: f.first_name.trim(),
       last_name: f.last_name.trim(),
       phone,
-      address_line1: f.address_line1.trim(),
+      ...(() => {
+        const lines = composeAddressLines(f)
+        return { address_line1: lines.address_line1, address_line2: lines.address_line2 || null }
+      })(),
+      metadata: toAddressMetadata(f),
       district: f.district.trim(),
       city: f.city.trim(),
       postal_code: f.postal_code.trim() || null,
@@ -124,7 +137,20 @@ export default function AddressForm() {
             />
           </View>
         </View>
-        <Field label="Açık adres" value={f.address_line1} onChangeText={set('address_line1')} multiline style={{ minHeight: 90 }} textContentType="fullStreetAddress" />
+        <Field label="Mahalle" value={f.neighborhood} onChangeText={set('neighborhood')} placeholder="Örn. Turgut Özal" />
+        <Field label="Cadde / Sokak" value={f.street} onChangeText={set('street')} textContentType="streetAddressLine1" placeholder="Örn. 2609. Sokak, Atakent Sitesi" />
+        <View style={{ flexDirection: 'row', gap: space(3) }}>
+          <View style={{ flex: 1 }}>
+            <Field label="Bina no" value={f.building_no} onChangeText={set('building_no')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Kat" value={f.floor} onChangeText={set('floor')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field label="Daire" value={f.apartment_no} onChangeText={set('apartment_no')} />
+          </View>
+        </View>
+        <Field label="Adres tarifi (isteğe bağlı)" value={f.description} onChangeText={set('description')} multiline style={{ minHeight: 60 }} />
         <Field label="Posta kodu (isteğe bağlı)" value={f.postal_code} onChangeText={set('postal_code')} keyboardType="number-pad" textContentType="postalCode" />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(3) }}>
           <Switch value={isDefault} onValueChange={setIsDefault} trackColor={{ true: colors.primary }} />

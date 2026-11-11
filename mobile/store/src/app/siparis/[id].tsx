@@ -8,6 +8,7 @@ import { WEB_URL, webApiBinary } from '@/lib/api'
 import { Badge, Button, Card, Empty, Loading, Muted, Row, Screen, Title } from '@/components/ui'
 import { ORDER_STATUS, SHIPMENT_STATUS, fmtDate, fmtTRY, orderStatusTone } from '@/lib/format'
 import { colors, space } from '@/lib/theme'
+import { fullAddressLine } from '@/lib/address-format'
 
 const RETURN_STATUS: Record<string, string> = {
   pending: 'İnceleniyor',
@@ -117,7 +118,7 @@ export default function OrderDetail() {
         <Text style={{ color: colors.text }}>
           {[addr.first_name, addr.last_name].filter(Boolean).join(' ')}
           {'\n'}
-          {addr.address_line1}
+          {fullAddressLine(addr)}
           {'\n'}
           {[addr.district, addr.city].filter(Boolean).join(' / ')}
         </Text>

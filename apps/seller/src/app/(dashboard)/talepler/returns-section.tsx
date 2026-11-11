@@ -38,6 +38,7 @@ function parseReturnFilter(v: string | undefined): ReturnFilter {
 function formatDate(iso: string | null) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('tr-TR', {
+    timeZone: 'Europe/Istanbul',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -70,6 +71,11 @@ export async function ReturnsSection({
         .eq('status', s)
     ),
   ])
+  const countError = [allRes, ...statusCounts].find((result) => result.error)?.error
+  if (countError) {
+    console.error('[seller returns] count query failed', countError)
+    throw new Error('İade talepleri yüklenemedi. Lütfen tekrar deneyin.')
+  }
   const counts: Record<string, number> = { all: allRes.count ?? 0 }
   statuses.forEach((s, i) => {
     counts[s] = statusCounts[i].count ?? 0
@@ -88,7 +94,11 @@ export async function ReturnsSection({
     .order('created_at', { ascending: false })
     .limit(200)
   if (filter !== 'all') q = q.eq('status', filter)
-  const { data } = await q
+  const { data, error } = await q
+  if (error) {
+    console.error('[seller returns] list query failed', error)
+    throw new Error('İade talepleri yüklenemedi. Lütfen tekrar deneyin.')
+  }
   const rows = (data ?? []) as any[]
 
   const base = '/talepler?tab=iadeler'

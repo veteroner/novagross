@@ -1,9 +1,14 @@
 name: Schema Reproducibility (DR)
 
 # SECRET GEREKTİRMEZ. Tüm migration'ları sıfırdan boş bir postgres'e uygular.
-# Amaç: "Bir saldırgan şemayı silse, migration'lardan TAM geri kurulabilir mi?"
-# Bir tablo/trigger migration'a eklenmeyi unutulursa (return_requests gibi) bu
-# workflow FAIL eder ve PR'ı bloklar. Her push + haftalık çalışır.
+# Neyi kanıtlar: migration dosyaları vanilla postgres:15 + Supabase stub'ları
+# (auth/storage/roller/varsayılan yetkiler/pg_cron) üzerinde hatasız uygulanır;
+# listelenen kritik tablolar ve uygulamanın kullandığı belirli nesneler
+# (RLS/policy/index/yetki dahil) oluşur.
+# Neyi KANITLAMAZ: canlı şemayla tam eşitlik (diff yapılmaz), stub'lanan
+# Supabase şemalarının içeriği, cron zamanlamaları, veri, depolama nesneleri.
+# Repoda dosyası olmayan ama canlıya uygulanmış bir migration ancak sonraki bir
+# migration ona dayanırsa ya da aşağıdaki kontrollerde yer alırsa yakalanır.
 
 on:
   push:
@@ -55,6 +60,12 @@ jobs:
           DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
           DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
           DO $$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          -- Supabase platformunun public şemasındaki varsayılan yetkileri (uygulama
+          -- nesnesi değil). Bunlar olmadan migration'lardaki REVOKE'ların sonucu
+          -- canlıdakiyle karşılaştırılamaz.
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
           -- Schema'lar
           CREATE SCHEMA IF NOT EXISTS auth;
           CREATE SCHEMA IF NOT EXISTS storage;
@@ -129,7 +140,7 @@ jobs:
             psql "$DB" -v ON_ERROR_STOP=1 -f "$m"
             COUNT=$((COUNT+1))
           done
-          echo "✅ $COUNT migration sorunsuz uygulandı — şema %100 reproducible"
+          echo "✅ $COUNT migration boş postgres'e hatasız uygulandı"
 
       - name: Kritik tabloların varlığını doğrula
         env:
@@ -144,3 +155,27 @@ jobs:
             fi
           done
           echo "✅ Tüm kritik tablolar sıfırdan kurulabiliyor"
+
+      - name: Uygulamanın kullandığı nesneleri ve güvenlik ayarlarını doğrula
+        env:
+          DB: postgresql://postgres:test@localhost:5432/testdb
+        run: |
+          # Her satır: açıklama | true dönmesi gereken sorgu. Değerler canlıdan
+          # (2026-11-11) okunan durumla eşlenmiştir; uygulama kodu bu nesneleri
+          # kullanıyor (2FA, reklam bakiyesi, destek).
+          fail=0
+          while IFS='|' read -r label sql; do
+            [ -z "$label" ] && continue
+            got=$(psql "$DB" -tAc "$sql")
+            if [ "$got" = "t" ]; then echo "✓ $label"; else echo "::error::$label"; fail=1; fi
+          done <<'CHECKS'
+          auth_otp_codes tablosu, RLS açık, hiç policy yok (yalnız service role)|SELECT to_regclass('public.auth_otp_codes') IS NOT NULL AND (SELECT relrowsecurity FROM pg_class WHERE oid='public.auth_otp_codes'::regclass) AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='auth_otp_codes')
+          auth_otp_codes.idx_auth_otp_user|SELECT to_regclass('public.idx_auth_otp_user') IS NOT NULL
+          stores.ad_balance numeric NOT NULL DEFAULT 0|SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='stores' AND column_name='ad_balance' AND data_type='numeric' AND is_nullable='NO' AND column_default='0')
+          credit_ad_balance SECURITY DEFINER, anon/authenticated EXECUTE yok, service_role var|SELECT p.prosecdef AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_proc p WHERE p.oid='public.credit_ad_balance(uuid,numeric,text,text,text,uuid)'::regprocedure
+          debit_ad_balance SECURITY DEFINER, anon/authenticated EXECUTE yok, service_role var|SELECT p.prosecdef AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND has_function_privilege('service_role',p.oid,'EXECUTE') FROM pg_proc p WHERE p.oid='public.debit_ad_balance(uuid,numeric,uuid,text)'::regprocedure
+          idx_stores_iyzico_sub_merchant_key (kısmi index)|SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_stores_iyzico_sub_merchant_key' AND indexdef LIKE '%WHERE (iyzico_sub_merchant_key IS NOT NULL)%')
+          ad_balance_transactions/topups RLS + satıcı okuma policy'leri|SELECT (SELECT relrowsecurity FROM pg_class WHERE oid='public.ad_balance_transactions'::regclass) AND (SELECT relrowsecurity FROM pg_class WHERE oid='public.ad_balance_topups'::regclass) AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ad_balance_transactions' AND policyname='seller reads own ad tx') AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='ad_balance_topups' AND policyname='seller reads own topups')
+          support_tickets/support_messages RLS + kullanıcı okuma policy'leri|SELECT (SELECT relrowsecurity FROM pg_class WHERE oid='public.support_tickets'::regclass) AND (SELECT relrowsecurity FROM pg_class WHERE oid='public.support_messages'::regclass) AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='support_tickets' AND policyname='user reads own tickets') AND EXISTS (SELECT 1 FROM pg_policies WHERE tablename='support_messages' AND policyname='user reads own ticket messages')
+          CHECKS
+          exit $fail

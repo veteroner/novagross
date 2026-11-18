@@ -18,11 +18,11 @@ export default function MesafeliSatisSozlesmesiPage() {
             <ul className="list-disc list-inside space-y-1">
               <li>Ticari Ünvan: Teknova Tarım Hayvancılık Bilişim Reklam Limited Şirketi</li>
               <li>Marka: Novagross</li>
-              <li>Adres: Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara</li>
+              <li>Adres: Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara</li>
               <li>E-posta: bilgi@teknovagroup.com</li>
               <li>Web: www.teknovagroup.com</li>
-              <li>Vergi Dairesi: Sıncan</li>
-              <li>Vergi No: 8961000730</li>
+              <li>Vergi Dairesi: Sincan</li>
+              <li>Vergi No: 8361000730</li>
               <li>Ticaret Sicil No: 527879</li>
             </ul>
             <p className="mt-4"><strong>ALICI BİLGİLERİ:</strong></p>

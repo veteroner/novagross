@@ -8,7 +8,7 @@ export const COMPANY_INFO = {
   address: 'Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara',
   email: 'bilgi@teknovagroup.com',
   taxOffice: 'Sincan',
-  taxNumber: '8961000730',
+  taxNumber: '8361000730',
   tradeRegistryNumber: '527879',
   /** MERSİS numarası biliniyorsa doldurun; boşsa gösterilmez. */
   mersisNumber: '',
@@ -17,7 +17,7 @@ export const COMPANY_INFO = {
 /**
  * ETBİS (Elektronik Ticaret Bilgi Sistemi) kaydı.
  * verifyUrl: ETBİS panelinde verilen site doğrulama linki.
- * qrImage: ETBİS panelinden indirilen resmi karekod görselinin /public altındaki yolu.
+ * qrImage: doğrulama linkini kodlayan karekod görselinin /public altındaki yolu.
  * İkisi de doluysa footer ve Hakkımızda sayfasında ETBİS rozeti gösterilir.
  */
 export const ETBIS = {

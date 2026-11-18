@@ -153,7 +153,7 @@ export default function AboutPage() {
                 <strong>Web:</strong> www.teknovagroup.com
               </p>
               <p className="text-foreground">
-                <strong>Adres:</strong> Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara
+                <strong>Adres:</strong> Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara
               </p>
             </div>
             <div className="mt-4">
@@ -181,15 +181,15 @@ export default function AboutPage() {
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Adres:</span>
-                <span className="text-muted-foreground">Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara</span>
+                <span className="text-muted-foreground">Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Vergi Dairesi:</span>
-                <span className="text-muted-foreground">Sıncan</span>
+                <span className="text-muted-foreground">Sincan</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Vergi No:</span>
-                <span className="text-muted-foreground">8961000730</span>
+                <span className="text-muted-foreground">8361000730</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Ticaret Sicil No:</span>

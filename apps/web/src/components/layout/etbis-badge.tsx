@@ -17,7 +17,8 @@ export function EtbisBadge({ size = 88 }: { size?: number }) {
         alt="ETBİS doğrulama karekodu"
         width={size}
         height={size}
-        className="h-auto w-auto"
+        style={{ width: size, height: size }}
+        className="shrink-0"
         unoptimized
       />
       <span className="text-[10px] font-semibold text-neutral-700">ETBİS&apos;e Kayıtlıdır</span>

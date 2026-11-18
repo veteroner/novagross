@@ -2,6 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateLocalBusinessSchema } from '@/lib/structured-data'
+import { COMPANY_INFO } from '@/lib/company-info'
+import { EtbisBadge } from '@/components/layout/etbis-badge'
 
 export function Footer() {
   return (
@@ -17,6 +19,24 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               En kaliteli ürünler, en uygun fiyatlarla. Güvenli alışveriş, hızlı teslimat.
             </p>
+            <address className="mt-4 not-italic text-xs leading-relaxed text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground">{COMPANY_INFO.legalName}</p>
+              <p>{COMPANY_INFO.address}</p>
+              <p>
+                Vergi Dairesi: {COMPANY_INFO.taxOffice} · Vergi No: {COMPANY_INFO.taxNumber}
+              </p>
+              <p>Ticaret Sicil No: {COMPANY_INFO.tradeRegistryNumber}</p>
+              {COMPANY_INFO.mersisNumber && <p>MERSİS No: {COMPANY_INFO.mersisNumber}</p>}
+              <p>
+                E-posta:{' '}
+                <a href={`mailto:${COMPANY_INFO.email}`} className="hover:text-foreground underline-offset-2 hover:underline">
+                  {COMPANY_INFO.email}
+                </a>
+              </p>
+            </address>
+            <div className="mt-4">
+              <EtbisBadge />
+            </div>
           </div>
 
           {/* Quick Links */}
@@ -115,7 +135,7 @@ export function Footer() {
         {/* Bottom */}
         <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Novagross. Teknova Tarım Hayvancılık Bilişim Reklam Limited Şirketi tarafından işletilmektedir.
+            © {new Date().getFullYear()} {COMPANY_INFO.brand}. {COMPANY_INFO.legalName} tarafından işletilmektedir.
           </p>
           <div className="flex flex-col md:flex-row items-center gap-4">
             <span className="text-sm text-muted-foreground" aria-label="Güvenli ödeme seçenekleri">Güvenli Ödeme:</span>

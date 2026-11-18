@@ -4,6 +4,7 @@ import { generateMetadata as genMetadata } from '@/lib/metadata'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateBreadcrumbSchema, generateWebPageSchema } from '@/lib/structured-data'
 import { ShippingFeatureText } from '@/components/shipping-threshold-text'
+import { EtbisBadge } from '@/components/layout/etbis-badge'
 
 export const metadata: Metadata = genMetadata({
   title: 'Hakkımızda',
@@ -194,6 +195,9 @@ export default function AboutPage() {
                 <span className="font-semibold min-w-[180px]">Ticaret Sicil No:</span>
                 <span className="text-muted-foreground">527879</span>
               </div>
+            </div>
+            <div className="mt-4">
+              <EtbisBadge size={120} />
             </div>
           </Card>
         </div>

@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { ETBIS, hasEtbis } from '@/lib/company-info'
 
-export function EtbisBadge({ size = 88 }: { size?: number }) {
+export function EtbisBadge({ size = 120 }: { size?: number }) {
   if (!hasEtbis) return null
 
   return (

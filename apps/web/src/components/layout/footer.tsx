@@ -11,7 +11,7 @@ export function Footer() {
       {/* LocalBusiness Schema for SEO */}
       <JsonLd data={generateLocalBusinessSchema()} />
       
-      <div className="container py-12">
+      <div className="container pt-12 pb-24">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* About */}
           <div>

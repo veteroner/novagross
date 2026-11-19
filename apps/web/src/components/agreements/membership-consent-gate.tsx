@@ -26,7 +26,7 @@ export function MembershipConsentGate() {
     return () => { active = false; data.subscription.unsubscribe(); window.removeEventListener('agreements-updated', refresh) }
   }, [])
   // Leave legal documents accessible while the user reads them.
-  if (!needed || pathname.startsWith('/sozlesmeler') || ['/kvkk', '/gizlilik-politikasi', '/cerez-politikasi', '/mesafeli-satis-sozlesmesi'].includes(pathname)) return null
+  if (!needed || pathname.startsWith('/sozlesmeler') || pathname.startsWith('/bulten/') || pathname === '/odeme/mobil-onay' || ['/kvkk', '/gizlilik-politikasi', '/cerez-politikasi', '/mesafeli-satis-sozlesmesi'].includes(pathname)) return null
   async function save() {
     setBusy(true); setError('')
     try {

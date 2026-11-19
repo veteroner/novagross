@@ -1,5 +1,7 @@
 'use client'
 
+import { hasConsent } from '@/lib/privacy/consent'
+import { useConsent } from '@/lib/privacy/use-consent'
 import { useEffect, useRef } from 'react'
 
 function getSessionId(): string {
@@ -17,6 +19,7 @@ async function logAdEvent(
   event_type: 'impression' | 'click',
   product_id?: string
 ) {
+  if (!hasConsent('analytics')) return
   try {
     await fetch('/api/ad-event', {
       method: 'POST',
@@ -35,13 +38,14 @@ export function AdTracker({
   productId: string
   children: React.ReactNode
 }) {
+  const allowed = useConsent('analytics')
   const fired = useRef(false)
 
   useEffect(() => {
-    if (fired.current) return
+    if (!allowed || fired.current) return
     fired.current = true
     void logAdEvent(campaignId, 'impression', productId)
-  }, [campaignId, productId])
+  }, [campaignId, productId, allowed])
 
   return (
     <div onClick={() => void logAdEvent(campaignId, 'click', productId)}>

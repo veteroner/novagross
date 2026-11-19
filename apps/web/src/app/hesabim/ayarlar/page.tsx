@@ -20,6 +20,8 @@ export default async function SettingsPage() {
     .eq('id', user.id)
     .single()
 
+  const { data: preferences } = await supabase.from('email_preferences').select('newsletters, marketing, unsubscribed_all').eq('user_id', user.id).maybeSingle()
+
   // Metadata'dan ayarları oku veya default değerleri kullan
   const metadata = profile?.metadata as Record<string, unknown> || {}
 
@@ -27,11 +29,11 @@ export default async function SettingsPage() {
     <SettingsClient
       userId={user.id}
       initialProfile={{
-        newsletter_subscribed: Boolean(metadata.newsletter_subscribed ?? false),
+        newsletter_subscribed: Boolean(preferences?.newsletters && preferences?.marketing && !preferences?.unsubscribed_all),
         email_notifications: Boolean(metadata.email_notifications ?? true),
         sms_notifications: Boolean(metadata.sms_notifications ?? false),
         push_notifications: Boolean(metadata.push_notifications ?? false),
-        personalized_offers: Boolean(metadata.personalized_offers ?? true),
+        personalized_offers: Boolean(metadata.personalized_offers ?? false),
         locale: (metadata.locale as string) ?? 'tr',
         currency: (metadata.currency as string) ?? 'TRY',
       }}

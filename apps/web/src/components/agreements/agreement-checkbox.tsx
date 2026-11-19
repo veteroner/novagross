@@ -14,7 +14,7 @@ type Props = {
 
 // "Okudum, anladım, kabul ediyorum" checkbox + sözleşmeye yeni sekme link.
 // Modal istenirse type için ek prop ile dialog açılabilir; şimdilik sayfa linki
-// (yeni sekme) ile kullanıcıya tam metin gösteriliyor — yasal olarak yeterli.
+// (yeni sekme) ile kullanıcıya tam metin gösteriliyor.
 export function AgreementCheckbox({ type, checked, onChange, disabled }: Props) {
   const meta = AGREEMENT_META[type]
   const id = `agr_${type}`
@@ -38,7 +38,7 @@ export function AgreementCheckbox({ type, checked, onChange, disabled }: Props) 
         >
           {meta.title}
         </Link>
-        &apos;ni okudum, anladım ve kabul ediyorum.
+        {type === 'kvkk_aydinlatma' ? ' kapsamında kişisel verilerimin işlenmesi hakkında bilgilendirildim.' : type === 'acik_riza' ? ' kapsamında e-posta ile kampanya ve fırsat iletileri almak istiyorum. İznimi her zaman geri alabilirim.' : ' hükümlerini okudum ve kabul ediyorum.'}
         {meta.required && <span className="text-red-500 ml-0.5">*</span>}
       </span>
     </label>

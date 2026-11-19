@@ -1,5 +1,6 @@
 'use client'
 
+import { hasConsent } from '@/lib/privacy/consent'
 import { useReportWebVitals } from 'next/web-vitals'
 import * as Sentry from '@sentry/nextjs'
 
@@ -16,6 +17,7 @@ import * as Sentry from '@sentry/nextjs'
  */
 export function WebVitals() {
   useReportWebVitals((metric) => {
+    if (!hasConsent('analytics')) return
     // Log to console in development
     if (process.env.NODE_ENV === 'development') {
       console.log('[Web Vitals]', {

@@ -12,7 +12,7 @@ export type AgreementType =
   | 'on_bilgilendirme'
   | 'pazaryeri_satici_sozlesmesi'
 
-export const AGREEMENT_VERSION = '2026-06-11'
+export const AGREEMENT_VERSION = '2026-11-18'
 
 export const AGREEMENT_META: Record<
   AgreementType,

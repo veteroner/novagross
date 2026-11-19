@@ -1,5 +1,7 @@
 'use client'
 
+import { useConsent } from '@/lib/privacy/use-consent'
+import { hasConsent } from '@/lib/privacy/consent'
 import { useEffect } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
@@ -66,24 +68,27 @@ function getOS(): string {
  * Tracks page views and sends analytics data to the backend
  */
 export function PageViewTracker() {
+  const allowed = useConsent('analytics')
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    if (!allowed) return
     const sessionId = getSessionId()
     const startTime = Date.now()
 
     // Track page view
     const trackPageView = async () => {
+      if (!hasConsent('analytics')) return
       try {
         const response = await fetch('/api/analytics/page-view', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session_id: sessionId,
-            page_url: window.location.pathname + window.location.search,
+            page_url: window.location.pathname,
             page_title: document.title,
-            referrer: document.referrer || null,
+            referrer: document.referrer ? (() => { try { const referrer = new URL(document.referrer); return referrer.origin + referrer.pathname } catch { return null } })() : null,
             user_agent: navigator.userAgent,
             device_type: getDeviceType(),
             browser: getBrowser(),
@@ -91,7 +96,7 @@ export function PageViewTracker() {
           }),
         })
         
-        if (response.ok) {
+        if (response.ok && hasConsent('analytics')) {
           const data = await response.json()
           // Store page view ID to update exit time later
           sessionStorage.setItem('current_page_view_id', data.id)
@@ -109,6 +114,7 @@ export function PageViewTracker() {
 
     // Track page exit
     const trackPageExit = async () => {
+      if (!hasConsent('analytics')) return
       const pageViewId = sessionStorage.getItem('current_page_view_id')
       if (!pageViewId) return
       
@@ -147,7 +153,7 @@ export function PageViewTracker() {
     }
     // Her route değişiminde yeniden çalışır (SPA navigasyonu da kaydedilir)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams])
+  }, [pathname, searchParams, allowed])
   
   return null
 }

@@ -4,35 +4,40 @@ import { useState, useEffect } from 'react'
 import { Button } from '@novagross/ui'
 import Link from 'next/link'
 import { X, Cookie, Settings } from 'lucide-react'
-
-type CookieConsent = {
-  necessary: boolean
-  analytics: boolean
-  marketing: boolean
-  preferences: boolean
-}
+import { CONSENT_OPEN_EVENT, CONSENT_VISIBILITY_EVENT, NECESSARY_CONSENT, readConsent, saveConsent as persistConsent, parseConsent, removeTrackingStorage, type Consent } from '@/lib/privacy/consent'
 
 export function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [consent, setConsent] = useState<CookieConsent>({
+  const [consent, setConsent] = useState<Consent>({
     necessary: true, // Always true
     analytics: false,
     marketing: false,
     preferences: false,
   })
 
+  const [storageError, setStorageError] = useState(false)
   useEffect(() => {
-    // Check if user has already given consent
-    const consentData = localStorage.getItem('cookie-consent')
-    if (!consentData) {
-      // Show banner after 1 second
-      setTimeout(() => setShowBanner(true), 1000)
+    const stored = readConsent()
+    setConsent(stored || NECESSARY_CONSENT)
+    setShowBanner(!stored)
+    const open = () => { setConsent(readConsent() || NECESSARY_CONSENT); setShowSettings(true); setShowBanner(true) }
+    const sync = (event: StorageEvent) => {
+      if (event.key !== 'cookie-consent') return
+      const before = parseConsent(event.oldValue), after = parseConsent(event.newValue)
+      setConsent(after || NECESSARY_CONSENT); setShowBanner(!after)
+      if ((before?.analytics && !after?.analytics) || (before?.marketing && !after?.marketing)) { removeTrackingStorage(); location.reload() }
     }
+    window.addEventListener('storage', sync)
+    window.addEventListener(CONSENT_OPEN_EVENT, open)
+    return () => { window.removeEventListener(CONSENT_OPEN_EVENT, open); window.removeEventListener('storage', sync) }
   }, [])
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(CONSENT_VISIBILITY_EVENT, { detail: showBanner }))
+  }, [showBanner])
 
   const acceptAll = () => {
-    const allConsent: CookieConsent = {
+    const allConsent: Consent = {
       necessary: true,
       analytics: true,
       marketing: true,
@@ -42,7 +47,7 @@ export function CookieConsent() {
   }
 
   const acceptNecessary = () => {
-    const necessaryOnly: CookieConsent = {
+    const necessaryOnly: Consent = {
       necessary: true,
       analytics: false,
       marketing: false,
@@ -53,28 +58,14 @@ export function CookieConsent() {
 
   const saveCustomConsent = () => {
     saveConsent(consent)
-    setShowSettings(false)
   }
 
-  const saveConsent = (consentData: CookieConsent) => {
-    localStorage.setItem('cookie-consent', JSON.stringify(consentData))
-    localStorage.setItem('cookie-consent-date', new Date().toISOString())
+  const saveConsent = (value: Consent) => {
+    if (!persistConsent(value)) { setStorageError(true); return }
+    setStorageError(false)
+    setConsent(value)
     setShowBanner(false)
-    
-    // Trigger custom event to notify other components (like Google Analytics)
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('cookie-consent-updated'))
-    }
-    
-    // Enable analytics if consented
-    if (consentData.analytics && typeof window !== 'undefined') {
-      console.log('Analytics enabled')
-    }
-    
-    // Enable marketing pixels if consented
-    if (consentData.marketing && typeof window !== 'undefined') {
-      console.log('Marketing enabled')
-    }
+    setShowSettings(false)
   }
 
   if (!showBanner) return null
@@ -82,8 +73,9 @@ export function CookieConsent() {
   return (
     <>
       {/* Cookie Banner */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg">
-        <div className="container py-4 px-4 md:px-6">
+      <div className="fixed bottom-0 left-0 right-0 z-[100] max-h-[85dvh] overflow-y-auto bg-background border-t shadow-lg">
+        <div className="container py-4 px-4 md:px-6" role="dialog" aria-label="Çerez tercihleri">
+          {storageError && <p role="alert" className="text-sm text-destructive">Tercihler kaydedilemedi. Tarayıcınızda site depolamasına izin verin. İsteğe bağlı takip kapalı kalır.</p>}
           {!showSettings ? (
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex-1 flex items-start gap-3">
@@ -132,6 +124,7 @@ export function CookieConsent() {
                 <h3 className="font-semibold">Çerez Tercihleri</h3>
                 <button
                   onClick={() => setShowSettings(false)}
+                  aria-label="Çerez tercihleri özetine dön"
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-5 w-5" />
@@ -165,6 +158,7 @@ export function CookieConsent() {
                   </div>
                   <input
                     type="checkbox"
+                    aria-label="Analitik çerezlere izin ver"
                     checked={consent.analytics}
                     onChange={(e) => setConsent({ ...consent, analytics: e.target.checked })}
                     className="mt-1"
@@ -181,6 +175,7 @@ export function CookieConsent() {
                   </div>
                   <input
                     type="checkbox"
+                    aria-label="Pazarlama çerezlerine izin ver"
                     checked={consent.marketing}
                     onChange={(e) => setConsent({ ...consent, marketing: e.target.checked })}
                     className="mt-1"
@@ -197,6 +192,7 @@ export function CookieConsent() {
                   </div>
                   <input
                     type="checkbox"
+                    aria-label="Tercih çerezlerine izin ver"
                     checked={consent.preferences}
                     onChange={(e) => setConsent({ ...consent, preferences: e.target.checked })}
                     className="mt-1"
@@ -205,7 +201,7 @@ export function CookieConsent() {
               </div>
 
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowSettings(false)}>
+                <Button variant="outline" onClick={() => { if (readConsent()) setShowBanner(false); else setShowSettings(false) }}>
                   İptal
                 </Button>
                 <Button onClick={saveCustomConsent}>

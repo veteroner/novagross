@@ -1,3 +1,4 @@
+import { hasConsent } from '@/lib/privacy/consent'
 /**
  * Web Vitals Monitoring & Reporting
  * 
@@ -19,7 +20,7 @@ import type { Metric } from 'web-vitals'
  */
 export function sendToGoogleAnalytics(metric: Metric): void {
   // Check if gtag is available (GTM/GA4)
-  if (typeof window !== 'undefined' && 'gtag' in window) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && 'gtag' in window) {
     const gtag = window.gtag as (...args: unknown[]) => void
     
     // Send to GA4 as event
@@ -36,7 +37,7 @@ export function sendToGoogleAnalytics(metric: Metric): void {
   }
 
   // Also send to GTM dataLayer for flexibility
-  if (typeof window !== 'undefined' && window.dataLayer) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && hasConsent('marketing') && window.dataLayer) {
     window.dataLayer.push({
       event: 'web_vitals',
       metric_name: metric.name,
@@ -125,6 +126,7 @@ export function reportWebVitals(metric: Metric): void {
  * Optional: Send to custom analytics endpoint
  */
 export async function sendToCustomAnalytics(metric: Metric): Promise<void> {
+  if (!hasConsent('analytics')) return
   try {
     const body = JSON.stringify({
       name: metric.name,

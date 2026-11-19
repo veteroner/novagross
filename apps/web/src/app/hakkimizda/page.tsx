@@ -105,7 +105,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="font-semibold mb-1">Kolay İade</h3>
                   <p className="text-sm text-foreground">
-                    14 gün içinde koşulsuz iade ve değişim hakkı
+                    Yasal cayma hakkı ve ürün türüne göre iade koşulları
                   </p>
                 </div>
               </div>
@@ -115,7 +115,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="font-semibold mb-1">Kaliteli Ürünler</h3>
                   <p className="text-sm text-foreground">
-                    Orijinal ve garantili ürünler, güvenilir tedarikçiler
+                    Ürün özellikleri ve garanti kapsamı için satıcı bilgilerini inceleyin
                   </p>
                 </div>
               </div>
@@ -123,9 +123,9 @@ export default function AboutPage() {
               <div className="flex items-start gap-3">
                 <div className="text-2xl">📞</div>
                 <div>
-                  <h3 className="font-semibold mb-1">7/24 Destek</h3>
+                  <h3 className="font-semibold mb-1">Müşteri Desteği</h3>
                   <p className="text-sm text-foreground">
-                    Müşteri hizmetlerimiz her zaman yanınızda
+                    Canlı destek saatleri ve iletişim kanalları için İletişim sayfamızı ziyaret edin
                   </p>
                 </div>
               </div>

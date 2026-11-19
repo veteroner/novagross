@@ -1,3 +1,4 @@
+import { marketingDelivery, unsubscribeFooter } from '@/lib/privacy/marketing-delivery';
 // Email Service - Core email sending functionality
 
 import { Resend } from 'resend';
@@ -31,14 +32,21 @@ export class EmailService {
    */
   async sendEmail(params: SendEmailParams): Promise<SendResult> {
     try {
+      const recipients = Array.isArray(params.to) ? params.to : [params.to];
+      let unsubscribeUrl: string | undefined;
+      for (const recipient of recipients) {
+        const delivery = await marketingDelivery(createServiceRoleClient(), recipient, params.template);
+        if (!delivery.allowed) return { success: false, error: 'CONSENT_REQUIRED: Pazarlama ileti izni yok veya kapsam dışı.' };
+        if (delivery.unsubscribeUrl) unsubscribeUrl = delivery.unsubscribeUrl;
+      }
+      if (params.template.startsWith('marketing/') && recipients.length !== 1) return { success: false, error: 'CONSENT_REQUIRED: Pazarlama iletileri kişiye özel gönderilmelidir.' };
       // 1. Rate limit kontrolü
       await this.checkRateLimit(params.to as string);
 
       // 2. Şablonu yükle ve render et
-      const html = await this.renderTemplate(params.template, params.data);
+      const html = await this.renderTemplate(params.template, params.data) + (unsubscribeUrl ? unsubscribeFooter(unsubscribeUrl) : '');
 
       // 3. Resend ile gönder
-      const recipients = Array.isArray(params.to) ? params.to : [params.to];
       const from = params.from || this.from;
 
       if (process.env.NODE_ENV !== 'production') {
@@ -56,6 +64,7 @@ export class EmailService {
         subject: params.subject,
         html,
         replyTo: params.replyTo,
+        ...(unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl.replace('/bulten/ayril?', '/api/newsletter/unsubscribe?')}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
       });
 
       const resendError = (result as any)?.error;
@@ -341,7 +350,7 @@ export class EmailService {
       .eq('user_id', userId)
       .single();
 
-    if (!prefs) return true; // Tercih yoksa varsayılan olarak gönder
+    if (!prefs) return false; // İzin yoksa pazarlama gönderilmez
 
     return !Boolean(prefs.unsubscribed_all) && Boolean(prefs.marketing);
   }

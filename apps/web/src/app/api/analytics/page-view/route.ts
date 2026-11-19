@@ -1,3 +1,4 @@
+import { requestHasAnalyticsConsent } from '@/lib/privacy/consent'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
@@ -16,6 +17,7 @@ const clip = (v: unknown, max: number): string | null => {
 }
 
 export async function POST(request: NextRequest) {
+  if (!requestHasAnalyticsConsent(request)) return new NextResponse(null, { status: 204 })
   try {
     const body = await request.json()
 

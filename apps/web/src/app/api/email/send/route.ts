@@ -18,6 +18,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const { data: profile } = await authSupabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (!profile || !['admin', 'super_admin'].includes(profile.role || '')) return NextResponse.json({ error: 'Yetkisiz işlem' }, { status: 403 })
     const body = await request.json()
 
     const to = body?.to as string | undefined

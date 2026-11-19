@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Button } from '@novagross/ui'
-import { KVKKConsent } from '@/components/kvkk-consent'
+import Link from 'next/link'
+import { MARKETING_TEXT, MARKETING_VERSION } from '@/lib/privacy/marketing'
 import { toast } from '@/components/ui/toast'
 import { apiFetch, getErrorMessage, retryApiCall } from '@/lib/api-error-handler'
 
@@ -20,7 +21,7 @@ export function NewsletterForm() {
     }
 
     if (!kvkkConsent) {
-      toast.error('KVKK onayını kabul etmelisiniz')
+      toast.error('Bültene abone olmak için e-posta ileti iznini işaretleyin')
       return
     }
 
@@ -32,7 +33,7 @@ export function NewsletterForm() {
         () => apiFetch<{ message: string }>('/api/newsletter/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, consent: kvkkConsent, version: MARKETING_VERSION }),
         }),
         2 // Max 2 retries (3 total attempts)
       )
@@ -56,7 +57,7 @@ export function NewsletterForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="E-posta adresin"
-            className="flex-1 px-4 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 px-4 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground"
             disabled={loading}
             required
             autoComplete="email"
@@ -66,12 +67,8 @@ export function NewsletterForm() {
           </Button>
         </div>
 
-        <KVKKConsent
-          checked={kvkkConsent}
-          onChange={setKvkkConsent}
-          variant="newsletter"
-          required
-        />
+        <p className="text-xs text-white/90">E-posta adresinizin kullanımı hakkında <Link href="/kvkk" target="_blank" className="underline">KVKK Aydınlatma Metni</Link>’ni inceleyebilirsiniz.</p>
+        <label className="flex items-start gap-3 text-sm text-white text-left"><input aria-label="E-posta bülteni ileti izni" type="checkbox" checked={kvkkConsent} onChange={e => setKvkkConsent(e.target.checked)} required className="mt-1 shrink-0"/><span>{MARKETING_TEXT}</span></label>
       </form>
     </div>
   )

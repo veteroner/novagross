@@ -1,9 +1,11 @@
+import { requestHasAnalyticsConsent } from '@/lib/privacy/consent'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  if (!requestHasAnalyticsConsent(req)) return new NextResponse(null, { status: 204 })
   try {
     const body = await req.json()
     const { campaign_id, product_id, event_type, session_id } = body

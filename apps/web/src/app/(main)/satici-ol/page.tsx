@@ -1,5 +1,6 @@
 'use client';
 
+import { AGREEMENT_VERSION } from '@/lib/agreements/registry'
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@novagross/ui';
@@ -58,26 +59,13 @@ export default function BecomeSellerPage() {
       const response = await fetch('/api/seller/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, agreements, agreementVersion: AGREEMENT_VERSION }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || 'Bir hata oluştu');
-      }
-
-      // Sözleşme onaylarını yasal kanıt olarak logla
-      const acceptedTypes = Object.entries(agreements).filter(([, v]) => v).map(([k]) => k)
-      if (acceptedTypes.length > 0) {
-        const body: any = { agreements: acceptedTypes }
-        if (data?.application_id) body.store_application_id = data.application_id
-        await fetch('/api/agreements/accept', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        }).catch(() => {})
       }
 
       setSuccess(true);

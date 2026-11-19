@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { MembershipConsentGate } from '@/components/agreements/membership-consent-gate'
 import { Providers } from './providers'
 import { Header } from '@/components/layout/header-client'
 import { Footer } from '@/components/layout/footer'
@@ -75,10 +76,10 @@ export default function RootLayout({
     <html lang="tr" suppressHydrationWarning className={`${inter.variable}`}>
       <head>
         {/* Resource Hints for Performance */}
-        <link rel="preconnect" href="https://www.googletagmanager.com" />
-        <link rel="preconnect" href="https://www.google-analytics.com" />
-        <link rel="dns-prefetch" href="https://connect.facebook.net" />
-        <link rel="dns-prefetch" href="https://www.clarity.ms" />
+
+
+
+
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.className} overflow-x-hidden`}>
@@ -94,6 +95,7 @@ export default function RootLayout({
             <Footer />
           </div>
           <CookieConsent />
+          <MembershipConsentGate />
           <GoogleAnalytics />
           <GoogleTagManager />
           <FacebookPixel />

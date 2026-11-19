@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { CookieSettingsButton } from '@/components/cookie-settings-button'
 import Image from 'next/image'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateLocalBusinessSchema } from '@/lib/structured-data'
@@ -73,6 +74,7 @@ export function Footer() {
             <h3 className="font-bold mb-4">Müşteri Hizmetleri</h3>
             <nav aria-label="Müşteri hizmetleri">
               <ul className="space-y-2 text-sm">
+                <li><Link href="/yardim" className="text-muted-foreground hover:text-foreground">Yardım ve İşlem Rehberi</Link></li>
                 <li>
                   <Link href="/iletisim" className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm">
                     İletişim
@@ -107,6 +109,10 @@ export function Footer() {
             <h3 className="font-bold mb-4">Yasal</h3>
             <nav aria-label="Yasal bilgiler">
               <ul className="space-y-2 text-sm">
+                <li><CookieSettingsButton /></li>
+                <li><Link href="/cerez-politikasi" className="text-muted-foreground hover:text-foreground">Çerez Politikası</Link></li>
+                <li><Link href="/sozlesmeler/uyelik-sozlesmesi" className="text-muted-foreground hover:text-foreground">Üyelik Sözleşmesi</Link></li>
+                <li><Link href="/sozlesmeler/on-bilgilendirme-formu" className="text-muted-foreground hover:text-foreground">Ön Bilgilendirme Formu</Link></li>
                 <li>
                   <Link href="/gizlilik-politikasi" className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm">
                     Gizlilik Politikası

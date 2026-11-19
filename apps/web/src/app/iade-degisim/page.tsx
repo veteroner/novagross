@@ -1,3 +1,4 @@
+import { SALE_TERMS } from '@/lib/agreements/checkout-terms'
 import { Metadata } from 'next'
 import { ShippingCostList } from '@/components/shipping-threshold-text'
 
@@ -79,10 +80,10 @@ export default function IadeDegisimPage() {
           <h2 className="text-2xl font-semibold mb-4">İade Koşulları</h2>
           <p className="text-muted-foreground mb-2">İade edilecek ürünlerin şu koşulları sağlaması gerekmektedir:</p>
           <ul className="list-disc list-inside text-muted-foreground space-y-1">
-            <li>Ürün kullanılmamış, denenmemiş ve hasarsız olmalıdır</li>
-            <li>Orijinal ambalajı, etiketleri ve aksesuarları ile birlikte olmalıdır</li>
-            <li>Fatura veya iade formu ürünle birlikte gönderilmelidir</li>
-            <li>Hijyen ve sağlık açısından uygun olmayan ürünler iade edilemez</li>
+            <li>Ürünün niteliğine ve mevzuattaki cayma istisnalarına göre değerlendirme yapılır</li>
+            <li>Güvenli ambalajlama ve mevcut aksesuarların eklenmesi önerilir; ambalajın bulunmaması tek başına cayma hakkını kaldırmaz</li>
+            <li>Sipariş numarası veya fatura bilgisi işlemin eşleştirilmesine yardımcı olur</li>
+            <li>Koruyucu unsurları açılmış, iadesi sağlık/hijyen açısından uygun olmayan ürünler kanuni istisnalara tabi olabilir</li>
           </ul>
         </section>
 
@@ -98,7 +99,7 @@ export default function IadeDegisimPage() {
             <div>
               <h3 className="font-semibold text-lg mb-2">2. Ürünü Paketleme</h3>
               <p className="text-muted-foreground">
-                Ürünü orijinal ambalajı ile birlikte güvenli bir şekilde paketleyin ve iade formunu ekleyin.
+                Ürünü güvenli şekilde paketleyin; mevcut aksesuarları ve sipariş bilgilerini ekleyin.
               </p>
             </div>
             <div>
@@ -110,13 +111,13 @@ export default function IadeDegisimPage() {
             <div>
               <h3 className="font-semibold text-lg mb-2">4. İnceleme ve Onay</h3>
               <p className="text-muted-foreground">
-                Ürün tarafımıza ulaştıktan sonra 3 iş günü içinde kontrol edilir ve onaylanır.
+                Ürün ulaştığında talebiniz incelenir; inceleme yasal iade süresini uzatmaz.
               </p>
             </div>
             <div>
               <h3 className="font-semibold text-lg mb-2">5. İade Tutarının Ödenmesi</h3>
               <p className="text-muted-foreground">
-                İade onaylandıktan sonra 10 iş günü içinde ödeme iadeniz gerçekleştirilir.
+                {SALE_TERMS[4].text}
               </p>
             </div>
           </div>

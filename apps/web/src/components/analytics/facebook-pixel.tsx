@@ -1,38 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { hasConsent as hasPrivacyConsent } from '@/lib/privacy/consent'
+import { useConsent } from '@/lib/privacy/use-consent'
+
+import { useEffect } from 'react'
 
 export function FacebookPixel() {
-  const [hasConsent, setHasConsent] = useState(false)
+  const hasConsent = useConsent('marketing')
   const FB_PIXEL_ID = process.env.NEXT_PUBLIC_FB_PIXEL_ID
 
-  useEffect(() => {
-    const checkConsent = () => {
-      try {
-        const consent = localStorage.getItem('cookie-consent')
-        if (consent) {
-          const parsed = JSON.parse(consent)
-          setHasConsent(parsed.marketing === true)
-        }
-      } catch (error) {
-        console.error('Error reading cookie consent:', error)
-      }
-    }
 
-    checkConsent()
-
-    const handleConsentChange = () => {
-      checkConsent()
-    }
-
-    window.addEventListener('storage', handleConsentChange)
-    window.addEventListener('cookie-consent-updated', handleConsentChange)
-
-    return () => {
-      window.removeEventListener('storage', handleConsentChange)
-      window.removeEventListener('cookie-consent-updated', handleConsentChange)
-    }
-  }, [])
 
   useEffect(() => {
     if (!hasConsent || !FB_PIXEL_ID) return
@@ -54,6 +31,7 @@ export function FacebookPixel() {
       script.async = true
       script.src = 'https://connect.facebook.net/en_US/fbevents.js'
       script.onload = () => {
+        if (!hasPrivacyConsent('marketing')) return
         try {
           ;(window as any).fbq('init', FB_PIXEL_ID)
           ;(window as any).fbq('track', 'PageView')

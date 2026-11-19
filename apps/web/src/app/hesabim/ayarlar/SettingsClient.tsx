@@ -1,5 +1,6 @@
 'use client'
 
+import { MARKETING_TEXT } from '@/lib/privacy/marketing'
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@novagross/ui'
 import { Bell, Mail, Lock, Globe, Loader2, Download } from 'lucide-react'
@@ -94,24 +95,12 @@ export default function SettingsClient({ userId, initialProfile }: Props) {
   async function saveProfileSettings() {
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          metadata: {
-            newsletter_subscribed: newsletterSubscribed,
-            email_notifications: emailNotifications,
-            sms_notifications: smsNotifications,
-            push_notifications: pushNotifications,
-            personalized_offers: personalizedOffers,
-            locale,
-            currency,
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId)
-
-      if (error) throw error
-
+      const response = await fetch('/api/account/preferences', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newsletter_subscribed: newsletterSubscribed, email_notifications: emailNotifications, sms_notifications: smsNotifications, push_notifications: pushNotifications, personalized_offers: personalizedOffers, locale, currency }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Ayarlar kaydedilemedi')
       toast.success('Ayarlar kaydedildi')
     } catch (err: any) {
       console.error('Save settings error', err)
@@ -271,7 +260,7 @@ export default function SettingsClient({ userId, initialProfile }: Props) {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">E-posta Bildirimleri</p>
-              <p className="text-sm text-muted-foreground">Sipariş durumu ve kampanyalar hakkında bildirim al</p>
+              <p className="text-sm text-muted-foreground">Sipariş ve hesap bildirimleri; pazarlama izninden ayrıdır</p>
             </div>
             <input
               type="checkbox"
@@ -318,7 +307,7 @@ export default function SettingsClient({ userId, initialProfile }: Props) {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">E-Bülten</p>
-              <p className="text-sm text-muted-foreground">Kampanya ve fırsatlardan haberdar ol</p>
+              <p className="text-sm text-muted-foreground">{MARKETING_TEXT}</p>
             </div>
             <input
               type="checkbox"

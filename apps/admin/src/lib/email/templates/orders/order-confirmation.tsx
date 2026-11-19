@@ -19,6 +19,7 @@ export interface OrderConfirmationProps {
   shippingAddress?: string;
   orderUrl?: string;
   trackingUrl?: string;
+  agreementText?: string;
 }
 
 function formatTRY(amount: number) {
@@ -42,6 +43,7 @@ export default function OrderConfirmation({
   shippingAddress,
   orderUrl,
   trackingUrl,
+  agreementText,
 }: OrderConfirmationProps) {
   const effectiveOrderDate = orderDate || new Date().toLocaleString('tr-TR');
 
@@ -119,6 +121,7 @@ export default function OrderConfirmation({
         {!orderUrl && trackingUrl ? <Button href={trackingUrl}>Kargo Takip</Button> : null}
       </div>
 
+      {agreementText ? <Section><Heading as="h3">Siparişe Özel Belgeler</Heading><Text style={{ whiteSpace: 'pre-wrap', fontSize: '12px', lineHeight: '18px' }}>{agreementText}</Text></Section> : null}
       <Hr style={emailStyles.hr} />
 
       <Text style={{ fontSize: '14px', lineHeight: '20px', color: '#666' }}>

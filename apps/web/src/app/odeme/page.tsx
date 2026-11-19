@@ -2,6 +2,9 @@
 
 import { composeAddressLines, toAddressMetadata, fromAddressRow, fullAddressLine, type StructuredAddress } from '@novagross/cargo/address'
 
+import { CHECKOUT_VERSION } from '@/lib/agreements/checkout-terms'
+import type { CheckoutDocument } from '@/lib/agreements/checkout-document'
+import { CheckoutDocuments } from '@/components/legal/checkout-documents'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -51,6 +54,8 @@ function CheckoutContent() {
   const [paymentBasketId, setPaymentBasketId] = useState<string | null>(null)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
   // Mesafeli Sözleşmeler Yönetmeliği m.5: Ön Bilgilendirme + MSS onayı şart
+  const [preparedDocument, setPreparedDocument] = useState<CheckoutDocument | null>(null)
+  const [documentToken, setDocumentToken] = useState<string | null>(null)
   const [mssAccepted, setMssAccepted] = useState(false)
   const [obfAccepted, setObfAccepted] = useState(false)
   const iframeRef = useRef<HTMLDivElement>(null)
@@ -218,13 +223,13 @@ function CheckoutContent() {
     }
   }, [isHydrated, items.length, currentStep, router])
 
-  // Initialize iyzico checkout when reaching payment step
   useEffect(() => {
-    // Yasal onaylar tamamlanmadan iyzico initialize edilmez
-    if (currentStep === 'payment' && !checkoutFormContent && !isProcessing && mssAccepted && obfAccepted) {
-      initializePayment()
-    }
-  }, [currentStep, mssAccepted, obfAccepted])
+    if (currentStep === 'payment' && !checkoutFormContent && !isProcessing && !preparedDocument) initializePayment(true)
+  }, [currentStep])
+
+  useEffect(() => {
+    setPreparedDocument(null); setDocumentToken(null); setMssAccepted(false); setObfAccepted(false); setCheckoutFormContent(null)
+  }, [formData, items, appliedCoupon, selectedShippingId, selectedBillingId, sameAsBilling])
 
   // Render iyzico form when content is available
   useEffect(() => {
@@ -253,7 +258,8 @@ function CheckoutContent() {
     }
   }, [checkoutFormContent])
 
-  const initializePayment = async () => {
+  const initializePayment = async (prepareOnly = false) => {
+    if (!prepareOnly && (!mssAccepted || !obfAccepted || !preparedDocument || !documentToken)) { setPaymentError('Belgeleri hazırlayıp her iki onayı işaretleyin.'); return }
     setIsProcessing(true)
     setPaymentError(null)
     setNeedsAuth(false)
@@ -265,6 +271,9 @@ function CheckoutContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          prepareOnly,
+          shippingMethod: formData.shippingMethod,
+          agreements: prepareOnly ? undefined : { mesafeli_satis: mssAccepted, on_bilgilendirme: obfAccepted, version: CHECKOUT_VERSION, documentToken },
           items: items.map(item => ({
             productId: item.productId,
             name: item.name,
@@ -313,27 +322,16 @@ function CheckoutContent() {
           setNeedsAuth(true)
           throw new Error('Ödeme için giriş yapmanız gerekiyor.')
         }
+        if (data.code === 'AGREEMENT_REFRESH_REQUIRED') { setPreparedDocument(null); setDocumentToken(null); setMssAccepted(false); setObfAccepted(false) }
         throw new Error(data.error || 'Ödeme başlatılamadı')
       }
 
+      if (prepareOnly) { setPreparedDocument(data.document); setDocumentToken(data.documentToken); setMssAccepted(false); setObfAccepted(false); return }
       setCheckoutFormContent(data.checkoutFormContent)
       if (data.basketId) setPaymentBasketId(data.basketId)
       if (data.orderId) setPaymentOrderId(data.orderId)
       setNeedsAuth(false)
 
-      // Mesafeli Satış + Ön Bilgilendirme onaylarını yasal kanıt olarak kaydet
-      // (IP/UA/timestamp + order_id ile siparişle eşleşir).
-      if (data.orderId) {
-        await fetch('/api/agreements/accept', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            agreements: ['mesafeli_satis', 'on_bilgilendirme'],
-            order_id: data.orderId,
-          }),
-        }).catch(() => {})
-      }
     } catch (error) {
       console.error('Payment initialization error:', error)
       setPaymentError(error instanceof Error ? error.message : 'Ödeme başlatılırken bir hata oluştu')
@@ -764,9 +762,10 @@ function CheckoutContent() {
 
                 {/* Yasal onay alanı — iyzico form yüklenmeden önce gösterilir,
                     onaylanınca initializePayment otomatik çalışır (effect deps). */}
-                {!checkoutFormContent && !needsAuth && (!mssAccepted || !obfAccepted) && (
+                {!checkoutFormContent && !needsAuth && preparedDocument && (
                   <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
-                    <p className="text-sm font-medium">Ödemeyi başlatmadan önce onaylamanız gereken sözleşmeler:</p>
+                    <CheckoutDocuments document={preparedDocument} />
+                    <p className="text-sm font-medium">Yukarıdaki siparişe özel belgeler için onayınız:</p>
                     <label className="flex items-start gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
@@ -820,10 +819,12 @@ function CheckoutContent() {
                 {isProcessing && !checkoutFormContent && (
                   <div className="flex flex-col items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="mt-4 text-muted-foreground">Ödeme formu yükleniyor...</p>
+                    <p className="mt-4 text-muted-foreground">Sipariş bilgileri hazırlanıyor...</p>
                   </div>
                 )}
 
+                {!checkoutFormContent && !paymentError && !isProcessing && preparedDocument && <Button className="w-full" disabled={!mssAccepted || !obfAccepted} onClick={() => initializePayment()}>Sözleşmeleri Onayla ve Ödeme Formunu Aç</Button>}
+                {!checkoutFormContent && !paymentError && !isProcessing && !preparedDocument && <Button onClick={() => initializePayment(true)}>Sipariş Belgelerini Hazırla</Button>}
                 {/* iyzico Checkout Form */}
                 {checkoutFormContent && (
                   <div ref={iframeRef} className="min-h-[400px]" />
@@ -834,7 +835,7 @@ function CheckoutContent() {
                     <Button variant="outline" onClick={handleBack} className="flex-1">
                       Geri
                     </Button>
-                    <Button onClick={initializePayment} className="flex-1">
+                    <Button onClick={() => initializePayment(!preparedDocument)} disabled={isProcessing || (!!preparedDocument && (!mssAccepted || !obfAccepted))} className="flex-1">
                       Tekrar Dene
                     </Button>
                   </div>

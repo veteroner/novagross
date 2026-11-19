@@ -52,7 +52,7 @@ export default function GizlilikPolitikasiPage() {
             <li>Ad, soyad ve iletişim bilgileri</li>
             <li>E-posta adresi ve telefon numarası</li>
             <li>Teslimat ve fatura adresi bilgileri</li>
-            <li>Ödeme bilgileri (şifreli olarak saklanır)</li>
+            <li>Ödeme işlem bilgileri (sipariş tutarı, işlem referansı ve ödeme durumu; kart bilgileri hariç)</li>
             <li>Sipariş geçmişi ve alışveriş tercihleri</li>
           </ul>
         </section>
@@ -79,7 +79,7 @@ export default function GizlilikPolitikasiPage() {
             <h3 className="font-semibold mb-2">Ödeme Güvenliği</h3>
             <p className="text-muted-foreground text-sm">
               Tüm ödeme işlemleriniz <strong>iyzico</strong> güvenli ödeme altyapısı üzerinden gerçekleştirilmektedir.
-              Kredi kartı bilgileriniz hiçbir zaman sistemimizde saklanmaz ve 256-bit SSL şifreleme ile korunur.
+              Kredi kartı bilgileriniz hiçbir zaman sistemimizde saklanmaz ve SSL/TLS ile korunur.
               iyzico, PCI-DSS Level 1 sertifikasına sahiptir ve uluslararası güvenlik standartlarına uygundur.
               Ödeme bilgileriniz sadece iyzico sisteminde güvenli bir şekilde işlenir ve saklanır.
             </p>

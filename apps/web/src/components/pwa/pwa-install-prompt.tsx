@@ -1,5 +1,7 @@
 'use client'
 
+import { usePromptSlot } from '@/lib/privacy/use-privacy-overlay'
+
 import { useEffect, useState } from 'react'
 import { Button } from '@novagross/ui'
 import { X, Download } from 'lucide-react'
@@ -12,6 +14,8 @@ interface BeforeInstallPromptEvent extends Event {
 export function PWAInstallPrompt() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
+
+  const hasSlot = usePromptSlot('install', showPrompt && !!installPrompt)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -51,10 +55,10 @@ export function PWAInstallPrompt() {
     localStorage.setItem('pwa-install-dismissed', 'true')
   }
 
-  if (!showPrompt || !installPrompt) return null
+  if (!hasSlot || !installPrompt) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-card border rounded-lg shadow-lg p-4 z-50 animate-in slide-in-from-bottom">
+    <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-card border rounded-lg shadow-lg p-4 z-50 animate-in slide-in-from-bottom">
       <button
         onClick={handleDismiss}
         className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"

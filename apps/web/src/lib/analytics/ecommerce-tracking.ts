@@ -1,3 +1,4 @@
+import { hasConsent } from '@/lib/privacy/consent'
 /**
  * Google Analytics 4 E-commerce Event Tracking
  * https://developers.google.com/analytics/devguides/collection/ga4/ecommerce
@@ -5,7 +6,7 @@
 
 // GTM dataLayer helper (inline)
 function gtmEvent(eventName: string, params: Record<string, any>) {
-  if (typeof window !== 'undefined' && window.dataLayer) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && hasConsent('marketing') && window.dataLayer) {
     window.dataLayer.push({
       event: eventName,
       ...params,
@@ -44,7 +45,7 @@ export function trackViewItem(item: EcommerceItem) {
   })
 
   // Also send to GA4 directly if available
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'view_item', {
       currency: 'TRY',
       value: item.price,
@@ -63,7 +64,7 @@ export function trackAddToCart(item: EcommerceItem) {
     items: [item],
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'add_to_cart', {
       currency: 'TRY',
       value: item.price * item.quantity,
@@ -82,7 +83,7 @@ export function trackRemoveFromCart(item: EcommerceItem) {
     items: [item],
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'remove_from_cart', {
       currency: 'TRY',
       value: item.price * item.quantity,
@@ -101,7 +102,7 @@ export function trackViewCart(items: EcommerceItem[], totalValue: number) {
     items,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'view_cart', {
       currency: 'TRY',
       value: totalValue,
@@ -120,7 +121,7 @@ export function trackBeginCheckout(items: EcommerceItem[], totalValue: number) {
     items,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'begin_checkout', {
       currency: 'TRY',
       value: totalValue,
@@ -140,7 +141,7 @@ export function trackAddShippingInfo(items: EcommerceItem[], totalValue: number,
     items,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'add_shipping_info', {
       currency: 'TRY',
       value: totalValue,
@@ -161,7 +162,7 @@ export function trackAddPaymentInfo(items: EcommerceItem[], totalValue: number, 
     items,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'add_payment_info', {
       currency: 'TRY',
       value: totalValue,
@@ -184,7 +185,7 @@ export function trackPurchase(transaction: EcommerceTransaction) {
     items: transaction.items,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'purchase', {
       transaction_id: transaction.transaction_id,
       value: transaction.value,
@@ -204,7 +205,7 @@ export function trackSearch(searchTerm: string) {
     search_term: searchTerm,
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'search', {
       search_term: searchTerm,
     })
@@ -219,7 +220,7 @@ export function trackNewsletterSignup(method?: string) {
     method: method || 'footer',
   })
 
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'sign_up', {
       method: method || 'newsletter',
     })

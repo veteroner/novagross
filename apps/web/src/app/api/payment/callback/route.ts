@@ -614,7 +614,10 @@ async function sendBuyerEmailDirect(args: {
     ? new Date((order as any).created_at).toLocaleString('tr-TR')
     : new Date().toLocaleString('tr-TR')
 
+  const { data: agreement } = await args.db.from('user_agreements').select('metadata').eq('order_id', args.orderId).eq('agreement_type', 'mesafeli_satis').order('accepted_at', { ascending: false }).limit(1).maybeSingle()
+
   const rendered = renderEmailTemplate('orders/order-confirmation', {
+    agreementText: agreement?.metadata?.document_text || null,
     orderNumber: args.orderNumber,
     orderDate,
     items: (items || []).map((i: any) => ({
@@ -749,6 +752,8 @@ async function queueOrderEmails(
     ? `${fullAddressLine(shippingAddr)}, ${shippingAddr.district}, ${shippingAddr.city}`
     : undefined;
 
+  const { data: agreement } = await (supabase as any).from('user_agreements').select('metadata').eq('order_id', orderId).eq('agreement_type', 'mesafeli_satis').order('accepted_at', { ascending: false }).limit(1).maybeSingle()
+
   const emails: any[] = [
     {
       to: buyerEmail,
@@ -756,6 +761,7 @@ async function queueOrderEmails(
       template: 'orders/order-confirmation',
       priority: 'critical',
       data: {
+        agreementText: agreement?.metadata?.document_text || null,
         orderNumber,
         orderDate,
         items: buyerItems,
@@ -811,6 +817,7 @@ async function queueOrderEmails(
       priority: 'high',
       data: {
         storeName: 'Novagross',
+        agreementText: agreement?.metadata?.document_text || null,
         orderNumber,
         orderDate,
         items: adminItems.map((i: any) => ({
@@ -842,6 +849,7 @@ async function queueOrderEmails(
       priority: 'high',
       data: {
         storeName: storeData.storeName,
+        agreementText: agreement?.metadata?.document_text || null,
         orderNumber,
         orderDate,
         items: storeData.items,

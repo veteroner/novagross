@@ -130,6 +130,8 @@ export default async function OrderDetailPage({
   const shippingAddress = asAddressLike(order.shipping_address)
   const currentStatusIndex = statusSteps.findIndex((s) => s.status === order.status)
 
+  const { data: contract } = await (supabase as any).from('user_agreements').select('id').eq('order_id', id).eq('user_id', user.id).eq('agreement_type', 'mesafeli_satis').not('metadata->>document_text', 'is', null).limit(1).maybeSingle()
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -140,6 +142,7 @@ export default async function OrderDetailPage({
         </Button>
         <div>
           <h2 className="text-xl font-bold">Sipariş #{order.order_number}</h2>
+          {contract && <a href={`/api/orders/${id}/documents`} className="mt-2 inline-flex items-center gap-2 text-sm underline"><Download className="h-4 w-4"/>Sözleşme ve Ön Bilgilendirmeyi İndir</a>}
           <p className="text-sm text-muted-foreground">
             {order.created_at ? formatDate(order.created_at) : 'Tarih belirtilmemiş'}
           </p>

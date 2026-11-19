@@ -57,6 +57,7 @@ export function renderEmailTemplate(template: string, data: Record<string, any>)
             <p style="margin:16px 0 0;">Toplam: <strong>${total}</strong></p>
             ${shipping ? `<p style="margin:8px 0 0;">Teslimat: ${shipping}</p>` : ''}
             ${orderUrl ? `<p style="margin:16px 0 0;"><a href="${orderUrl}">Sipariş detayını görüntüle</a></p>` : ''}
+            ${data?.agreementText ? `<h3>Siparişe özel sözleşme ve ön bilgilendirme</h3><pre style="white-space:pre-wrap;font-family:inherit;font-size:12px;">${escapeHtml(data.agreementText)}</pre>` : ''}
             <hr style="border:none; border-top:1px solid #eee; margin:20px 0;" />
             <p style="margin:0; color:#666; font-size:12px;">Novagross</p>
           </div>

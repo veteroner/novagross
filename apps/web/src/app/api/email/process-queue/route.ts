@@ -1,3 +1,4 @@
+import { marketingDelivery, unsubscribeFooter } from '@/lib/privacy/marketing-delivery'
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createServiceRoleClient } from '@/lib/supabase/service'
@@ -131,14 +132,21 @@ export async function POST(req: NextRequest) {
         if (waitMs > 0) await sleep(waitMs)
       }
 
+      const delivery = await marketingDelivery(supabase, item.recipient, item.template)
+      if (!delivery.allowed) {
+        failed += 1
+        await supabase.from('email_queue').update({ status: 'failed', last_error: 'CONSENT_REQUIRED: Pazarlama izni bulunmadığı veya kapsam dışı olduğu için gönderilmedi.' }).eq('id', item.id)
+        continue
+      }
       const rendered = renderEmailTemplate(item.template, item.data || {})
-      const html = rendered.html
+      const html = rendered.html + (delivery.unsubscribeUrl ? unsubscribeFooter(delivery.unsubscribeUrl) : '')
 
       const result = await resend.emails.send({
         from,
         to: item.recipient,
         subject: item.subject,
         html,
+        ...(delivery.unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${delivery.unsubscribeUrl.replace('/bulten/ayril?', '/api/newsletter/unsubscribe?')}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
       })
 
       const resendError = (result as any)?.error

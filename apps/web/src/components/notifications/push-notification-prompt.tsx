@@ -1,5 +1,7 @@
 'use client'
 
+import { usePromptSlot } from '@/lib/privacy/use-privacy-overlay'
+
 import { useEffect, useState } from 'react'
 import { Button } from '@novagross/ui'
 import { Bell, BellOff, X } from 'lucide-react'
@@ -30,6 +32,8 @@ export function PushNotificationPrompt() {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  const hasSlot = usePromptSlot('notifications', isVisible && permission === 'default' && !isSubscribed)
 
   // Check support and subscription status
   useEffect(() => {
@@ -127,9 +131,9 @@ export function PushNotificationPrompt() {
   }
 
   // Show permission prompt banner
-  if (isVisible && permission === 'default' && !isSubscribed) {
+  if (hasSlot && permission === 'default' && !isSubscribed) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 max-w-sm animate-slide-up">
+      <div className="fixed bottom-24 right-4 z-50 max-w-sm animate-slide-up">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
@@ -177,7 +181,7 @@ export function PushNotificationPrompt() {
   // Show settings button if subscribed (optional, can be in user settings)
   if (isSubscribed && process.env.NODE_ENV === 'development') {
     return (
-      <div className="fixed bottom-4 left-4 z-50">
+      <div className="fixed bottom-24 left-4 z-50">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border p-3 space-y-2">
           <p className="text-xs font-semibold">Bildirimler Aktif ✅</p>
           <div className="flex gap-2">

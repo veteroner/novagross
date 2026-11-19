@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
@@ -5,6 +6,7 @@ import { Button, Badge, Card, CardContent } from '@novagross/ui'
 import { formatPrice } from '@novagross/utils'
 import { Truck, Shield, RotateCcw, Star } from 'lucide-react'
 import { ProductImageGallery } from '@/components/product/product-image-gallery'
+import { ProductQuestions } from '@/components/product/product-questions'
 import { ProductVariantSelector } from '@/components/product/product-variant-selector'
 import { ProductViewTracker } from '@/components/product/product-view-tracker'
 import { getProductBySlug } from '@/lib/supabase/queries'
@@ -89,6 +91,7 @@ export default async function ProductDetailPage({
       <ProductViewTracker productId={product.id} />
 
       <div className="container py-8">
+      <nav aria-label="Sayfa yolu" className="mb-6 flex flex-wrap gap-2 text-sm text-muted-foreground"><Link href="/">Ana Sayfa</Link><span>/</span><Link href={product.category ? `/urunler?category=${product.category.slug}` : "/urunler"}>{product.category?.name || "Ürünler"}</Link><span>/</span><span aria-current="page">{product.name}</span></nav>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Product Images */}
           <div>
@@ -149,6 +152,7 @@ export default async function ProductDetailPage({
           <ProductVariantSelector
             product={{
               id: product.id,
+              slug: product.slug,
               name: product.name,
               price: product.price,
               comparePrice: product.comparePrice,
@@ -158,6 +162,7 @@ export default async function ProductDetailPage({
             variants={product.variants}
           />
 
+          {product.store && <div className="rounded-lg border p-4 space-y-2 text-sm"><p>Satıcı: <Link href={`/magaza/${product.store.slug}`} className="font-medium underline">{product.store.name}</Link></p><a href="#saticiya-sor" className="inline-block underline">Ürün hakkında satıcıya soru sor</a><details><summary className="cursor-pointer">Satıcı iletişim bilgileri</summary><div className="mt-2 space-y-1 text-muted-foreground"><p>{product.store.companyName || product.store.name}</p><p>{product.store.address}</p>{product.store.email && <p><a href={`mailto:${product.store.email}`}>{product.store.email}</a></p>}{product.store.phone && <p><a href={`tel:${product.store.phone}`}>{product.store.phone}</a></p>}</div></details></div>}
           {/* Features */}
           <div className="grid grid-cols-3 gap-4 pt-6 border-t">
             <div className="text-center">
@@ -171,13 +176,13 @@ export default async function ProductDetailPage({
             </div>
             <div className="text-center">
               <Shield className="h-6 w-6 mx-auto text-primary" />
-              <p className="text-sm font-medium mt-2">2 Yıl Garanti</p>
-              <p className="text-xs text-muted-foreground">Resmi distribütör</p>
+              <p className="text-sm font-medium mt-2">Güvenli Ödeme</p>
+              <p className="text-xs text-muted-foreground">iyzico altyapısıyla</p>
             </div>
             <div className="text-center">
               <RotateCcw className="h-6 w-6 mx-auto text-primary" />
               <p className="text-sm font-medium mt-2">14 Gün İade</p>
-              <p className="text-xs text-muted-foreground">Koşulsuz iade</p>
+              <p className="text-xs text-muted-foreground"><Link href="/iade-degisim" className="underline">Koşullar ve istisnalar</Link></p>
             </div>
           </div>
 
@@ -185,7 +190,7 @@ export default async function ProductDetailPage({
           <div className="pt-6 border-t">
             <h2 className="font-bold mb-4">Ürün Açıklaması</h2>
             <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-line">
-              {product.description}
+              {product.description?.trim() || "Satıcı bu ürün için henüz ayrıntılı açıklama eklememiş. Satın almadan önce uyumluluk ve ürün özellikleri için satıcıyla iletişime geçebilirsiniz."}
             </div>
           </div>
         </div>
@@ -196,6 +201,8 @@ export default async function ProductDetailPage({
         <h2 className="text-2xl font-bold mb-6">Benzer Ürünler</h2>
         <RelatedProducts categorySlug={product.category?.slug || ''} currentProductId={product.id} />
       </section>
+
+      <ProductQuestions productId={product.id} />
 
       {/* Product Reviews */}
       <section className="mt-16">

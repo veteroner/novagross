@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import { CookieSettingsButton } from '@/components/cookie-settings-button'
 import Image from 'next/image'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateLocalBusinessSchema } from '@/lib/structured-data'
+import { COMPANY_INFO } from '@/lib/company-info'
+import { EtbisBadge } from '@/components/layout/etbis-badge'
 
 export function Footer() {
   return (
@@ -9,7 +12,7 @@ export function Footer() {
       {/* LocalBusiness Schema for SEO */}
       <JsonLd data={generateLocalBusinessSchema()} />
       
-      <div className="container py-12">
+      <div className="container pt-12 pb-24">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* About */}
           <div>
@@ -17,6 +20,24 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               En kaliteli ürünler, en uygun fiyatlarla. Güvenli alışveriş, hızlı teslimat.
             </p>
+            <address className="mt-4 not-italic text-xs leading-relaxed text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground">{COMPANY_INFO.legalName}</p>
+              <p>{COMPANY_INFO.address}</p>
+              <p>
+                Vergi Dairesi: {COMPANY_INFO.taxOffice} · Vergi No: {COMPANY_INFO.taxNumber}
+              </p>
+              <p>Ticaret Sicil No: {COMPANY_INFO.tradeRegistryNumber}</p>
+              {COMPANY_INFO.mersisNumber && <p>MERSİS No: {COMPANY_INFO.mersisNumber}</p>}
+              <p>
+                E-posta:{' '}
+                <a href={`mailto:${COMPANY_INFO.email}`} className="hover:text-foreground underline-offset-2 hover:underline">
+                  {COMPANY_INFO.email}
+                </a>
+              </p>
+            </address>
+            <div className="mt-4">
+              <EtbisBadge />
+            </div>
           </div>
 
           {/* Quick Links */}
@@ -53,6 +74,7 @@ export function Footer() {
             <h3 className="font-bold mb-4">Müşteri Hizmetleri</h3>
             <nav aria-label="Müşteri hizmetleri">
               <ul className="space-y-2 text-sm">
+                <li><Link href="/yardim" className="text-muted-foreground hover:text-foreground">Yardım ve İşlem Rehberi</Link></li>
                 <li>
                   <Link href="/iletisim" className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm">
                     İletişim
@@ -87,6 +109,10 @@ export function Footer() {
             <h3 className="font-bold mb-4">Yasal</h3>
             <nav aria-label="Yasal bilgiler">
               <ul className="space-y-2 text-sm">
+                <li><CookieSettingsButton /></li>
+                <li><Link href="/cerez-politikasi" className="text-muted-foreground hover:text-foreground">Çerez Politikası</Link></li>
+                <li><Link href="/sozlesmeler/uyelik-sozlesmesi" className="text-muted-foreground hover:text-foreground">Üyelik Sözleşmesi</Link></li>
+                <li><Link href="/sozlesmeler/on-bilgilendirme-formu" className="text-muted-foreground hover:text-foreground">Ön Bilgilendirme Formu</Link></li>
                 <li>
                   <Link href="/gizlilik-politikasi" className="text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-sm">
                     Gizlilik Politikası
@@ -113,45 +139,20 @@ export function Footer() {
         </div>
 
         {/* Bottom */}
-        <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Novagross. Teknova Tarım Hayvancılık Bilişim Reklam Limited Şirketi tarafından işletilmektedir.
+        <div className="border-t mt-8 pt-8 flex flex-col items-center gap-6 lg:flex-row lg:justify-between lg:gap-8">
+          <p className="max-w-xl text-center text-sm leading-relaxed text-muted-foreground lg:text-left">
+            © {new Date().getFullYear()} {COMPANY_INFO.brand}. {COMPANY_INFO.legalName} tarafından işletilmektedir.
           </p>
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <span className="text-sm text-muted-foreground" aria-label="Güvenli ödeme seçenekleri">Güvenli Ödeme:</span>
-            <div className="flex max-w-full flex-wrap items-center justify-center gap-3" role="list" aria-label="Kabul edilen ödeme yöntemleri">
-              <Image 
-                src="/images/payment/visa.png" 
-                alt="Visa kartı kabul edilir" 
-                width={40} 
-                height={25} 
-                className="h-6 w-auto object-contain"
-                role="listitem"
-              />
-              <Image 
-                src="/images/payment/mastercard.png" 
-                alt="MasterCard kabul edilir" 
-                width={40} 
-                height={25} 
-                className="h-6 w-auto object-contain"
-                role="listitem"
-              />
-              <div
-                className="h-6 px-2 rounded border flex items-center text-[10px] font-semibold text-muted-foreground"
-                role="listitem"
-                aria-label="Troy kartı kabul edilir"
-              >
-                TROY
-              </div>
-              <Image 
-                src="/images/payment/iyzico-footer.png" 
-                alt="iyzico ile güvenli ödeme" 
-                width={120} 
-                height={30} 
-                className="h-7 w-auto max-w-full object-contain"
-                role="listitem"
-              />
-            </div>
+          <div className="flex w-full max-w-[429px] shrink-0 flex-col items-center gap-3 lg:items-end">
+            <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">Güvenli Ödeme</span>
+            <Image
+              src="/images/payment/iyzico-footer.png"
+              alt="iyzico ile güvenli ödeme: Mastercard, Visa, American Express ve TROY"
+              width={858}
+              height={64}
+              className="h-auto w-full"
+              unoptimized
+            />
           </div>
         </div>
       </div>

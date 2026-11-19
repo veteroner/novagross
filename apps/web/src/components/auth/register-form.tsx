@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
+import { AGREEMENT_VERSION } from '@/lib/agreements/registry'
 import { translateAuthError } from '@/lib/auth-errors'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import { AgreementCheckbox, allRequiredAccepted, type AgreementsState } from '@/components/agreements/agreement-checkbox'
@@ -51,7 +52,7 @@ export function RegisterForm() {
     }
 
     if (!allRequiredAccepted(requiredAgreements, agreements)) {
-      setError('Üyelik Sözleşmesi ve KVKK Aydınlatma Metni\'ni kabul etmeniz gerekir.')
+      setError('Üyelik Sözleşmesi onayı ve KVKK bilgilendirme teyidi gereklidir.')
       setIsLoading(false)
       return
     }
@@ -85,13 +86,17 @@ export function RegisterForm() {
         const acceptedTypes = Object.entries(agreements)
           .filter(([, v]) => v)
           .map(([k]) => k)
-        if (acceptedTypes.length > 0) {
-          await fetch('/api/agreements/accept', {
+        if (data.session && acceptedTypes.length > 0) {
+          const consentResponse = await fetch('/api/agreements/accept', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ agreements: acceptedTypes }),
-          }).catch(() => {})
+            body: JSON.stringify({ agreements: acceptedTypes, version: AGREEMENT_VERSION }),
+          })
+          if (!consentResponse.ok) {
+            // Account already exists; the authenticated consent gate will retry before shopping.
+            console.error('Üyelik onayı kaydedilemedi; girişte tekrar gösterilecek')
+          } else window.dispatchEvent(new Event('agreements-updated'))
         }
       }
 
@@ -107,6 +112,7 @@ export function RegisterForm() {
     setIsGoogleLoading(true)
     setError(null)
 
+    if (!allRequiredAccepted(requiredAgreements, agreements)) { setError('Google ile kayıt öncesinde üyelik koşullarını inceleyip gerekli kutuları işaretleyin.'); setIsGoogleLoading(false); return }
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithOAuth({
@@ -143,7 +149,7 @@ export function RegisterForm() {
             <h2 className="text-xl font-bold">Kayıt Başarılı!</h2>
             <p className="text-muted-foreground">
               E-posta adresinize bir doğrulama bağlantısı gönderdik. 
-              Lütfen e-postanızı kontrol edin ve hesabınızı doğrulayın.
+              Lütfen e-postanızı kontrol edin ve hesabınızı doğrulayın. Giriş yaptığınızda belge kaydınız eksikse onay ekranı gösterilir.
             </p>
             <Button onClick={() => router.push('/giris')} className="w-full">
               Giriş Sayfasına Git

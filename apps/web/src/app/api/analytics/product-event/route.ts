@@ -1,3 +1,4 @@
+import { requestHasAnalyticsConsent } from '@/lib/privacy/consent'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
@@ -9,6 +10,7 @@ const EVENT_TYPES = new Set(['view', 'add_to_cart', 'remove_from_cart', 'favorit
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: NextRequest) {
+  if (!requestHasAnalyticsConsent(request)) return new NextResponse(null, { status: 204 })
   try {
     // sendBeacon text/plain gönderebilir
     const raw = await request.text()

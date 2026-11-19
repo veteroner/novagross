@@ -1,7 +1,13 @@
+import { createHash } from 'node:crypto'
+import { signToken, verifyToken, encryptCheckoutHandoff } from '@/lib/privacy/signed-token'
+import { buildCheckoutDocument, checkoutDocumentText } from '@/lib/agreements/checkout-document'
+import { CHECKOUT_VERSION } from '@/lib/agreements/checkout-terms'
+import { COMPANY_INFO } from '@/lib/company-info'
 import { composeAddressLines, fromAddressRow, fullAddressLine } from '@novagross/cargo/address'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateOrderNumber } from '@novagross/utils'
 import { createClient } from '@/lib/supabase/server'
+import { createBearerClient, getBearerToken } from '@/lib/supabase/bearer'
 import { csrfProtection } from '@/lib/csrf'
 import { getSiteUrl } from '@/lib/site-url'
 
@@ -74,14 +80,15 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validate required fields
-    if (!items || !customer || !shippingAddress || !totalPrice) {
+    if (!Array.isArray(items) || items.length === 0 || items.length > 100 || !customer || !shippingAddress || !totalPrice) {
       return NextResponse.json(
         { error: 'Eksik bilgi' },
         { status: 400 }
       )
     }
 
-    const supabase = await createClient()
+    const bearer = getBearerToken(request.headers)
+    const supabase = bearer ? createBearerClient(bearer) : await createClient()
     const { data: auth } = await supabase.auth.getUser()
     const user = auth.user
 
@@ -91,6 +98,19 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    if (body.client === 'mobile' && bearer && body.prepareOnly === undefined && !body.agreements) {
+      const ticket = encryptCheckoutHandoff({ accessToken: bearer, checkout: body })
+      const reviewUrl = new URL('/odeme/mobil-onay', siteUrl)
+      reviewUrl.hash = new URLSearchParams({ ticket }).toString()
+      return NextResponse.json({ requiresAgreementReview: true, paymentPageUrl: reviewUrl.toString(), orderId: null }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    if (body.prepareOnly !== true && (body.agreements?.mesafeli_satis !== true || body.agreements?.on_bilgilendirme !== true)) {
+      return NextResponse.json({ error: 'Ödeme öncesinde sözleşmeleri onaylayın.' }, { status: 400 })
+    }
+
+    const trustedEmail = user.email || customer.email
 
     // ---- Adres snapshot'ı: kayıtlı adres seçildiyse SUNUCUDA addresses satırından,
     // yoksa client'ın yapılandırılmış alanlarından. Kat/daire/mahalle dahil tam adres
@@ -124,7 +144,7 @@ export async function POST(request: NextRequest) {
         first_name: customer.firstName,
         last_name: customer.lastName,
         phone: customer.phone,
-        email: customer.email,
+        email: trustedEmail,
         address_line1: lines.address_line1 || src.address_line1 || shippingAddress.address,
         address_line2: lines.address_line2 || null,
         neighborhood: st.neighborhood || null,
@@ -161,19 +181,6 @@ export async function POST(request: NextRequest) {
         auth: { persistSession: false, autoRefreshToken: false },
       })
 
-      // Ensure profile exists (orders.user_id FK references profiles.id)
-      await db
-        .from('profiles')
-        .upsert(
-          {
-            id: user.id,
-            email: user.email || customer.email,
-            first_name: customer.firstName,
-            last_name: customer.lastName,
-            phone: customer.phone,
-          },
-          { onConflict: 'id' }
-        )
     }
 
     const basketId = generateOrderNumber()
@@ -277,18 +284,6 @@ export async function POST(request: NextRequest) {
       .filter((it) => typeof it.productId === 'string' && Number(it.quantity) > 0)
       .map((it) => ({ product_id: it.productId, quantity: Number(it.quantity) }))
 
-    if (stockPayload.length > 0) {
-      const { error: stockError } = await (db as any).rpc('reserve_stock_atomic', {
-        p_items: stockPayload,
-      })
-      if (stockError) {
-        return NextResponse.json(
-          { error: stockError.message || 'Yetersiz stok' },
-          { status: 409 }
-        )
-      }
-    }
-
     // Server-side coupon validation
     let serverDiscountAmount = 0
     let couponFreeShipping = false
@@ -350,6 +345,33 @@ export async function POST(request: NextRequest) {
     const paidPrice = (serverTotalPrice + shippingCost).toFixed(2)
     const price = (serverSubtotal + Number(shippingCost)).toFixed(2)
 
+    const sellerIds = [...new Set(Array.from(productMap.values()).map(p => p.store_id).filter(Boolean))]
+    const { data: sellerRows, error: sellersError } = await db.from('stores').select('id, company_name, store_name, address, city, district, email, phone, tax_number, tax_office, is_platform_store').in('id', sellerIds)
+    if (sellersError) throw sellersError
+    const sellers = (sellerRows || []).map((store: any) => {
+      const platform = store.is_platform_store === true || store.tax_number === COMPANY_INFO.taxNumber
+      return { id: store.id, name: store.company_name || (platform ? COMPANY_INFO.legalName : store.store_name), address: [store.address || (platform ? COMPANY_INFO.address : ''), store.district, store.city].filter(Boolean).join(', '), email: store.email || (platform ? COMPANY_INFO.email : ''), phone: store.phone || '', taxNumber: store.tax_number || (platform ? COMPANY_INFO.taxNumber : ''), taxOffice: store.tax_office || (platform ? COMPANY_INFO.taxOffice : '') }
+    })
+    if (items.some((item: any) => !productMap.get(item.productId)?.store_id) || sellers.length !== sellerIds.length || sellers.some((seller: any) => !seller.name || !seller.address || !seller.email || !seller.phone || !seller.taxNumber)) {
+      return NextResponse.json({ error: 'Satıcının yasal iletişim bilgileri eksik. Lütfen destek ile iletişime geçin.' }, { status: 409 })
+    }
+    const document = buildCheckoutDocument({
+      buyer: { name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(), email: user.email || '', phone: customer.phone || '', address: [shippingSnapshot.full_address, shippingSnapshot.district, shippingSnapshot.city].filter(Boolean).join(', '), billingAddress: [billingSnapshot.full_address, billingSnapshot.district, billingSnapshot.city].filter(Boolean).join(', ') },
+      sellers,
+      items: items.map((item: any) => ({ productId: item.productId, name: productMap.get(item.productId)?.name || '', quantity: item.quantity, price: item.price, sellerId: productMap.get(item.productId)?.store_id || null })),
+      subtotal: serverSubtotal, shipping: shippingCost, discount: serverDiscountAmount, total: Number(paidPrice), shippingMethod,
+    })
+    const documentText = checkoutDocumentText(document)
+    const documentHash = createHash('sha256').update(documentText).digest('hex')
+    if (body.prepareOnly === true) {
+      return NextResponse.json({ document, documentHash, documentToken: signToken('checkout-document', { userId: user.id, documentHash }, 1800) }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+    const accepted = body.agreements
+    const prepared = verifyToken<{ userId: string; documentHash: string }>(accepted?.documentToken, 'checkout-document')
+    if (accepted?.mesafeli_satis !== true || accepted?.on_bilgilendirme !== true || accepted?.version !== CHECKOUT_VERSION || prepared?.userId !== user.id || prepared?.documentHash !== documentHash) {
+      return NextResponse.json({ error: 'Sipariş bilgileri veya sözleşmeler güncellenmiş. Belgeleri yeniden hazırlayıp onaylayın.', code: 'AGREEMENT_REFRESH_REQUIRED' }, { status: 409 })
+    }
+
     // Get client IP
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 
                request.headers.get('x-real-ip') || 
@@ -378,10 +400,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Sipariş oluşmadan önce dönülen hatalarda rezerve edilen stoğu geri bırak
+    let stockReserved = false
     const releaseReservedStock = async () => {
-      if (stockPayload.length === 0) return
+      if (!stockReserved || stockPayload.length === 0) return
       try {
-        await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+        const { error } = await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+        if (!error) stockReserved = false
       } catch (e) {
         console.error('[payment init] stock release error:', e)
       }
@@ -490,7 +514,36 @@ export async function POST(request: NextRequest) {
     // SECURITY: Email spoofing engelleme — auth user'ın email'i kullanılır,
     // checkout formundan gelen email order confirmation için kabul edilmez.
     // (Saldırgan victim@example.com koyup victim'e spam yollayabilirdi)
-    const trustedEmail = user.email || customer.email
+
+    if (supabaseUrl && serviceRoleKey) {
+      // Ensure profile exists (orders.user_id FK references profiles.id)
+      await db
+        .from('profiles')
+        .upsert(
+          {
+            id: user.id,
+            email: user.email || customer.email,
+            first_name: customer.firstName,
+            last_name: customer.lastName,
+            phone: customer.phone,
+          },
+          { onConflict: 'id' }
+        )
+    }
+    if (stockPayload.length > 0) {
+      const { error: stockError } = await (db as any).rpc('reserve_stock_atomic', {
+        p_items: stockPayload,
+      })
+      if (stockError) {
+        return NextResponse.json(
+          { error: stockError.message || 'Yetersiz stok' },
+          { status: 409 }
+        )
+      }
+    }
+
+
+    stockReserved = stockPayload.length > 0
 
     // Create or update order BEFORE initializing payment, so callback can update it.
     const orderPayload = {
@@ -529,6 +582,7 @@ export async function POST(request: NextRequest) {
         .eq('id', existingOrder.id)
 
       if (updateError) {
+        await releaseReservedStock()
         console.error('Order update error:', updateError)
         return NextResponse.json(
           { error: 'Sipariş güncellenemedi' },
@@ -544,6 +598,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (insertError || !insertedOrder) {
+        await releaseReservedStock()
         console.error('Order insert error:', insertError)
         return NextResponse.json(
           { error: insertError?.message ? `Sipariş oluşturulamadı: ${insertError.message}` : 'Sipariş oluşturulamadı' },
@@ -578,6 +633,8 @@ export async function POST(request: NextRequest) {
       .insert(orderItems as any)
 
     if (itemsInsertError) {
+      await releaseReservedStock()
+      await db.from('orders').update({ status: 'cancelled', payment_status: 'failed' }).eq('id', orderId)
       console.error('Order items insert error:', itemsInsertError)
       return NextResponse.json(
         {
@@ -587,6 +644,17 @@ export async function POST(request: NextRequest) {
         },
         { status: 500 }
       )
+    }
+
+    const { error: agreementError } = await db.from('user_agreements').insert(['mesafeli_satis', 'on_bilgilendirme'].map(type => ({
+      user_id: user.id, order_id: orderId, agreement_type: type, version: CHECKOUT_VERSION,
+      metadata: { document, document_text: documentText, document_hash: documentHash, source: 'checkout', accepted_at: new Date().toISOString() },
+      user_agent: request.headers.get('user-agent'),
+    })))
+    if (agreementError) {
+      await releaseReservedStock()
+      await db.from('orders').update({ status: 'cancelled', payment_status: 'failed' }).eq('id', orderId)
+      return NextResponse.json({ error: 'Sözleşme onayı kaydedilemedi. Ödeme başlatılmadı.' }, { status: 503 })
     }
 
     // Ensure payments row exists
@@ -635,7 +703,7 @@ export async function POST(request: NextRequest) {
         name: customer.firstName,
         surname: customer.lastName,
         gsmNumber: customer.phone.replace(/\s/g, ''),
-        email: customer.email,
+        email: trustedEmail,
         identityNumber: customer.identityNumber || '11111111111', // TC Kimlik
         registrationAddress: billingSnapshot.full_address,
         ip,
@@ -771,7 +839,8 @@ export async function POST(request: NextRequest) {
           .eq('payment_status', 'pending')
           .select('id')
         if (claimed && claimed.length > 0 && stockPayload.length > 0) {
-          await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+          const { error } = await (db as any).rpc('release_stock_atomic', { p_items: stockPayload })
+        if (!error) stockReserved = false
         }
       } catch (releaseErr) {
         console.error('[payment init] stock release on iyzico fail error:', releaseErr)

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Badge } from '@novagross/ui'
 import { formatPrice, calculateDiscount } from '@novagross/utils'
+import { useFavoritesStore } from '@/stores/favorites-store'
+import { toast } from 'sonner'
 import { Heart, Share2 } from 'lucide-react'
 import { AddToCartButton } from './add-to-cart-button'
 
@@ -20,6 +22,7 @@ interface ProductVariantSelectorProps {
   product: {
     id: string
     name: string
+    slug: string
     price: number
     comparePrice: number | null
     stock: number | null
@@ -33,6 +36,20 @@ export function ProductVariantSelector({ product, variants }: ProductVariantSele
     variants.length > 0 ? variants[0].id : null
   )
 
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const favorites = useFavoritesStore()
+  const favorite = mounted && favorites.isFavorite(product.id)
+  const toggleFavorite = () => {
+    if (favorite) favorites.removeFromFavorites(product.id)
+    else favorites.addToFavorites({ productId: product.id, name: product.name, slug: product.slug, price: product.price, image: product.images[0]?.url })
+  }
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: product.name, url: location.href })
+      else { await navigator.clipboard.writeText(location.href); toast.success('Ürün bağlantısı kopyalandı') }
+    } catch (error) { if (!(error instanceof DOMException && error.name === 'AbortError')) toast.error('Bağlantı paylaşılamadı. Adres çubuğundan kopyalayabilirsiniz.') }
+  }
   const selectedVariant = variants.find((v) => v.id === selectedVariantId)
 
   // Use variant price/stock when selected, fallback to product defaults
@@ -56,6 +73,7 @@ export function ProductVariantSelector({ product, variants }: ProductVariantSele
         )}
       </div>
 
+<p className="text-sm text-muted-foreground">Banka ve taksit seçenekleri güvenli ödeme formunda gösterilir.</p>
       {/* Variants */}
       {variants.length > 0 && (
         <div className="space-y-3">
@@ -117,10 +135,10 @@ export function ProductVariantSelector({ product, variants }: ProductVariantSele
           }}
           variantId={selectedVariantId || undefined}
         />
-        <Button variant="outline" size="icon">
-          <Heart className="h-5 w-5" />
+        <Button variant="outline" size="icon" aria-label={favorite ? "Favorilerden çıkar" : "Favorilere ekle"} aria-pressed={favorite} onClick={toggleFavorite}>
+          <Heart className={`h-5 w-5 ${favorite ? "fill-red-500 text-red-500" : ""}`} />
         </Button>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" aria-label="Ürünü paylaş" onClick={share}>
           <Share2 className="h-5 w-5" />
         </Button>
       </div>

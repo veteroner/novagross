@@ -1,3 +1,4 @@
+import { hasConsent } from '@/lib/privacy/consent'
 /**
  * Conversion Tracking Helper
  * Tracks key conversion events across different platforms (GA4, Facebook Pixel, etc.)
@@ -18,7 +19,7 @@ export function trackOrderCompleted(orderId: string, revenue: number, paymentMet
   })
 
   // Facebook Pixel Purchase event
-  if (typeof window !== 'undefined' && window.fbq) {
+  if (typeof window !== 'undefined' && hasConsent('marketing') && window.fbq) {
     window.fbq('track', 'Purchase', {
       value: revenue,
       currency: 'TRY',
@@ -40,7 +41,7 @@ export function trackOrderCompleted(orderId: string, revenue: number, paymentMet
  */
 export function trackNewsletterSubscription(email: string, source: string = 'footer') {
   // Facebook Pixel Lead event
-  if (typeof window !== 'undefined' && window.fbq) {
+  if (typeof window !== 'undefined' && hasConsent('marketing') && window.fbq) {
     window.fbq('track', 'Lead', {
       content_name: 'Newsletter Subscription',
       content_category: 'Newsletter',
@@ -54,7 +55,7 @@ export function trackNewsletterSubscription(email: string, source: string = 'foo
   })
 
   // GA4 sign_up event
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'sign_up', {
       method: 'newsletter',
     })
@@ -66,7 +67,7 @@ export function trackNewsletterSubscription(email: string, source: string = 'foo
  */
 export function trackContactFormSubmission(formType: string = 'contact') {
   // Facebook Pixel Contact event
-  if (typeof window !== 'undefined' && window.fbq) {
+  if (typeof window !== 'undefined' && hasConsent('marketing') && window.fbq) {
     window.fbq('track', 'Contact')
   }
 
@@ -81,7 +82,7 @@ export function trackContactFormSubmission(formType: string = 'contact') {
  */
 export function trackAddToWishlist(productId: string, productName: string, price: number) {
   // Facebook Pixel AddToWishlist event
-  if (typeof window !== 'undefined' && window.fbq) {
+  if (typeof window !== 'undefined' && hasConsent('marketing') && window.fbq) {
     window.fbq('track', 'AddToWishlist', {
       content_ids: [productId],
       content_name: productName,
@@ -103,7 +104,7 @@ export function trackAddToWishlist(productId: string, productName: string, price
  */
 export function trackUserRegistration(method: string = 'email') {
   // Facebook Pixel CompleteRegistration event
-  if (typeof window !== 'undefined' && window.fbq) {
+  if (typeof window !== 'undefined' && hasConsent('marketing') && window.fbq) {
     window.fbq('track', 'CompleteRegistration', {
       content_name: 'User Registration',
       status: 'completed',
@@ -111,7 +112,7 @@ export function trackUserRegistration(method: string = 'email') {
   }
 
   // GA4 sign_up event
-  if (typeof window !== 'undefined' && window.gtag) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && window.gtag) {
     window.gtag('event', 'sign_up', {
       method,
     })

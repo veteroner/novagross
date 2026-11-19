@@ -1,5 +1,7 @@
 'use client'
 
+import { usePrivacyOverlay } from '@/lib/privacy/use-privacy-overlay'
+
 import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, X, Send, Loader2, Headphones } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +15,7 @@ const GREETING: Msg = {
 }
 
 export function SupportChatWidget() {
+  const privacyOpen = usePrivacyOverlay()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([GREETING])
   const [input, setInput] = useState('')
@@ -67,6 +70,8 @@ export function SupportChatWidget() {
       setLoading(false)
     }
   }
+
+  if (privacyOpen) return null
 
   return (
     <>

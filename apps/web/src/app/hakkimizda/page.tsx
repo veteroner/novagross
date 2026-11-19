@@ -4,6 +4,7 @@ import { generateMetadata as genMetadata } from '@/lib/metadata'
 import { JsonLd } from '@/components/seo/json-ld'
 import { generateBreadcrumbSchema, generateWebPageSchema } from '@/lib/structured-data'
 import { ShippingFeatureText } from '@/components/shipping-threshold-text'
+import { EtbisBadge } from '@/components/layout/etbis-badge'
 
 export const metadata: Metadata = genMetadata({
   title: 'Hakkımızda',
@@ -104,7 +105,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="font-semibold mb-1">Kolay İade</h3>
                   <p className="text-sm text-foreground">
-                    14 gün içinde koşulsuz iade ve değişim hakkı
+                    Yasal cayma hakkı ve ürün türüne göre iade koşulları
                   </p>
                 </div>
               </div>
@@ -114,7 +115,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="font-semibold mb-1">Kaliteli Ürünler</h3>
                   <p className="text-sm text-foreground">
-                    Orijinal ve garantili ürünler, güvenilir tedarikçiler
+                    Ürün özellikleri ve garanti kapsamı için satıcı bilgilerini inceleyin
                   </p>
                 </div>
               </div>
@@ -122,9 +123,9 @@ export default function AboutPage() {
               <div className="flex items-start gap-3">
                 <div className="text-2xl">📞</div>
                 <div>
-                  <h3 className="font-semibold mb-1">7/24 Destek</h3>
+                  <h3 className="font-semibold mb-1">Müşteri Desteği</h3>
                   <p className="text-sm text-foreground">
-                    Müşteri hizmetlerimiz her zaman yanınızda
+                    Canlı destek saatleri ve iletişim kanalları için İletişim sayfamızı ziyaret edin
                   </p>
                 </div>
               </div>
@@ -152,7 +153,7 @@ export default function AboutPage() {
                 <strong>Web:</strong> www.teknovagroup.com
               </p>
               <p className="text-foreground">
-                <strong>Adres:</strong> Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara
+                <strong>Adres:</strong> Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara
               </p>
             </div>
             <div className="mt-4">
@@ -180,20 +181,23 @@ export default function AboutPage() {
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Adres:</span>
-                <span className="text-muted-foreground">Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara</span>
+                <span className="text-muted-foreground">Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Vergi Dairesi:</span>
-                <span className="text-muted-foreground">Sıncan</span>
+                <span className="text-muted-foreground">Sincan</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Vergi No:</span>
-                <span className="text-muted-foreground">8961000730</span>
+                <span className="text-muted-foreground">8361000730</span>
               </div>
               <div className="flex flex-col sm:flex-row sm:gap-2">
                 <span className="font-semibold min-w-[180px]">Ticaret Sicil No:</span>
                 <span className="text-muted-foreground">527879</span>
               </div>
+            </div>
+            <div className="mt-4">
+              <EtbisBadge size={120} />
             </div>
           </Card>
         </div>

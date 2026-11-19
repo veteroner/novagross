@@ -1,39 +1,14 @@
 'use client'
 
+import { useConsent } from '@/lib/privacy/use-consent'
+
 import Script from 'next/script'
-import { useEffect, useState } from 'react'
 
 export function MicrosoftClarity() {
-  const [hasConsent, setHasConsent] = useState(false)
+  const hasConsent = useConsent('analytics')
   const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID
 
-  useEffect(() => {
-    const checkConsent = () => {
-      try {
-        const consent = localStorage.getItem('cookie-consent')
-        if (consent) {
-          const parsed = JSON.parse(consent)
-          setHasConsent(parsed.analytics === true)
-        }
-      } catch (error) {
-        console.error('Error reading cookie consent:', error)
-      }
-    }
 
-    checkConsent()
-
-    const handleConsentChange = () => {
-      checkConsent()
-    }
-
-    window.addEventListener('storage', handleConsentChange)
-    window.addEventListener('cookie-consent-updated', handleConsentChange)
-
-    return () => {
-      window.removeEventListener('storage', handleConsentChange)
-      window.removeEventListener('cookie-consent-updated', handleConsentChange)
-    }
-  }, [])
 
   if (!hasConsent || !CLARITY_ID) {
     return null

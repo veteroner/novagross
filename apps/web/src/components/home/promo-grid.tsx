@@ -29,31 +29,59 @@ export function PromoGrid() {
   return (
     <section className="container">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {sections.map(section => (
-          <Link
-            key={section.id}
-            href={section.link}
-            className="group relative rounded-xl overflow-hidden h-40 md:h-48 flex flex-col justify-end p-4 hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: section.bg_color }}
-          >
-            {section.image_url && (
-              <Image
-                src={section.image_url}
-                alt={section.title}
-                fill
-                sizes="(max-width: 768px) 50vw, 25vw"
-                className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-300"
-              />
-            )}
-            <div className="relative z-10">
-              <p className="text-sm font-bold text-gray-900 leading-tight">{section.title}</p>
-              {section.subtitle && (
-                <p className="text-xs text-gray-700 mt-0.5 line-clamp-1">{section.subtitle}</p>
+        {sections.map(section => {
+          const hasImage = Boolean(section.image_url)
+          return (
+            <Link
+              key={section.id}
+              href={section.link}
+              className="group relative rounded-xl overflow-hidden h-40 md:h-48 flex flex-col justify-end p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              style={{ backgroundColor: section.bg_color }}
+            >
+              {hasImage && (
+                <>
+                  <Image
+                    src={section.image_url!}
+                    alt=""
+                    fill
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  {/* Yazının her fotoğrafta okunması için alttan koyulaşan katman */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent"
+                  />
+                </>
               )}
-              <span className="text-xs font-medium text-primary mt-1 inline-block">Keşfet →</span>
-            </div>
-          </Link>
-        ))}
+              <div className="relative z-10">
+                <p
+                  className={`text-sm md:text-base font-bold leading-tight ${
+                    hasImage ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]' : 'text-gray-900'
+                  }`}
+                >
+                  {section.title}
+                </p>
+                {section.subtitle && (
+                  <p
+                    className={`text-xs mt-0.5 line-clamp-1 ${
+                      hasImage ? 'text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]' : 'text-gray-700'
+                    }`}
+                  >
+                    {section.subtitle}
+                  </p>
+                )}
+                <span
+                  className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    hasImage ? 'bg-white text-gray-900' : 'bg-primary text-primary-foreground'
+                  }`}
+                >
+                  Keşfet →
+                </span>
+              </div>
+            </Link>
+          )
+        })}
       </div>
     </section>
   )

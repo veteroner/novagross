@@ -36,7 +36,7 @@ const KVKK_TEXTS: Record<KVKKVariant, { text: ReactNode }> = {
         <Link href="/kvkk" className={LINK_CLASS} target="_blank">
           KVKK Aydınlatma Metni
         </Link>
-        &apos;ni okudum, anladım. Tarafıma dönüş yapılabilmesi için iletişim bilgilerimin kullanılmasını kabul ediyorum.
+        &apos;ni okudum, anladım. İletişim talebimin yanıtlanması için bilgilerimin işlenmesi hakkında bilgilendirildim.
       </>
     ),
   },
@@ -46,7 +46,7 @@ const KVKK_TEXTS: Record<KVKKVariant, { text: ReactNode }> = {
         <Link href="/kvkk" className={LINK_CLASS} target="_blank">
           KVKK Aydınlatma Metni
         </Link>
-        &apos;ni okudum, anladım. Başvuru sürecinin yürütülmesi için kişisel verilerimin işlenmesini kabul ediyorum.
+        &apos;ni okudum, anladım. Başvuru sürecinde kişisel verilerimin işlenmesi hakkında bilgilendirildim.
         <Link href="/gizlilik-politikasi" className={LINK_CLASS + ' ml-1'} target="_blank">
           Gizlilik Politikası
         </Link>

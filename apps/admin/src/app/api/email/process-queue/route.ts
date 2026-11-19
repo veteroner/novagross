@@ -114,6 +114,11 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    if (sendResult.error?.startsWith('CONSENT_REQUIRED')) {
+      failed += 1;
+      await supabase.from('email_queue').update({ status: 'failed', last_error: sendResult.error }).eq('id', item.id);
+      continue;
+    }
     const nextRetry = Number(item.retry_count || 0) + 1;
     const lastError = sendResult.error || 'Unknown send error';
 

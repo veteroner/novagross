@@ -38,7 +38,7 @@ export default function KVKKPage() {
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">1. Veri Sorumlusu</h2>
           <p className="text-muted-foreground">
-            6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, kişisel verileriniz; veri sorumlusu olarak Teknova tarafından (Novagross markası kapsamında) aşağıda açıklanan kapsamda işlenebilecektir.
+            6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, kişisel verileriniz; veri sorumlusu olarak Teknova Tarım Hayvancılık Bilişim Reklam Limited Şirketi tarafından (Novagross markası kapsamında) aşağıda açıklanan kapsamda işlenebilecektir.
           </p>
         </Card>
 
@@ -79,7 +79,7 @@ export default function KVKKPage() {
           <ul className="list-disc list-inside space-y-2 text-muted-foreground">
             <li>Kargo ve lojistik şirketlerine</li>
             <li>Ödeme kuruluşlarına ve bankalara</li>
-            <li>İş ortaklarımıza</li>
+            <li>Veritabanı ve kimlik doğrulama hizmeti Supabase, e-posta iletimi hizmeti Resend ve site barındırma hizmeti Netlify gibi teknik hizmet sağlayıcılara, ilgili hizmetin gerektirdiği ölçüde</li>
             <li>Hukuki yükümlülüklerimiz gereği yetkili kamu kurum ve kuruluşlarına</li>
           </ul>
           <p className="text-muted-foreground mt-4">
@@ -93,7 +93,7 @@ export default function KVKKPage() {
             Kişisel verileriniz, web sitemiz, mobil uygulamamız, çağrı merkezimiz, mağazalarımız ve diğer kanallar aracılığıyla; otomatik ya da otomatik olmayan yöntemlerle, sözlü, yazılı veya elektronik ortamda toplanmaktadır.
           </p>
           <p className="text-muted-foreground">
-            Bu veriler, KVKK'nın 5. ve 6. maddelerinde belirtilen kişisel veri işleme şartları ve amaçları kapsamında işlenmektedir.
+            Üyelik, sipariş, ödeme ve teslimat bilgileri sözleşmenin kurulması veya ifası; fatura ve işlem kayıtları hukuki yükümlülüklerin yerine getirilmesi; uyuşmazlık kayıtları bir hakkın tesisi, kullanılması veya korunması için işlenir. Güvenlik kayıtları, temel hak ve özgürlükler gözetilerek hizmetin güvenliğinin sağlanması amacıyla değerlendirilir. Seçimlik pazarlama ve davranış analitiği ilgili izninize bağlıdır; bunları reddetmeniz alışverişi engellemez.
           </p>
         </Card>
 
@@ -122,7 +122,7 @@ export default function KVKKPage() {
           </p>
           <ul className="list-disc list-inside space-y-2 text-muted-foreground">
             <li>E-posta: bilgi@teknovagroup.com</li>
-            <li>Posta: Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara</li>
+            <li>Posta: Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sincan/Ankara</li>
             <li>İletişim formu üzerinden</li>
           </ul>
           <p className="text-muted-foreground mt-4">

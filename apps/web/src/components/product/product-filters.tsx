@@ -32,31 +32,24 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
   const [selectedPriceRange, setSelectedPriceRange] = useState<string | null>(null)
   const [selectedBrands, setSelectedBrands] = useState<string[]>([])
   const [availableBrands, setAvailableBrands] = useState<string[]>([])
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [customMin, setCustomMin] = useState('')
+  const [customMax, setCustomMax] = useState('')
+  const [priceError, setPriceError] = useState('')
+  const inStock = searchParams.get('in_stock') === 'true'
   const [brandsLoading, setBrandsLoading] = useState(true)
 
   // Initialize from URL params
   useEffect(() => {
     const category = searchParams.get('category')
-    if (category) {
-      setSelectedCategories([category])
-    }
-
-    const minPrice = searchParams.get('min_price')
-    const maxPrice = searchParams.get('max_price')
-    if (minPrice || maxPrice) {
-      const range = priceRanges.find(
-        (r) => r.min.toString() === minPrice && (r.max?.toString() === maxPrice || (!r.max && !maxPrice))
-      )
-      if (range) {
-        setSelectedPriceRange(range.label)
-      }
-    }
-
-    const brand = searchParams.get('brand')
-    if (brand) {
-      setSelectedBrands([brand])
-    }
-  }, [])
+    setSelectedCategories(category ? [category] : [])
+    const min = searchParams.get('min_price') || ''
+    const max = searchParams.get('max_price') || ''
+    setCustomMin(min); setCustomMax(max)
+    const range = priceRanges.find(r => String(r.min) === min && (r.max == null ? !max : String(r.max) === max))
+    setSelectedPriceRange(range?.label || null)
+    setSelectedBrands(searchParams.getAll('brand'))
+  }, [searchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -94,6 +87,7 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
       }
     })
 
+    params.delete('page')
     router.push(`/urunler?${params.toString()}`)
   }
 
@@ -117,14 +111,12 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
   }
 
   const toggleBrand = (brand: string) => {
-    const newBrands = selectedBrands.includes(brand)
-      ? selectedBrands.filter((b) => b !== brand)
-      : [brand] // Only one brand at a time
-
-    setSelectedBrands(newBrands)
-    updateURL({
-      brand: newBrands.length > 0 ? newBrands[0] : null,
-    })
+    const brands = selectedBrands.includes(brand) ? selectedBrands.filter(b => b !== brand) : [...selectedBrands, brand]
+    setSelectedBrands(brands)
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('brand'); params.delete('page')
+    brands.forEach(b => params.append('brand', b))
+    router.push(`/urunler?${params.toString()}`)
   }
 
   const handlePriceRangeChange = (rangeLabel: string) => {
@@ -145,10 +137,12 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
     router.push('/urunler')
   }
 
-  const hasFilters = selectedCategories.length > 0 || selectedPriceRange || selectedBrands.length > 0
+  const hasFilters = selectedCategories.length > 0 || selectedPriceRange || selectedBrands.length > 0 || inStock || customMin || customMax
 
   return (
-    <div className="space-y-4">
+    <div>
+      <Button variant="outline" className="w-full lg:hidden mb-3" aria-expanded={mobileOpen} aria-controls="catalog-filters" onClick={() => setMobileOpen(!mobileOpen)}>Filtreler {hasFilters ? "(aktif)" : ""} {mobileOpen ? "−" : "+"}</Button>
+      <div id="catalog-filters" className={`${mobileOpen ? "block" : "hidden"} lg:block space-y-4`}>
       {/* Clear Filters */}
       {hasFilters && (
         <Button variant="outline" className="w-full" onClick={clearFilters}>
@@ -215,6 +209,16 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
         </CardHeader>
         {expandedSections.includes('price') && (
           <CardContent className="pt-0">
+            <form className="mb-4 space-y-2" onSubmit={e => {
+              e.preventDefault()
+              const min = customMin === '' ? null : Number(customMin), max = customMax === '' ? null : Number(customMax)
+              if ((min !== null && (!Number.isFinite(min) || min < 0)) || (max !== null && (!Number.isFinite(max) || max < 0)) || (min !== null && max !== null && min > max)) { setPriceError('Geçerli bir fiyat aralığı girin.'); return }
+              setPriceError(''); updateURL({ min_price: min === null ? null : String(min), max_price: max === null ? null : String(max) })
+            }}>
+              <div className="flex gap-2"><input aria-label="En düşük fiyat" type="number" min="0" step="0.01" value={customMin} onChange={e => setCustomMin(e.target.value)} className="w-1/2 min-w-0 rounded border p-2 text-sm" placeholder="En az ₺"/><input aria-label="En yüksek fiyat" type="number" min="0" step="0.01" value={customMax} onChange={e => setCustomMax(e.target.value)} className="w-1/2 min-w-0 rounded border p-2 text-sm" placeholder="En çok ₺"/></div>
+              {priceError && <p role="alert" className="text-xs text-destructive">{priceError}</p>}
+              <Button type="submit" size="sm" variant="outline" className="w-full">Fiyatı Uygula</Button>
+            </form>
             <div className="space-y-2">
               {priceRanges.map((range) => (
                 <label
@@ -283,11 +287,12 @@ export function ProductFilters({ categories = [] }: ProductFiltersProps) {
       <Card>
         <CardContent className="pt-6">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="rounded" />
+            <input type="checkbox" checked={inStock} onChange={e => updateURL({ in_stock: e.target.checked ? "true" : null })} className="rounded" />
             <span className="text-sm">Sadece stokta olanlar</span>
           </label>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

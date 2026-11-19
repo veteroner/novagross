@@ -1,3 +1,4 @@
+import { hasConsent } from '@/lib/privacy/consent'
 // Ürün davranış olayı izleme (görüntüleme / sepet / favori).
 // Sunucu store_id'yi üründen kendisi çözer; istemciden yalnızca olay gelir.
 // Best-effort: hata satın alma akışını asla bozmasın.
@@ -26,7 +27,7 @@ export function trackProductEvent(
   productId: string,
   quantity = 1
 ): void {
-  if (typeof window === 'undefined' || !productId) return
+  if (typeof window === 'undefined' || !productId || !hasConsent('analytics')) return
   try {
     const payload = JSON.stringify({
       event_type: eventType,

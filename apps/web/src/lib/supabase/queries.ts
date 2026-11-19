@@ -118,7 +118,7 @@ export async function getProductBySlug(slug: string) {
   const store = (product as any).store_id
     ? await supabase
         .from('stores')
-        .select('id, store_name, store_slug, status, free_shipping_threshold')
+        .select('id, store_name, store_slug, status, free_shipping_threshold, company_name, address, city, district, email, phone')
         .eq('id', (product as any).store_id)
         .maybeSingle()
     : null
@@ -140,6 +140,8 @@ export async function getProductBySlug(slug: string) {
     .eq('is_active', true)
     .order('created_at')
 
+  const { data: summary } = await (supabase as any).rpc('public_review_summary', { p_product_id: product.id })
+
   return {
     id: product.id,
     name: product.name,
@@ -149,13 +151,17 @@ export async function getProductBySlug(slug: string) {
     comparePrice: product.compare_at_price,
     stock: product.stock,
     brand: product.brand,
-    rating: 0,
-    reviewCount: 0,
+    rating: Number(summary?.[0]?.average_rating || 0),
+    reviewCount: Number(summary?.[0]?.review_count || 0),
     category: category?.data ?? null,
     store: store?.data && store.data.status === 'active'
       ? {
           id: store.data.id,
           name: store.data.store_name,
+          companyName: store.data.company_name,
+          address: [store.data.address, store.data.district, store.data.city].filter(Boolean).join(', '),
+          email: store.data.email,
+          phone: store.data.phone,
           slug: store.data.store_slug,
           freeShippingThreshold: store.data.free_shipping_threshold ?? 500,
         }

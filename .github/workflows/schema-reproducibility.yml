@@ -64,7 +64,12 @@ jobs:
             email text,
             encrypted_password text,
             raw_user_meta_data jsonb,
-            created_at timestamptz DEFAULT now()
+            raw_app_meta_data jsonb,
+            phone text,
+            email_confirmed_at timestamptz,
+            last_sign_in_at timestamptz,
+            created_at timestamptz DEFAULT now(),
+            updated_at timestamptz DEFAULT now()
           );
           -- storage.objects stub (storage policy migration'ları için)
           CREATE TABLE IF NOT EXISTS storage.objects (
@@ -91,6 +96,25 @@ jobs:
           CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
           -- storage.foldername stub (storage policy migration'ları için)
           CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(name, '/') $$;
+          -- pg_cron stub: vanilla postgres'te pg_cron yok; cron.job'u okuyan /
+          -- cron.schedule çağıran migration'lar için yeterli yüzey. Zamanlama
+          -- runtime altyapısıdır, şema reproducibility'nin parçası değildir.
+          CREATE SCHEMA IF NOT EXISTS cron;
+          CREATE TABLE IF NOT EXISTS cron.job (
+            jobid bigserial PRIMARY KEY,
+            schedule text NOT NULL,
+            command text NOT NULL,
+            jobname text UNIQUE
+          );
+          CREATE OR REPLACE FUNCTION cron.schedule(job_name text, schedule text, command text) RETURNS bigint
+            LANGUAGE sql AS $$
+              INSERT INTO cron.job (jobname, schedule, command) VALUES (job_name, schedule, command)
+              ON CONFLICT (jobname) DO UPDATE SET schedule = EXCLUDED.schedule, command = EXCLUDED.command
+              RETURNING jobid $$;
+          CREATE OR REPLACE FUNCTION cron.unschedule(job_name text) RETURNS boolean
+            LANGUAGE sql AS $$ WITH d AS (DELETE FROM cron.job WHERE jobname = job_name RETURNING 1) SELECT EXISTS (SELECT 1 FROM d) $$;
+          CREATE OR REPLACE FUNCTION cron.unschedule(job_id bigint) RETURNS boolean
+            LANGUAGE sql AS $$ WITH d AS (DELETE FROM cron.job WHERE jobid = job_id RETURNING 1) SELECT EXISTS (SELECT 1 FROM d) $$;
           SQL
           echo "✅ Supabase ortamı stub'landı"
 

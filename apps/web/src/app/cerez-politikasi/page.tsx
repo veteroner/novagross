@@ -1,205 +1,22 @@
-import { Metadata } from 'next'
 import Link from 'next/link'
-import { generateMetadata as genMetadata } from '@/lib/metadata'
-import { JsonLd } from '@/components/seo/json-ld'
-import { generateBreadcrumbSchema, generateWebPageSchema } from '@/lib/structured-data'
-
-export const metadata: Metadata = genMetadata({
-  title: 'Çerez Politikası',
-  description: 'Novagross web sitesinde kullanılan çerezler (cookies) hakkında detaylı bilgi. Zorunlu çerezler, analitik çerezler ve pazarlama çerezleri kullanımı.',
-  keywords: ['çerez politikası', 'cookies', 'gizlilik', 'web sitesi kullanımı'],
-  url: '/cerez-politikasi',
-})
-
-export const revalidate = 60 * 60 * 24
-
-export default function CerezPolitikasiPage() {
-  return (
-    <>
-      {/* Structured Data for SEO */}
-      <JsonLd
-        data={generateWebPageSchema({
-          name: 'Çerez Politikası',
-          description: 'Novagross web sitesinde kullanılan çerezler (cookies) hakkında detaylı bilgi. Zorunlu çerezler, analitik çerezler ve pazarlama çerezleri kullanımı.',
-          url: '/cerez-politikasi',
-          dateModified: '2026-01-27',
-        })}
-      />
-      <JsonLd
-        data={generateBreadcrumbSchema([
-          { name: 'Ana Sayfa', url: '/' },
-          { name: 'Çerez Politikası', url: '/cerez-politikasi' },
-        ])}
-      />
-
-      <div className="container max-w-4xl py-12">
-        <h1 className="text-4xl font-bold mb-8">Çerez Politikası</h1>
-      
-      <div className="prose prose-slate max-w-none space-y-6">
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">1. Çerez Nedir?</h2>
-          <p className="text-muted-foreground">
-            Çerezler, ziyaret ettiğiniz internet siteleri tarafından tarayıcılar aracılığıyla cihazınıza 
-            veya ağ sunucusuna depolanan küçük metin dosyalarıdır. İnternet sitesine ilk ziyaretinizde 
-            cihazınıza çerez yerleştirilir ve böylece siteyi her ziyaret ettiğinizde tarayıcınız bu çerezi 
-            siteye geri gönderir.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">2. Çerezleri Nasıl Kullanıyoruz?</h2>
-          <p className="text-muted-foreground mb-4">
-            Novagross olarak, web sitemizde aşağıdaki amaçlarla çerezler kullanıyoruz:
-          </p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-            <li>Web sitesinin düzgün çalışmasını sağlamak</li>
-            <li>Kullanıcı deneyimini iyileştirmek</li>
-            <li>Güvenlik önlemleri almak</li>
-            <li>Site performansını analiz etmek</li>
-            <li>Kişiselleştirilmiş içerik sunmak</li>
-            <li>Pazarlama faaliyetlerini optimize etmek</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">3. Kullandığımız Çerez Türleri</h2>
-          
-          <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2">3.1. Zorunlu Çerezler</h3>
-              <p className="text-sm text-muted-foreground">
-                Web sitesinin temel işlevlerini yerine getirmesi için gerekli olan çerezlerdir. 
-                Bu çerezler olmadan site düzgün çalışamaz. Örnek: Oturum çerezleri, güvenlik çerezleri, 
-                sepet bilgileri.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <strong>Saklama Süresi:</strong> Oturum sonuna kadar veya 1 yıl
-              </p>
-            </div>
-
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2">3.2. Performans ve Analitik Çerezleri</h3>
-              <p className="text-sm text-muted-foreground">
-                Ziyaretçilerin web sitesini nasıl kullandığını anlamamıza yardımcı olan çerezlerdir. 
-                Bu bilgiler anonim olarak toplanır ve site performansını iyileştirmek için kullanılır.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <strong>Kullanılan Servisler:</strong> Google Analytics, Microsoft Clarity
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Saklama Süresi:</strong> 2 yıl
-              </p>
-            </div>
-
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2">3.3. İşlevsellik Çerezleri</h3>
-              <p className="text-sm text-muted-foreground">
-                Tercihlerinizi hatırlayan ve kişiselleştirilmiş bir deneyim sunan çerezlerdir. 
-                Örnek: Dil tercihi, bölge ayarları, kullanıcı arayüzü tercihleri.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <strong>Saklama Süresi:</strong> 1 yıl
-              </p>
-            </div>
-
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2">3.4. Pazarlama ve Hedefleme Çerezleri</h3>
-              <p className="text-sm text-muted-foreground">
-                İlgi alanlarınıza uygun reklamlar göstermek için kullanılan çerezlerdir. 
-                Aynı reklamın tekrar gösterilmesini engeller ve reklam kampanyalarının etkinliğini ölçer.
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                <strong>Kullanılan Servisler:</strong> Google Ads, Facebook Pixel
-              </p>
-              <p className="text-sm text-muted-foreground">
-                <strong>Saklama Süresi:</strong> 13 ay
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">4. Çerez Ayarlarınızı Yönetme</h2>
-          <p className="text-muted-foreground mb-4">
-            Çerez tercihlerinizi istediğiniz zaman değiştirebilirsiniz:
-          </p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-            <li>Sayfanın alt kısmındaki çerez ayarları butonuna tıklayarak</li>
-            <li>Tarayıcınızın ayarlarından çerezleri yönetebilir veya silebilirsiniz</li>
-            <li>Zorunlu çerezler dışındaki tüm çerezleri reddetme hakkına sahipsiniz</li>
-          </ul>
-          
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-sm text-yellow-800">
-              <strong>Not:</strong> Çerezleri devre dışı bırakmanız durumunda, web sitesinin bazı 
-              özellikleri düzgün çalışmayabilir.
-            </p>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">5. Üçüncü Taraf Çerezleri</h2>
-          <p className="text-muted-foreground mb-4">
-            Web sitemizde aşağıdaki üçüncü taraf servislerin çerezleri kullanılabilir:
-          </p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-            <li><strong>Google Analytics:</strong> Site trafiğini ve kullanıcı davranışlarını analiz etmek için</li>
-            <li><strong>Facebook Pixel:</strong> Reklam kampanyalarını optimize etmek için</li>
-            <li><strong>Microsoft Clarity:</strong> Kullanıcı deneyimini iyileştirmek için</li>
-            <li><strong>iyzico:</strong> Güvenli ödeme işlemleri için</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">6. Tarayıcı Ayarları</h2>
-          <p className="text-muted-foreground mb-4">
-            Popüler tarayıcılarda çerez ayarlarını yönetmek için:
-          </p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-            <li><strong>Google Chrome:</strong> Ayarlar → Gizlilik ve güvenlik → Çerezler</li>
-            <li><strong>Firefox:</strong> Seçenekler → Gizlilik ve Güvenlik → Çerezler ve Site Verileri</li>
-            <li><strong>Safari:</strong> Tercihler → Gizlilik → Çerezler</li>
-            <li><strong>Edge:</strong> Ayarlar → Gizlilik, arama ve hizmetler → Çerezler</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">7. KVKK ve Kişisel Veriler</h2>
-          <p className="text-muted-foreground">
-            Çerezler aracılığıyla toplanan veriler, 6698 sayılı Kişisel Verilerin Korunması Kanunu 
-            (KVKK) kapsamında işlenmektedir. Detaylı bilgi için{' '}
-            <Link href="/kvkk" className="text-primary hover:underline">KVKK Aydınlatma Metni</Link>
-            {' '}ve{' '}
-            <Link href="/gizlilik-politikasi" className="text-primary hover:underline">Gizlilik Politikası</Link>
-            {' '}sayfalarımızı inceleyebilirsiniz.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">8. İletişim</h2>
-          <p className="text-muted-foreground">
-            Çerez politikamız hakkında sorularınız için bizimle iletişime geçebilirsiniz:
-          </p>
-          <div className="mt-4 p-4 bg-muted rounded-lg">
-            <p className="text-sm"><strong>E-posta:</strong> bilgi@teknovagroup.com</p>
-            <p className="text-sm"><strong>Telefon:</strong> 0850 850 20 20</p>
-            <p className="text-sm">
-              <strong>Adres:</strong> Mevlana Mah. 432 Cad. No: 8 İç Kapı No: 23 Sıncan/Ankara
-            </p>
-          </div>
-        </section>
-
-        <section className="pt-8 border-t">
-          <p className="text-sm text-muted-foreground">
-            <strong>Son Güncelleme:</strong> 27 Ocak 2026
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Bu çerez politikası zaman zaman güncellenebilir. Önemli değişiklikler olduğunda 
-            sizi bilgilendireceğiz.
-          </p>
-        </section>
-      </div>
-      </div>
-    </>
-  )
+import { COMPANY_INFO } from '@/lib/company-info'
+import { CookieSettingsButton } from '@/components/cookie-settings-button'
+export const metadata = { title: 'Çerez Politikası | Novagross' }
+export default function Page() {
+  return <div className="container max-w-4xl py-12 space-y-7">
+    <h1 className="text-3xl font-bold">Çerez Politikası</h1>
+    <p className="text-sm text-muted-foreground">Son güncelleme ve tercih sürümü: 18 Kasım 2026</p>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Veri sorumlusu ve kapsam</h2><p>{COMPANY_INFO.legalName}, {COMPANY_INFO.address}, {COMPANY_INFO.email}. Bu metin novagross.com üzerindeki çerezler ile localStorage ve sessionStorage kullanımını açıklar. Yerel depolama tarayıcıda tutulur; çerezler ilgili alan adına yapılan isteklerle de gönderilebilir.</p></section>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Seçiminiz ve hukuki dayanak</h2><p>Oturum, sepet, güvenlik ve tercih kaydının saklanması temel hizmetin sunulması, sözleşmenin kurulması/ifası ve ilgili hukuki yükümlülükler için kullanılır. İsteğe bağlı davranış analitiği ve pazarlama takibi ilgili kategoride açık seçiminiz olmadan başlatılmaz. Bülten ileti izni çerez izninden ayrıdır. İsteğe bağlı kategorileri reddetmeniz alışverişi engellemez.</p><p>Seçiminizi aşağıdaki düğmeden veya her sayfanın altındaki Çerez Ayarları bağlantısından değiştirebilirsiniz. Tercih 180 gün geçerlidir; sürüm değişirse yeniden sorulur. İzin geri alındığında takip tanımlayıcıları temizlenir ve çalışan takip kodlarını durdurmak için sayfa yenilenir.</p><CookieSettingsButton /></section>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Sitedeki temel depolama envanteri</h2><div className="overflow-x-auto"><table className="w-full text-sm border-collapse"><caption className="sr-only">Depolama adı, amaç ve süreleri</caption><thead><tr className="text-left border-b"><th className="p-2">Ad / sağlayıcı</th><th className="p-2">Amaç ve kategori</th><th className="p-2">Süre</th></tr></thead><tbody>
+      <tr className="border-b"><td className="p-2">cookie-consent / ng-consent — Novagross</td><td className="p-2">Kategori seçimi, tarih ve sürüm. Zorunlu tercih kaydı; localStorage ve çerez.</td><td className="p-2">180 gün geçerli. Yerel kopya sonraki seçimde yenilenir veya tarayıcıdan silinir.</td></tr>
+      <tr className="border-b"><td className="p-2">sb-…-auth-token (parçaları dahil) — Supabase</td><td className="p-2">Hesaba giriş ve oturum yenileme; zorunlu kimlik doğrulama çerezi.</td><td className="p-2">Oturum/belirteç geçerliliğine göre yenilenir; çıkışta oturum çerezleri temizlenir.</td></tr>
+      <tr className="border-b"><td className="p-2">nova-cart, favorites-storage — Novagross</td><td className="p-2">Kullanıcının oluşturduğu sepet ve favorileri saklayan localStorage.</td><td className="p-2">İlgili liste temizlenene veya tarayıcı site verileri silinene kadar; otomatik süre sonu yok.</td></tr>
+      <tr className="border-b"><td className="p-2">nova-auth, _ng_remember, _ng_last_activity — Novagross</td><td className="p-2">Oturum arayüzü, beni hatırla ve hareketsizlik kontrolü; zorunlu yerel kayıtlar.</td><td className="p-2">Çıkış/oturum yönetimi veya site verilerinin silinmesine kadar.</td></tr>
+      <tr className="border-b"><td className="p-2">analytics_session_id, current_page_view_id, _ng_sid — Novagross</td><td className="p-2">İzinli sayfa, ürün ve reklam etkileşimi ölçümü; analitik sessionStorage.</td><td className="p-2">Sekme oturumu boyunca; analitik izin geri alındığında temizlenir.</td></tr>
+      <tr className="border-b"><td className="p-2">pwa-install-dismissed, push-notification-dismissed — Novagross</td><td className="p-2">Kapatılan uygulama/bildirim önerisini tekrar göstermemek için kullanıcı tercihi.</td><td className="p-2">Tarayıcı site verileri silinene kadar.</td></tr>
+    </tbody></table></div></section>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Dış hizmetler ve isteğe bağlı araçlar</h2><p>Ödeme adımındaki iyzico ve oturum için Supabase, talep ettiğiniz işlemi sunmak için kullanılır. Bu hizmetlerin kendi alan adlarında oluşturduğu kayıtlar kendi politikalarına tabidir. Site dışında kalan kayıtları tarayıcı ayarlarınızdan da yönetebilirsiniz.</p><p>Google Analytics, Microsoft Clarity ve Meta Pixel yalnızca site yapılandırmasında etkinleştirilmişse ve ilgili izniniz varsa yüklenir. Bir aracın bu metinde anılması her ziyarette etkin olduğu anlamına gelmez. Karma etiketler içerebilen Google Tag Manager için hem analitik hem pazarlama izni aranır.</p><p>Etkinleştirildiğinde sağlayıcılar _ga / _ga_… (Google Analytics), _clck / _clsk (Clarity), _fbp / _fbc (Meta) gibi tanımlayıcılar oluşturabilir. Gerçek ad ve süreler etkin hizmetin yapılandırmasına bağlıdır; kullanılmayan bir hizmet için aktif çerez beyan edilmez. Yeni bir sağlayıcı/kullanım devreye alınırken envanter ve tercih sürümü güncellenir.</p></section>
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Tarayıcı kontrolü ve başvuru</h2><p>Tarayıcınızın gizlilik/site verileri menüsünden çerez ve yerel depolamayı silebilirsiniz. Temel oturum kayıtlarının silinmesi çıkış yapmanıza veya sepetin temizlenmesine yol açabilir. Depolama engelliyse isteğe bağlı takip kapalı kalır ve tercih kaydedilemediği bildirilir.</p><p>Kişisel verileriniz, başvuru kanalları ve haklarınız için <Link href="/kvkk" className="underline">KVKK Aydınlatma Metni</Link> ve <Link href="/gizlilik-politikasi" className="underline">Gizlilik Politikası</Link> sayfalarını inceleyebilirsiniz.</p></section>
+  </div>
 }

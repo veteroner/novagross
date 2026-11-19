@@ -45,8 +45,9 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
     typeof searchParams?.min_price === 'string' ? parseFloat(searchParams.min_price) : null
   const maxPrice =
     typeof searchParams?.max_price === 'string' ? parseFloat(searchParams.max_price) : null
-  const brand = typeof searchParams?.brand === 'string' ? searchParams.brand : ''
+  const brands = (Array.isArray(searchParams?.brand) ? searchParams.brand : typeof searchParams?.brand === 'string' ? [searchParams.brand] : []).slice(0, 30)
 
+  let selectedCategoryIds: string[] | null = null
   let query = supabase
     .from('products')
     .select(
@@ -75,16 +76,19 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
         .eq('is_active', true)
       const childIds = (children ?? []).map((c) => c.id).filter(Boolean)
       const categoryIds = [category.id, ...childIds]
+      selectedCategoryIds = categoryIds
       query = query.in('category_id', categoryIds)
     }
   }
 
-  if (minPrice !== null) query = query.gte('price', minPrice)
-  if (maxPrice !== null) query = query.lte('price', maxPrice)
-  if (brand) query = query.ilike('brand', brand)
+  if (minPrice !== null && Number.isFinite(minPrice) && minPrice >= 0) query = query.gte('price', minPrice)
+  if (maxPrice !== null && Number.isFinite(maxPrice) && maxPrice >= 0) query = query.lte('price', maxPrice)
+  if (brands.length) query = query.in('brand', brands)
+  if (searchParams?.in_stock === 'true') query = query.gt('stock', 0)
   if (q) {
+    const safeQuery = q.replace(/[,%()\\]/g, ' ').trim().slice(0, 120)
     query = query.or(
-      `name.ilike.%${q}%,description.ilike.%${q}%,brand.ilike.%${q}%`
+      `name.ilike.%${safeQuery}%,description.ilike.%${safeQuery}%,brand.ilike.%${safeQuery}%`
     )
   }
 
@@ -103,10 +107,18 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
       query = query.order('created_at', { ascending: false })
   }
 
-  const { data: products, error, count } = await query.range(
-    offset,
-    offset + PRODUCTS_PER_PAGE - 1
-  )
+  let popularIds: string[] | null = null
+  let popularCount: number | null = null
+  if (sortBy === 'popular') {
+    const { data: ranked, error: rankError } = await (supabase as any).rpc('search_catalog_by_popularity', { p_categories: selectedCategoryIds, p_brands: brands.length ? brands : null, p_query: q, p_min: Number.isFinite(minPrice) ? minPrice : null, p_max: Number.isFinite(maxPrice) ? maxPrice : null, p_in_stock: searchParams?.in_stock === 'true', p_offset: offset, p_limit: PRODUCTS_PER_PAGE })
+    if (rankError) return <p role="alert" className="py-8 text-center">Sıralama şu anda alınamıyor. Lütfen farklı bir sıralama seçin.</p>
+    const rankedIds: string[] = (ranked || []).map((row: any) => row.product_id)
+    popularIds = rankedIds
+    popularCount = ranked?.length ? Number(ranked[0].total_count) : 0
+    if (rankedIds.length) query = query.in('id', rankedIds)
+  }
+  const { data: fetched, error, count } = popularIds?.length === 0 ? { data: [], error: null, count: 0 } : await query.range(popularIds ? 0 : offset, popularIds ? PRODUCTS_PER_PAGE - 1 : offset + PRODUCTS_PER_PAGE - 1)
+  const products = popularIds && fetched ? [...fetched].sort((a,b) => popularIds!.indexOf(a.id) - popularIds!.indexOf(b.id)) : fetched
 
   if (error || !products || products.length === 0) {
     return (
@@ -116,20 +128,20 @@ export async function ProductGrid({ searchParams }: ProductGridProps) {
     )
   }
 
-  const totalCount = count ?? 0
+  const totalCount = popularCount ?? count ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PRODUCTS_PER_PAGE))
 
   const enriched = await enrichProducts(supabase as any, products as any, q || undefined)
 
   // Sponsored ürünler listenin başına gelir (sadece ilk sayfada göster, sonrakilerde karışmasın)
   const cards =
-    page === 1
+    page === 1 && (!sortBy || sortBy === 'newest')
       ? [...enriched.filter((p) => p.is_sponsored), ...enriched.filter((p) => !p.is_sponsored)]
       : enriched
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <p className="text-sm text-foreground">{totalCount} ürün bulundu</p>
         <SortSelect />
       </div>

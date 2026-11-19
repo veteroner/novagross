@@ -1,6 +1,8 @@
 'use client'
 
 import Script from 'next/script'
+import { useConsent } from '@/lib/privacy/use-consent'
+import { hasConsent } from '@/lib/privacy/consent'
 import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
@@ -11,14 +13,14 @@ function GTMPageView() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (!GTM_ID) return
+    if (!GTM_ID || !hasConsent('analytics') || !hasConsent('marketing')) return
 
     // Track page views
     window.dataLayer = window.dataLayer || []
     window.dataLayer.push({
       event: 'pageview',
       page: pathname,
-      search: searchParams?.toString() || '',
+
     })
   }, [pathname, searchParams])
 
@@ -26,7 +28,9 @@ function GTMPageView() {
 }
 
 export function GoogleTagManager() {
-  if (!GTM_ID) {
+  const analytics = useConsent('analytics')
+  const marketing = useConsent('marketing')
+  if (!GTM_ID || !analytics || !marketing) {
     return null
   }
 
@@ -67,7 +71,7 @@ export function GoogleTagManager() {
 
 // Helper function to push events to dataLayer
 export function gtmEvent(eventName: string, eventData?: Record<string, any>) {
-  if (typeof window !== 'undefined' && window.dataLayer) {
+  if (typeof window !== 'undefined' && hasConsent('analytics') && hasConsent('marketing') && window.dataLayer) {
     window.dataLayer.push({
       event: eventName,
       ...eventData,

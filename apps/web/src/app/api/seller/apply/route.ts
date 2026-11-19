@@ -1,3 +1,6 @@
+import { csrfProtection } from '@/lib/csrf'
+import { AGREEMENT_VERSION } from '@/lib/agreements/registry'
+import snapshots from '@/lib/agreements/document-snapshots.json'
 import { NextRequest, NextResponse } from 'next/server';
 import { queueEmail } from '@/lib/email/queue';
 import { createClient as createUserClient } from '@/lib/supabase/server';
@@ -60,6 +63,8 @@ function toSlug(input: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const csrfError = csrfProtection(req)
+  if (csrfError) return csrfError
   try {
     const formData = await req.json();
 
@@ -183,6 +188,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (formData.agreementVersion !== AGREEMENT_VERSION || formData.agreements?.pazaryeri_satici_sozlesmesi !== true || formData.agreements?.kvkk_aydinlatma !== true) return NextResponse.json({ error: 'Güncel satıcı sözleşmesini ve KVKK bilgilendirmesini inceleyin.' }, { status: 400 })
+    const { data: proofRows, error: proofError } = await (serviceSupabase as any).from('user_agreements').insert((['pazaryeri_satici_sozlesmesi','kvkk_aydinlatma'] as const).map(type => ({ user_id: user.id, agreement_type: type, version: AGREEMENT_VERSION, metadata: { document_text: snapshots[type].text, document_hash: snapshots[type].hash, links: snapshots[type].links, source: 'seller_application' } }))).select('id')
+    if (proofError) return NextResponse.json({ error: 'Sözleşme kaydı oluşturulamadı. Başvuru gönderilmedi.' }, { status: 503 })
+
     // Create seller application
     const { data: application, error: insertError } = await serviceSupabase
       .from('store_applications')
@@ -207,6 +216,8 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
+
+    if (!insertError && application && proofRows?.length) await (serviceSupabase as any).from('user_agreements').update({ store_application_id: application.id }).in('id', proofRows.map((row: any) => row.id))
 
     if (insertError) {
       console.error('Failed to create application:', insertError);

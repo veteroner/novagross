@@ -1,3 +1,4 @@
+import { requestHasAnalyticsConsent } from '@/lib/privacy/consent'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service'
 
@@ -7,6 +8,7 @@ export const dynamic = 'force-dynamic'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: NextRequest) {
+  if (!requestHasAnalyticsConsent(request)) return new NextResponse(null, { status: 204 })
   try {
     // sendBeacon text/plain gönderebilir; her iki durumda da JSON parse et
     const raw = await request.text()

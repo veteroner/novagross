@@ -24,7 +24,11 @@ CREATE TABLE public.bilgoo_coupon_attempts (
   -- İhtilafta iyzico referansı (callback yazar) ve iptal/iade ilerlemesi (admin yazar)
   iyzico_payment_id text,
   iyzico_paid_price numeric(12,2),
-  dispute_progress jsonb NOT NULL DEFAULT '{}'::jsonb
+  dispute_progress jsonb NOT NULL DEFAULT '{}'::jsonb,
+  -- İptal/iade işlemi kilidi: iyzico'ya çağrıdan önce atomik alınır. Yalnız
+  -- iyzico'nun sonucu kesin olduğunda bırakılır; belirsizlikte manuel incelemeye kadar tutulur.
+  dispute_claimed_at timestamptz,
+  dispute_claimed_by text
 );
 CREATE UNIQUE INDEX bilgoo_coupon_once_per_account ON public.bilgoo_coupon_attempts(user_id)
 WHERE state IN ('reserved', 'paid', 'disputed');
@@ -139,6 +143,38 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) TO service_role;
+
+-- İhtilaf iptal/iadesi için atomik kilit. Aynı anda gelen ikinci istek kilidi
+-- alamaz ve iyzico'ya hiç çağrı yapmaz.
+CREATE FUNCTION public.claim_bilgoo_dispute(p_order_id uuid, p_claimer text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  a bilgoo_coupon_attempts%ROWTYPE;
+BEGIN
+  IF COALESCE(btrim(p_claimer), '') = '' THEN
+    RAISE EXCEPTION 'claim_bilgoo_dispute: claimer zorunlu';
+  END IF;
+  UPDATE bilgoo_coupon_attempts
+  SET dispute_claimed_at = now(), dispute_claimed_by = p_claimer
+  WHERE order_id = p_order_id AND state = 'disputed' AND dispute_claimed_at IS NULL
+    AND iyzico_payment_id IS NOT NULL
+    AND EXISTS (SELECT 1 FROM orders o WHERE o.id = p_order_id AND o.payment_status = 'disputed')
+  RETURNING * INTO a;
+  IF FOUND THEN
+    RETURN jsonb_build_object('ok', true, 'payment_id', a.iyzico_payment_id, 'progress', a.dispute_progress,
+      'order_number', (SELECT order_number FROM orders WHERE id = p_order_id));
+  END IF;
+  SELECT * INTO a FROM bilgoo_coupon_attempts WHERE order_id = p_order_id;
+  RETURN jsonb_build_object('ok', false, 'reason', CASE
+    WHEN NOT FOUND OR a.state <> 'disputed' THEN 'not_disputed'
+    WHEN a.iyzico_payment_id IS NULL THEN 'no_reference'
+    WHEN a.dispute_claimed_at IS NOT NULL THEN 'locked'
+    ELSE 'not_disputed' END,
+    'claimed_at', a.dispute_claimed_at, 'claimed_by', a.dispute_claimed_by);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.claim_bilgoo_dispute(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_bilgoo_dispute(uuid, text) TO service_role;
 
 -- İhtilaflı BILGOO siparişinin iyzico'da doğrulanmış iptal/iadesi tamamlandığında
 -- admin /api/iyzico/bilgoo-dispute çağırır. Sipariş disputed→refunded olur; settle

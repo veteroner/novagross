@@ -43,7 +43,11 @@ jobs:
           version: latest
 
       - name: Yerel Supabase başlat (repo migration'ları uygulanır)
-        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector
+        # supabase/seed.sql eski şemaya göre (products.compare_price yok); smoke testi
+        # kendi verisini oluşturur, bu yüzden CI'da örnek veri yüklenmez.
+        run: |
+          printf '\n[db.seed]\nenabled = false\n' >> supabase/config.toml
+          supabase start -x studio,imgproxy,edge-runtime,logflare,vector
 
       - name: Yerel anahtarları ortama aktar
         run: |

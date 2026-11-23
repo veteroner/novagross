@@ -150,10 +150,11 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           if (failedBasketId) {
             const { data: failedOrder } = await db
               .from('orders')
-              .select('id')
+              .select('id, notes')
               .eq('order_number', failedBasketId)
               .single()
-            if (failedOrder?.id) {
+            const definitiveFailure = result.paymentStatus === 'FAILURE'
+            if (failedOrder?.id && (!failedOrder.notes?.startsWith('coupon:BILGOO') || definitiveFailure)) {
               const { data: claimed } = await db
                 .from('orders')
                 .update({
@@ -244,6 +245,13 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       )
     }
 
+    const existingNotes = (orderData as any).notes || ''
+    const couponCode = existingNotes.match(/coupon:(\S+)/)?.[1] ?? null
+    if (couponCode === 'BILGOO' && !mockMode &&
+      (paymentPrice == null || !Number.isFinite(Number(paymentPrice)) || !paymentId)) {
+      return NextResponse.redirect(new URL('/odeme?error=order_update_failed', siteUrl), 303)
+    }
+
     // AMOUNT VERIFICATION: Compare iyzico paid amount with order total
     if (paymentPrice !== undefined && paymentPrice !== null) {
       const orderTotal = Number((orderData as any).total)
@@ -287,9 +295,6 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     const orderId = orderData.id
 
     // Preserve coupon code from notes if present
-    const existingNotes = (orderData as any).notes || ''
-    const couponMatch = existingNotes.match(/coupon:(\S+)/)
-    const couponCode = couponMatch ? couponMatch[1] : null
     const updatedNotes = couponCode
       ? `coupon:${couponCode} | iyzico Payment ID: ${paymentId}`
       : `iyzico Payment ID: ${paymentId}`
@@ -306,10 +311,10 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
       }
     )
 
+    let claimedElsewhere = claimResult === false
     if (claimError) {
       console.error('claim_order_for_payment error:', claimError)
-      // Fallback: legacy direct update (idempotency check üstte zaten var)
-      const { error: orderUpdateError } = await db
+      const fallback = db
         .from('orders')
         .update({
           payment_status: 'paid',
@@ -317,11 +322,22 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           notes: updatedNotes,
         } as any)
         .eq('id', orderId)
+      const { data, error: orderUpdateError } = couponCode === 'BILGOO'
+        ? await fallback.eq('payment_status', 'pending').select('id')
+        : await fallback
       if (orderUpdateError) {
         console.error('Order update error:', orderUpdateError)
         return NextResponse.redirect(new URL('/odeme?error=order_update_failed', siteUrl), 303)
       }
-    } else if (claimResult === false) {
+      claimedElsewhere = couponCode === 'BILGOO' && !data?.length
+    }
+    if (claimedElsewhere) {
+      if (couponCode === 'BILGOO') {
+        const { data: currentOrder } = await db.from('orders').select('payment_status').eq('id', orderId).single()
+        if (currentOrder?.payment_status !== 'paid') {
+          return NextResponse.redirect(new URL('/odeme?error=order_update_failed', siteUrl), 303)
+        }
+      }
       // Başka callback önce yakaladı — bu callback işlem yapmasın ama success sayfasına yönlendir
       console.log('[iyzico Callback] Order already claimed by concurrent callback, redirect:', basketId)
       return NextResponse.redirect(
@@ -331,7 +347,7 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
     }
 
     // Increment coupon used_count if coupon was applied
-    if (couponCode) {
+    if (couponCode && couponCode !== 'BILGOO') {
       try {
         await db.rpc('increment_coupon_usage', { coupon_code: couponCode })
       } catch (e) {

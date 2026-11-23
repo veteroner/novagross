@@ -79,6 +79,8 @@ export async function POST(request: NextRequest) {
       selectedBillingAddressId = null,
     } = body
 
+    const bilgooOffer = typeof couponCode === 'string' && couponCode.trim().toUpperCase() === 'BILGOO'
+
     // Validate required fields
     if (!Array.isArray(items) || items.length === 0 || items.length > 100 || !customer || !shippingAddress || !totalPrice) {
       return NextResponse.json(
@@ -168,6 +170,10 @@ export async function POST(request: NextRequest) {
         : savedShipping
     const shippingSnapshot = buildAddressSnapshot(savedShipping)
     const billingSnapshot = savedBilling === savedShipping ? shippingSnapshot : buildAddressSnapshot(savedBilling)
+
+    if (bilgooOffer && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+      return NextResponse.json({ error: 'BILGOO kampanyası şu anda doğrulanamıyor.' }, { status: 503 })
+    }
 
     // Use service-role client for DB writes when available.
     // This prevents RLS issues during callbacks and also allows creating missing profile rows.
@@ -285,9 +291,9 @@ export async function POST(request: NextRequest) {
       .map((it) => ({ product_id: it.productId, quantity: Number(it.quantity) }))
 
     // Server-side coupon validation
-    let serverDiscountAmount = 0
+    let serverDiscountAmount = bilgooOffer ? 100 : 0
     let couponFreeShipping = false
-    if (couponCode) {
+    if (couponCode && !bilgooOffer) {
       const { data: couponData } = await db
         .from('coupons')
         .select('id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, is_active, expires_at, free_shipping')
@@ -559,7 +565,7 @@ export async function POST(request: NextRequest) {
       tax_amount: 0,
       discount_amount: Number(serverDiscountAmount),
       total: Number(paidPrice),
-      notes: couponCode ? `coupon:${couponCode}` : null,
+      notes: bilgooOffer ? 'coupon:BILGOO' : couponCode ? `coupon:${couponCode}` : null,
       shipping_method: shippingMethod,
       iyzico_shipping_sub_merchant_key: shippingCost > 0 ? firstSubMerchantKey : null,
       iyzico_shipping_seller_amount: shippingCost > 0 ? Number(shippingCost.toFixed(2)) : null,
@@ -599,6 +605,9 @@ export async function POST(request: NextRequest) {
 
       if (insertError || !insertedOrder) {
         await releaseReservedStock()
+        if (insertError?.message === 'BILGOO_PAYMENT_PENDING') {
+          return NextResponse.json({ error: 'BILGOO koduyla başlattığın ilk siparişin ödemesi açık.' }, { status: 409 })
+        }
         console.error('Order insert error:', insertError)
         return NextResponse.json(
           { error: insertError?.message ? `Sipariş oluşturulamadı: ${insertError.message}` : 'Sipariş oluşturulamadı' },
@@ -729,6 +738,26 @@ export async function POST(request: NextRequest) {
       // Mobil uygulama: callback sonucu novagross:// derin bağlantısına yönlendirir
       callbackUrl: `${siteUrl}/api/payment/callback${body.client === 'mobile' ? '?client=mobile' : ''}`,
       enabledInstallments: [1, 2, 3, 6, 9, 12]
+    }
+
+    if (bilgooOffer) {
+      const { data: reservation, error } = await db.rpc('reserve_bilgoo_offer', {
+        p_order_id: orderId, p_user_id: user.id,
+      })
+      if (error || reservation !== 'reserved') {
+        const { data: claimed } = await db.from('orders').update({ payment_status: 'failed' })
+          .eq('id', orderId).eq('payment_status', 'pending').select('id')
+        if (claimed?.length) await releaseReservedStock()
+        const messages: Record<string, string> = {
+          first_order_only: 'BILGOO kodu yalnızca ilk siparişte ve hesap başına bir kez kullanılabilir. Açık bir ödemen varsa önce onu tamamla.',
+          minimum: 'Kampanyalı ürünlerin kargo hariç toplamı en az 500 TL olmalı.',
+          quota: 'Kampanya kotasında şu anda kullanılabilir hak yok.',
+          inactive: 'BILGOO kampanyası şu anda açık değil.',
+        }
+        return NextResponse.json({
+          error: messages[reservation] || 'BILGOO kampanyası şu anda doğrulanamıyor.',
+        }, { status: error ? 503 : 409 })
+      }
     }
 
     // Development mode: return mock checkout form

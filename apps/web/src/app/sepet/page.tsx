@@ -157,7 +157,8 @@ export default function CartPage() {
 
               {/* Coupon Input */}
               <CouponInput 
-                subtotal={subtotal} 
+                subtotal={subtotal}
+                items={items}
                 onApply={handleCouponApply} 
                 appliedCoupon={appliedCoupon} 
               />

@@ -15,11 +15,12 @@ interface AppliedCoupon {
 
 interface CouponInputProps {
   subtotal: number
+  items: ReadonlyArray<{ productId: string; price: number; quantity: number }>
   onApply: (coupon: AppliedCoupon | null) => void
   appliedCoupon: AppliedCoupon | null
 }
 
-export function CouponInput({ subtotal, onApply, appliedCoupon }: CouponInputProps) {
+export function CouponInput({ subtotal, items, onApply, appliedCoupon }: CouponInputProps) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,24 @@ export function CouponInput({ subtotal, onApply, appliedCoupon }: CouponInputPro
     setError(null)
 
     try {
+      if (code.trim().toUpperCase() === 'BILGOO') {
+        const { data: offer, error: offerError } = await (supabase as any).rpc('get_bilgoo_offer')
+        if (offerError || !offer || offer.status !== 'active') {
+          setError(offer?.status === 'sold_out' ? 'Kampanya kotası doldu.' : 'Kampanya şu anda kullanılamıyor.')
+        } else {
+          const eligibleSubtotal = items.reduce((total, item) => offer.product_ids.includes(item.productId)
+            ? total + Math.round(item.price * 100) * item.quantity : total, 0)
+          if (eligibleSubtotal < 50000) {
+            setError('Kampanyalı ürünlerin kargo hariç toplamı en az 500 TL olmalı.')
+          } else {
+            onApply({ code: 'BILGOO', type: 'fixed', value: 100, discountAmount: 100, freeShipping: false })
+            setCode('')
+          }
+        }
+        setLoading(false)
+        return
+      }
+
       // SECURITY: RPC validate_coupon_code — coupon code enumeration koruması
       // (RLS artık anon SELECT'i engelliyor; sadece bu RPC kupon doğrular)
       const { data: rows, error: rpcError } = await (supabase as any).rpc(

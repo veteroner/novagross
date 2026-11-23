@@ -171,6 +171,11 @@ export async function POST(request: NextRequest) {
     const shippingSnapshot = buildAddressSnapshot(savedShipping)
     const billingSnapshot = savedBilling === savedShipping ? shippingSnapshot : buildAddressSnapshot(savedBilling)
 
+    // Kampanya bayrağı kapalıyken yeni BILGOO rezervasyonu açılmaz. Önceden
+    // başlatılmış ödemeler callback ve mutabakat akışıyla sonuçlanmaya devam eder.
+    if (bilgooOffer && process.env.BILGOO_OFFER_CHECKOUT_ENABLED !== '1') {
+      return NextResponse.json({ error: 'BILGOO kampanyası şu anda açık değil.' }, { status: 409 })
+    }
     if (bilgooOffer && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
       return NextResponse.json({ error: 'BILGOO kampanyası şu anda doğrulanamıyor.' }, { status: 503 })
     }
@@ -354,7 +359,10 @@ export async function POST(request: NextRequest) {
     const sellerIds = [...new Set(Array.from(productMap.values()).map(p => p.store_id).filter(Boolean))]
     const { data: sellerRows, error: sellersError } = await db.from('stores').select('id, company_name, store_name, address, city, district, email, phone, tax_number, tax_office, is_platform_store').in('id', sellerIds)
     if (sellersError) throw sellersError
-    const sellers = (sellerRows || []).map((store: any) => {
+    const platformStoreIds = new Set<string>((sellerRows || [])
+      .filter((store: any) => store.is_platform_store === true || store.tax_number === COMPANY_INFO.taxNumber)
+      .map((store: any) => store.id))
+    const sellers =(sellerRows || []).map((store: any) => {
       const platform = store.is_platform_store === true || store.tax_number === COMPANY_INFO.taxNumber
       return { id: store.id, name: store.company_name || (platform ? COMPANY_INFO.legalName : store.store_name), address: [store.address || (platform ? COMPANY_INFO.address : ''), store.district, store.city].filter(Boolean).join(', '), email: store.email || (platform ? COMPANY_INFO.email : ''), phone: store.phone || '', taxNumber: store.tax_number || (platform ? COMPANY_INFO.taxNumber : ''), taxOffice: store.tax_office || (platform ? COMPANY_INFO.taxOffice : '') }
     })
@@ -483,7 +491,39 @@ export async function POST(request: NextRequest) {
       // müşterinin ödediğinden fazlası gönderilmiş olurdu.
       const sellerTotal = itemSettlements.reduce((a, st) => a + st.sellerAmount, 0)
       const productPaid = serverTotalPrice
-      if (sellerTotal > productPaid && sellerTotal > 0) {
+      if (bilgooOffer && sellerTotal > productPaid) {
+        // BILGOO indirimini NovaGross karşılar. iyzico'da üye işyeri payı eksiye
+        // düşemediği için komisyonun karşılamadığı kısım yalnızca platformun kendi
+        // mağazasının alt üye işyeri tutarından düşülür; diğer satıcıların tutarı
+        // değişmez. Platform kalemleri yetmiyorsa kampanya bu sepette uygulanmaz.
+        const shortfall = Number((sellerTotal - productPaid).toFixed(2))
+        const platformIdx = items.map((item: any, i: number) =>
+          platformStoreIds.has(productMap.get(item.productId)?.store_id ?? '') ? i : -1).filter((i: number) => i >= 0)
+        const platformSellerTotal = platformIdx.reduce((a: number, i: number) => a + itemSettlements[i].sellerAmount, 0)
+        if (platformSellerTotal - shortfall < 0.01 * platformIdx.length) {
+          await releaseReservedStock()
+          return NextResponse.json({ error: 'BILGOO indirimi bu sepette uygulanamıyor. Kampanyalı NovaGross ürünlerini ayrı sipariş et.' }, { status: 409 })
+        }
+        let remaining = shortfall
+        platformIdx.forEach((i: number, n: number) => {
+          const st = itemSettlements[i]
+          const bi: any = basketItems[i]
+          const cut = n === platformIdx.length - 1
+            ? remaining
+            : Number((shortfall * st.sellerAmount / platformSellerTotal).toFixed(2))
+          remaining = Number((remaining - cut).toFixed(2))
+          st.sellerAmount = Number((st.sellerAmount - cut).toFixed(2))
+          st.withholdingAmount = Math.min(st.withholdingAmount, Number((st.sellerAmount - 0.01).toFixed(2)))
+          if (st.withholdingAmount > 0) bi.withholdingTax = st.withholdingAmount.toFixed(2)
+          else delete bi.withholdingTax
+          st.commissionAmount = Number((Number(bi.price) - st.sellerAmount).toFixed(2))
+          bi.subMerchantPrice = st.sellerAmount.toFixed(2)
+        })
+        if (platformIdx.some((i: number) => itemSettlements[i].sellerAmount < 0.01)) {
+          await releaseReservedStock()
+          return NextResponse.json({ error: 'BILGOO indirimi bu sepette uygulanamıyor. Kampanyalı NovaGross ürünlerini ayrı sipariş et.' }, { status: 409 })
+        }
+      } else if (sellerTotal > productPaid && sellerTotal > 0) {
         const ratio = productPaid / sellerTotal
         basketItems.forEach((bi: any, i: number) => {
           const st = itemSettlements[i]
@@ -742,7 +782,7 @@ export async function POST(request: NextRequest) {
 
     if (bilgooOffer) {
       const { data: reservation, error } = await db.rpc('reserve_bilgoo_offer', {
-        p_order_id: orderId, p_user_id: user.id,
+        p_order_id: orderId, p_user_id: user.id, p_conversation_id: conversationId,
       })
       if (error || reservation !== 'reserved') {
         const { data: claimed } = await db.from('orders').update({ payment_status: 'failed' })
@@ -878,6 +918,14 @@ export async function POST(request: NextRequest) {
         { error: result.errorMessage || 'Ödeme başlatılamadı' },
         { status: 400 }
       )
+    }
+
+    if (bilgooOffer && result.token) {
+      // Mutabakat (admin /api/iyzico/bilgoo-reconcile) sonucu bu token ile iyzico'dan sorgular.
+      const { error: tokenError } = await db.from('bilgoo_coupon_attempts')
+        .update({ checkout_token: result.token })
+        .eq('order_id', orderId).eq('state', 'reserved')
+      if (tokenError) console.error('[payment init] BILGOO token kaydı başarısız:', tokenError)
     }
 
     return NextResponse.json({

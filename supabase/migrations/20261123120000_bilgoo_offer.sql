@@ -9,7 +9,14 @@ INSERT INTO public.bilgoo_offer DEFAULT VALUES;
 CREATE TABLE public.bilgoo_coupon_attempts (
   order_id uuid PRIMARY KEY REFERENCES public.orders(id) ON DELETE RESTRICT,
   user_id uuid NOT NULL,
-  state text NOT NULL CHECK (state IN ('reserved', 'paid', 'released'))
+  state text NOT NULL CHECK (state IN ('reserved', 'paid', 'released')),
+  -- iyzico sonucunu sonradan doğrulamak için (admin /api/iyzico/bilgoo-reconcile)
+  conversation_id text,
+  checkout_token text,
+  reserved_at timestamptz NOT NULL DEFAULT now(),
+  checked_at timestamptz,
+  check_count int NOT NULL DEFAULT 0,
+  last_check text
 );
 CREATE UNIQUE INDEX bilgoo_coupon_once_per_account ON public.bilgoo_coupon_attempts(user_id)
 WHERE state IN ('reserved', 'paid');
@@ -50,7 +57,7 @@ REVOKE ALL ON FUNCTION public.guard_bilgoo_first_checkout() FROM PUBLIC, anon, a
 CREATE TRIGGER bilgoo_first_checkout
 BEFORE INSERT ON public.orders FOR EACH ROW EXECUTE FUNCTION public.guard_bilgoo_first_checkout();
 
-CREATE FUNCTION public.reserve_bilgoo_offer(p_order_id uuid, p_user_id uuid)
+CREATE FUNCTION public.reserve_bilgoo_offer(p_order_id uuid, p_user_id uuid, p_conversation_id text)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   checkout orders%ROWTYPE;
@@ -79,18 +86,47 @@ BEGIN
   END IF;
   IF (SELECT COALESCE(sum(oi.total), 0) FROM order_items oi
       JOIN products p ON p.id = oi.product_id AND p.is_active
+      JOIN stores s ON s.id = p.store_id AND s.is_platform_store
       WHERE oi.order_id = p_order_id AND oi.product_id = ANY(offer.product_ids)) < 500 THEN
     RETURN 'minimum';
   END IF;
   IF (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state IN ('reserved','paid')) >= 20 THEN
     RETURN 'quota';
   END IF;
-  INSERT INTO bilgoo_coupon_attempts(order_id, user_id, state) VALUES (p_order_id, p_user_id, 'reserved');
+  INSERT INTO bilgoo_coupon_attempts(order_id, user_id, state, conversation_id)
+  VALUES (p_order_id, p_user_id, 'reserved', p_conversation_id);
   RETURN 'reserved';
 END;
 $$;
-REVOKE ALL ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid, text) TO service_role;
+
+-- Mutabakat, iyzico'dan ödemenin alınmadığını iki ayrı sorguyla doğruladığında
+-- çağırır: sipariş pending→failed (settle trigger'ı hakkı serbest bırakır) ve
+-- stok iadesi tek işlemde. Sipariş artık pending değilse hiçbir şey yapmaz.
+CREATE FUNCTION public.close_unpaid_bilgoo_order(p_order_id uuid, p_reason text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM bilgoo_coupon_attempts WHERE order_id = p_order_id AND state = 'reserved') THEN
+    RETURN false;
+  END IF;
+  UPDATE orders
+  SET payment_status = 'failed',
+      notes = COALESCE(notes, '') || ' [bilgoo-reconcile: ' || left(COALESCE(p_reason, ''), 200) || ']'
+  WHERE id = p_order_id AND payment_status = 'pending'
+  RETURNING id INTO v_id;
+  IF v_id IS NULL THEN
+    RETURN false;
+  END IF;
+  UPDATE products p SET stock = p.stock + oi.quantity
+  FROM order_items oi WHERE oi.order_id = p_order_id AND oi.product_id = p.id AND p.stock IS NOT NULL;
+  RETURN true;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) TO service_role;
 
 CREATE FUNCTION public.settle_bilgoo_offer()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -147,3 +183,20 @@ FROM public.bilgoo_coupon_attempts a
 JOIN public.orders o ON o.id = a.order_id;
 REVOKE ALL ON public.bilgoo_offer_metrics FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.bilgoo_offer_metrics TO service_role;
+
+-- Yarım kalan BILGOO ödemelerinin iyzico mutabakatı (admin uygulaması, 10 dk'da bir).
+-- Yetki başlığı push-dispatch işinden alınır; pg_cron yoksa (DR replay) atlanır.
+DO $$
+DECLARE v_cmd text;
+BEGIN
+  SELECT replace(command, '/api/push/dispatch', '/api/iyzico/bilgoo-reconcile') INTO v_cmd
+  FROM cron.job WHERE jobname = 'push-dispatch';
+  IF v_cmd IS NULL THEN
+    RAISE NOTICE 'push-dispatch job yok — bilgoo-reconcile cron elle eklenmeli';
+    RETURN;
+  END IF;
+  PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'bilgoo-reconcile';
+  PERFORM cron.schedule('bilgoo-reconcile', '*/10 * * * *', v_cmd);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'bilgoo-reconcile cron kurulamadı: %', SQLERRM;
+END $$;

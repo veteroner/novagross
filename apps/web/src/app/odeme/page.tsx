@@ -51,6 +51,8 @@ function CheckoutContent() {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('address')
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  // iyzico dönüşünden gelen sonuç; belge hazırlama (initializePayment) bunu silmez
+  const [callbackError, setCallbackError] = useState<string | null>(null)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null)
   const [paymentBasketId, setPaymentBasketId] = useState<string | null>(null)
@@ -214,7 +216,7 @@ function CheckoutContent() {
   useEffect(() => {
     const error = searchParams.get('error')
     if (error) {
-      setPaymentError(paymentErrorMessage(error))
+      setCallbackError(paymentErrorMessage(error))
       setCurrentStep('payment')
     }
   }, [searchParams])
@@ -331,6 +333,7 @@ function CheckoutContent() {
 
       if (prepareOnly) { setPreparedDocument(data.document); setDocumentToken(data.documentToken); setMssAccepted(false); setObfAccepted(false); return }
       setCheckoutFormContent(data.checkoutFormContent)
+      setCallbackError(null)
       if (data.basketId) setPaymentBasketId(data.basketId)
       if (data.orderId) setPaymentOrderId(data.orderId)
       setNeedsAuth(false)
@@ -763,7 +766,13 @@ function CheckoutContent() {
                 <CardTitle>Ödeme</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {paymentError && (
+                {callbackError && (
+                  <div role="alert" className="flex items-start gap-2 p-4 bg-red-50 text-red-700 rounded-lg">
+                    <AlertCircle className="h-5 w-5 shrink-0" />
+                    <span>Önceki ödeme denemesi tamamlanamadı: {callbackError}</span>
+                  </div>
+                )}
+                {paymentError && paymentError !== callbackError && (
                   <div className="flex items-center gap-2 p-4 bg-red-50 text-red-700 rounded-lg">
                     <AlertCircle className="h-5 w-5" />
                     <span>{paymentError}</span>

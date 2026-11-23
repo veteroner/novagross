@@ -94,4 +94,21 @@ await t('9 kalem iadesinde ağ hatası: sonraki kalem ve tekrar çağrı yapılm
   const a = await POST(req()); assert.equal(a.status, 502)
   assert.equal(count('refund'), 1); assert.equal(db.attempt.dispute_progress.pending.txId, 'T1')
 })
+for (const [label, resp] of [['undefined', undefined], ['boş nesne', {}], ['tanınmayan status', { status: 'pending' }], ['null', null]]) {
+  await t(`10 iptal yanıtı ${label}: belirsiz sayılır, detay sorgusuna geçilmez`, async () => {
+    iyz.cancel = () => resp
+    const a = await POST(req()); assert.equal(a.status, 502); assert.equal(a.body.needsReview, true)
+    assert.equal(count('retrieve'), 0); assert.equal(count('refund'), 0)
+    assert.equal(db.attempt.dispute_progress.pending.op, 'cancel'); assert.ok(db.attempt.dispute_claimed_by)
+    assert.equal(db.attempt.dispute_progress.cancelRejected, undefined)
+    const b = await POST(req()); assert.equal(b.status, 409); assert.equal(count('cancel'), 1)
+  })
+}
+await t('11 kalem iadesi yanıtı undefined: belirsiz, sonraki kaleme geçilmez', async () => {
+  iyz.cancel = () => ({ status: 'failure', errorCode: '5094' })
+  iyz.refund = (r) => r.paymentTransactionId === 'T1' ? undefined : { status: 'success' }
+  const a = await POST(req()); assert.equal(a.status, 502); assert.equal(a.body.needsReview, true)
+  assert.equal(count('refund'), 1); assert.equal(db.attempt.dispute_progress.pending.txId, 'T1')
+  assert.equal(db.attempt.dispute_progress.items?.T1, undefined)
+})
 console.log(results.join('\n'))

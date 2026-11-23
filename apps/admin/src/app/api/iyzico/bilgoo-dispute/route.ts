@@ -126,11 +126,14 @@ export async function POST(request: NextRequest) {
     } catch (e: any) {
       return { kind: 'unknown' as const, error: String(e?.message || e).slice(0, 200) }
     }
-    if (res?.status !== 'success') {
+    if (res?.status === 'success') return { kind: 'success' as const, res }
+    if (res?.status === 'failure') {
+      // Yalnız iyzico'nun açık ret yanıtı kesindir: niyet silinir.
       delete progress.pending
       return { kind: 'rejected' as const, res }
     }
-    return { kind: 'success' as const, res }
+    // Boş, undefined ya da tanınmayan yanıt: işlemin yapılıp yapılmadığı bilinmez.
+    return { kind: 'unknown' as const, error: `tanınmayan iyzico yanıtı: ${iyzErr(res)}` }
   }
 
   const IyzipayModule: any = await import(/* webpackIgnore: true */ 'iyzipay')

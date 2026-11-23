@@ -20,7 +20,11 @@ CREATE TABLE public.bilgoo_coupon_attempts (
   checked_at timestamptz,
   check_count int NOT NULL DEFAULT 0,
   last_check text,
-  needs_review boolean NOT NULL DEFAULT false
+  needs_review boolean NOT NULL DEFAULT false,
+  -- İhtilafta iyzico referansı (callback yazar) ve iptal/iade ilerlemesi (admin yazar)
+  iyzico_payment_id text,
+  iyzico_paid_price numeric(12,2),
+  dispute_progress jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE UNIQUE INDEX bilgoo_coupon_once_per_account ON public.bilgoo_coupon_attempts(user_id)
 WHERE state IN ('reserved', 'paid', 'disputed');
@@ -135,6 +139,32 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.close_unpaid_bilgoo_order(uuid, text) TO service_role;
+
+-- İhtilaflı BILGOO siparişinin iyzico'da doğrulanmış iptal/iadesi tamamlandığında
+-- admin /api/iyzico/bilgoo-dispute çağırır. Sipariş disputed→refunded olur; settle
+-- trigger hakkı void yapar. Stok, ihtilaf anında callback tarafından iade edilmişti.
+CREATE FUNCTION public.complete_bilgoo_dispute_refund(p_order_id uuid, p_amount numeric, p_method text, p_reason text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  IF COALESCE(btrim(p_reason), '') = '' OR p_method NOT IN ('cancel', 'refund') OR NOT (p_amount > 0) THEN
+    RAISE EXCEPTION 'complete_bilgoo_dispute_refund: geçersiz parametre';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM bilgoo_coupon_attempts WHERE order_id = p_order_id AND state = 'disputed') THEN
+    RETURN false;
+  END IF;
+  UPDATE orders
+  SET payment_status = 'refunded', status = 'cancelled', refund_status = 'refunded',
+      refund_amount = p_amount, refunded_at = now(),
+      notes = COALESCE(notes, '') || ' [bilgoo-dispute ' || p_method || ': ' || left(p_reason, 200) || ']'
+  WHERE id = p_order_id AND payment_status = 'disputed'
+  RETURNING id INTO v_id;
+  RETURN v_id IS NOT NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.complete_bilgoo_dispute_refund(uuid, numeric, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_bilgoo_dispute_refund(uuid, numeric, text, text) TO service_role;
 
 CREATE FUNCTION public.settle_bilgoo_offer()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$

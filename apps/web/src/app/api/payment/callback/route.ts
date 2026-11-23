@@ -270,6 +270,14 @@ async function handleCallback(request: NextRequest): Promise<NextResponse> {
           } as any)
           .eq('id', orderData.id)
 
+        if (couponCode === 'BILGOO') {
+          // İhtilafın iyzico'da doğrulanmış iptal/iadesi için referans (admin /api/iyzico/bilgoo-dispute)
+          const { error: refError } = await db.from('bilgoo_coupon_attempts')
+            .update({ iyzico_payment_id: String(paymentId), iyzico_paid_price: Number(paymentPrice) })
+            .eq('order_id', orderData.id).eq('state', 'disputed')
+          if (refError) console.error('[iyzico Callback] BILGOO dispute reference save error:', refError)
+        }
+
         // SECURITY: Disputed order → rezerve stoğu release et (orphan engeli)
         try {
           const { data: dItems } = await db

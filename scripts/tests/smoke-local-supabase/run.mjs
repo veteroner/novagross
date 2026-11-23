@@ -127,6 +127,7 @@ await step('ödeme: geçersiz kupon ödeme başlamadan reddedilir', async () => 
 await step('ödeme: BILGOO 500 TL altı sepet reddedilir', async () => {
   const r = await checkout([line(cheapProduct, 2)], 'BILGOO')
   assert.equal(r.status, 409, JSON.stringify(r.body))
+  assert.match(r.body.error ?? '', /en az 500 TL/)
   return r.body.error
 })
 
@@ -147,6 +148,7 @@ await step('ödeme: BILGOO 600 TL sepet → mock ödeme formu, 100 TL indirim, h
 await step('ödeme: açık BILGOO ödemesi varken ikinci sipariş engellenir', async () => {
   const r = await checkout([line(product, 2)], 'BILGOO')
   assert.equal(r.status, 409, JSON.stringify(r.body))
+  assert.match(r.body.error ?? '', /ödemesi açık/)
   return r.body.error
 })
 
@@ -169,6 +171,7 @@ await step('ödeme: mock callback başarı → sipariş paid, hak paid, kota 1',
 await step('ödeme: ilk siparişten sonra BILGOO tekrar kullanılamaz', async () => {
   const r = await checkout([line(product, 2)], 'BILGOO')
   assert.equal(r.status, 409, JSON.stringify(r.body))
+  assert.match(r.body.error ?? '', /yalnızca ilk siparişte/)
   return r.body.error
 })
 

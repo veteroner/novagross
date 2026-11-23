@@ -949,6 +949,7 @@ function CheckoutContent() {
                 {/* Coupon Input */}
                 <CouponInput
                   subtotal={subtotal}
+                  items={items}
                   onApply={(coupon) => setAppliedCoupon(coupon)}
                   appliedCoupon={appliedCoupon}
                 />

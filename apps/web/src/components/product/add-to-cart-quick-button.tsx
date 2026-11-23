@@ -34,6 +34,7 @@ export function AddToCartQuickButton({ product }: Props) {
       price: product.price,
       name: product.name,
       image: product.image ?? null,
+      maxQuantity: typeof product.stock === 'number' ? product.stock : null,
     })
 
     setIsAdding(false)

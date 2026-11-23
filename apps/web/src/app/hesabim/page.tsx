@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagross/ui'
 import { getInitials } from '@novagross/utils'
 import { createClient } from '@/lib/supabase/client'
+import { translateAuthError } from '@/lib/auth-errors'
+import { passwordError } from '@/lib/password-policy'
+import { normalizePhone, PHONE_ERROR, PHONE_PLACEHOLDER } from '@/lib/phone'
+import { PasswordRules } from '@/components/auth/password-rules'
 import { Loader2, Check, AlertCircle } from 'lucide-react'
 
 export default function ProfilePage() {
@@ -55,8 +59,13 @@ export default function ProfilePage() {
   }, [])
 
   const handleSaveProfile = async () => {
-    setSaving(true)
     setMessage(null)
+    const phone = profile.phone.trim() ? normalizePhone(profile.phone) : ''
+    if (phone === null) {
+      setMessage({ type: 'error', text: PHONE_ERROR })
+      return
+    }
+    setSaving(true)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -67,11 +76,12 @@ export default function ProfilePage() {
         .update({
           first_name: profile.firstName.trim(),
           last_name: profile.lastName.trim(),
-          phone: profile.phone.trim(),
+          phone: phone || null,
         })
         .eq('id', user.id)
 
       if (error) throw error
+      setProfile((p) => ({ ...p, phone: phone || '' }))
       setMessage({ type: 'success', text: 'Profil başarıyla güncellendi' })
     } catch (err) {
       setMessage({ type: 'error', text: 'Profil güncellenirken bir hata oluştu' })
@@ -83,8 +93,9 @@ export default function ProfilePage() {
   const handleChangePassword = async () => {
     setPasswordMessage(null)
 
-    if (passwords.newPassword.length < 6) {
-      setPasswordMessage({ type: 'error', text: 'Şifre en az 6 karakter olmalı' })
+    const pwError = passwordError(passwords.newPassword)
+    if (pwError) {
+      setPasswordMessage({ type: 'error', text: pwError })
       return
     }
     if (passwords.newPassword !== passwords.confirmPassword) {
@@ -103,7 +114,7 @@ export default function ProfilePage() {
       setPasswordMessage({ type: 'success', text: 'Şifre başarıyla güncellendi' })
       setPasswords({ newPassword: '', confirmPassword: '' })
     } catch (err) {
-      setPasswordMessage({ type: 'error', text: err instanceof Error ? err.message : 'Şifre güncellenirken bir hata oluştu' })
+      setPasswordMessage({ type: 'error', text: err ? translateAuthError(err as any) : 'Şifre güncellenirken bir hata oluştu' })
     } finally {
       setSavingPassword(false)
     }
@@ -169,6 +180,9 @@ export default function ProfilePage() {
               <div>
                 <label className="text-sm font-medium">Telefon</label>
                 <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder={PHONE_PLACEHOLDER}
                   value={profile.phone}
                   onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                 />
@@ -208,8 +222,10 @@ export default function ProfilePage() {
                 type="password"
                 value={passwords.newPassword}
                 onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                placeholder="En az 6 karakter"
+                autoComplete="new-password"
+                aria-describedby="profile-password-rules"
               />
+              <PasswordRules id="profile-password-rules" password={passwords.newPassword} />
             </div>
             <div>
               <label className="text-sm font-medium">Yeni Şifre (Tekrar)</label>

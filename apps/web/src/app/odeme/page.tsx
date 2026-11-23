@@ -16,6 +16,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useShippingConfig, calculateShippingCost } from '@/hooks/use-shipping-config'
 import { CouponInput } from '@/components/cart/coupon-input'
 import { AddressPicker } from '@/components/address/address-picker'
+import { normalizePhone, PHONE_ERROR, PHONE_PLACEHOLDER } from '@/lib/phone'
+import { paymentErrorMessage } from '@/lib/payment-errors'
 
 type CheckoutStep = 'address' | 'shipping' | 'payment' | 'confirmation'
 
@@ -75,6 +77,7 @@ function CheckoutContent() {
   const [saveNewAddress, setSaveNewAddress] = useState(true)
   const [newAddressTitle, setNewAddressTitle] = useState('Ev')
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
+  const [addressSaveNotice, setAddressSaveNotice] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     // Address
@@ -211,7 +214,7 @@ function CheckoutContent() {
   useEffect(() => {
     const error = searchParams.get('error')
     if (error) {
-      setPaymentError(decodeURIComponent(error))
+      setPaymentError(paymentErrorMessage(error))
       setCurrentStep('payment')
     }
   }, [searchParams])
@@ -283,7 +286,7 @@ function CheckoutContent() {
           customer: {
             firstName: formData.firstName,
             lastName: formData.lastName,
-            phone: formData.phone,
+            phone: normalizePhone(formData.phone) ?? formData.phone,
             email: formData.email,
           },
           shippingAddress: (() => {
@@ -351,22 +354,15 @@ function CheckoutContent() {
         if (user) {
           const isFirst = savedAddresses.length === 0
           
-          if (isFirst) {
-            // Unset existing defaults
-            await supabase
-              .from('addresses')
-              .update({ is_default: false })
-              .eq('user_id', user.id)
-          }
-
-          const { data: newAddr } = await supabase
+          // Varsayılan adres tekilliğini veritabanı tetikleyicisi sağlar.
+          const { data: newAddr, error: saveError } = await supabase
             .from('addresses')
             .insert({
               user_id: user.id,
               title: newAddressTitle.trim() || 'Adres',
               first_name: formData.firstName.trim(),
               last_name: formData.lastName.trim(),
-              phone: formData.phone.trim(),
+              phone: normalizePhone(formData.phone) as string,
               // Tek format: line1/line2 yapılandırılmış alanlardan, metadata doğruluk kaynağı
               ...(() => {
                 const lines = composeAddressLines(structuredFromForm())
@@ -385,7 +381,12 @@ function CheckoutContent() {
             .select()
             .single()
 
-          if (newAddr) {
+          if (saveError) {
+            // Sipariş bu adresle devam eder; yalnız kayıt yapılamadığını bildir.
+            setAddressSaveNotice(/maksimum 10 adres/i.test(saveError.message)
+              ? 'Adres defterinizde 10 adres olduğu için bu adres kaydedilmedi; siparişiniz bu adresle devam ediyor.'
+              : 'Adres kaydedilemedi; siparişiniz bu adresle devam ediyor.')
+          } else if (newAddr) {
             setSavedAddresses(prev => [...prev, newAddr as SavedAddress])
             setSelectedShippingId(newAddr.id)
           }
@@ -413,7 +414,7 @@ function CheckoutContent() {
     return (
       formData.firstName.trim() !== '' &&
       formData.lastName.trim() !== '' &&
-      formData.phone.trim() !== '' &&
+      normalizePhone(formData.phone) !== null &&
       formData.email.trim() !== '' &&
       formData.address.trim() !== '' &&
       formData.city.trim() !== ''
@@ -604,11 +605,17 @@ function CheckoutContent() {
                       <div>
                         <label className="text-sm font-medium">Telefon</label>
                         <Input
+                          type="tel"
+                          inputMode="tel"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="05XX XXX XX XX"
+                          placeholder={PHONE_PLACEHOLDER}
                           autoComplete="tel"
+                          aria-invalid={formData.phone.trim() !== '' && !normalizePhone(formData.phone)}
                         />
+                        {formData.phone.trim() !== '' && !normalizePhone(formData.phone) && (
+                          <p className="mt-1 text-xs text-red-600">{PHONE_ERROR}</p>
+                        )}
                       </div>
                       <div>
                         <label className="text-sm font-medium">E-posta</label>
@@ -697,6 +704,9 @@ function CheckoutContent() {
                 <CardTitle>Kargo Seçenekleri</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {addressSaveNotice && (
+                  <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{addressSaveNotice}</p>
+                )}
                 <label className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-primary">
                   <div className="flex items-center gap-4">
                     <input
@@ -712,7 +722,7 @@ function CheckoutContent() {
                     </div>
                   </div>
                   <span className="font-medium">
-                    {calculateShippingCost(shippingConfig, subtotal, 'standard') === 0 ? 'Ücretsiz' : formatPrice(shippingConfig.standardShippingCost)}
+                    {calculateShippingCost(shippingConfig, afterDiscount, 'standard', { freeShipping: appliedCoupon?.freeShipping }) === 0 ? 'Ücretsiz' : formatPrice(shippingConfig.standardShippingCost)}
                   </span>
                 </label>
 

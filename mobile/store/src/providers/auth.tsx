@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { PASSWORD_HINT } from '@/lib/password-policy'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { registerForPush, unregisterPush } from '@/lib/push'
@@ -26,7 +27,7 @@ function tr(msg: string) {
   if (msg === 'Invalid login credentials') return 'E-posta veya şifre hatalı.'
   if (/already registered/i.test(msg)) return 'Bu e-posta ile kayıtlı bir hesap var.'
   if (/Email not confirmed/i.test(msg)) return 'E-posta adresinizi doğrulamanız gerekiyor. Gelen kutunuzu kontrol edin.'
-  if (/Password should be at least/i.test(msg)) return 'Şifre en az 6 karakter olmalı.'
+  if (/Password should|weak_password|known to be weak/i.test(msg)) return `Şifre yeterince güçlü değil. ${PASSWORD_HINT}`
   if (/banned/i.test(msg)) return 'Bu hesap kapatılmış.'
   return msg
 }

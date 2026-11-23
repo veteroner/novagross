@@ -6,6 +6,8 @@ import { Button, Input, Card, CardContent, CardHeader, CardTitle } from '@novagr
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION } from '@/lib/agreements/registry'
 import { translateAuthError } from '@/lib/auth-errors'
+import { passwordError } from '@/lib/password-policy'
+import { PasswordRules } from '@/components/auth/password-rules'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import { AgreementCheckbox, allRequiredAccepted, type AgreementsState } from '@/components/agreements/agreement-checkbox'
 
@@ -45,8 +47,9 @@ export function RegisterForm() {
       return
     }
 
-    if (formData.password.length < 6) {
-      setError('Şifre en az 6 karakter olmalıdır')
+    const pwError = passwordError(formData.password)
+    if (pwError) {
+      setError(pwError)
       setIsLoading(false)
       return
     }
@@ -71,7 +74,7 @@ export function RegisterForm() {
       })
 
       if (error) {
-        setError(translateAuthError(error.message))
+        setError(translateAuthError(error))
         return
       }
 
@@ -238,6 +241,8 @@ export function RegisterForm() {
                 className="pl-10 pr-10"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                autoComplete="new-password"
+                aria-describedby="password-rules"
                 required
               />
               <button
@@ -248,6 +253,7 @@ export function RegisterForm() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            <PasswordRules id="password-rules" password={formData.password} />
           </div>
 
           <div className="space-y-2">
@@ -263,6 +269,7 @@ export function RegisterForm() {
                 className="pl-10"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                autoComplete="new-password"
                 required
               />
             </div>

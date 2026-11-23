@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, Badge, Button, Input } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
+import { normalizePhone, PHONE_ERROR, PHONE_PLACEHOLDER } from '@/lib/phone'
 import { MapPin, Plus, Edit, Trash2, X, Check, Loader2 } from 'lucide-react'
 import { AddressPicker, EMPTY_ADDRESS, type AddressValue } from '@/components/address/address-picker'
 import {
@@ -155,6 +156,7 @@ export default function AddressesPage() {
     if (!formData.first_name.trim()) return 'Ad gerekli'
     if (!formData.last_name.trim()) return 'Soyad gerekli'
     if (!formData.phone.trim()) return 'Telefon gerekli'
+    if (!normalizePhone(formData.phone)) return PHONE_ERROR
     if (!addressValue.city.trim()) return 'İl seçin'
     if (!addressValue.district.trim()) return 'İlçe seçin'
     if (!addressValue.address.trim()) return 'Cadde / Sokak gerekli'
@@ -186,7 +188,7 @@ export default function AddressesPage() {
         title: formData.title.trim(),
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
-        phone: formData.phone.trim(),
+        phone: normalizePhone(formData.phone) as string,
         address_line1: line1,
         address_line2: line2 || null,
         city: addressValue.city.trim(),
@@ -197,13 +199,8 @@ export default function AddressesPage() {
         metadata: toAddressMetadata(structured),
       }
 
-      // If setting as default, unset other defaults first
-      if (formData.is_default) {
-        await supabase
-          .from('addresses')
-          .update({ is_default: false })
-          .eq('user_id', user.id)
-      }
+      // Diğer varsayılan adresleri veritabanı tetikleyicisi (ensure_single_default_address)
+      // kayıt başarılı olduğunda kaldırır; kayıt hata verirse mevcut varsayılan korunur.
 
       if (editingId) {
         // Update
@@ -224,8 +221,8 @@ export default function AddressesPage() {
           .insert(addressData)
 
         if (error) {
-          if (error.message.includes('limit') || error.message.includes('10')) {
-            throw new Error('En fazla 10 adres ekleyebilirsiniz')
+          if (/maksimum 10 adres|address_limit/i.test(error.message)) {
+            throw new Error('En fazla 10 adres kaydedebilirsiniz')
           }
           throw error
         }
@@ -234,7 +231,8 @@ export default function AddressesPage() {
       closeForm()
       await fetchAddresses()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bir hata oluştu')
+      const msg = err instanceof Error ? err.message : ''
+      setError(/invalid phone format/i.test(msg) ? PHONE_ERROR : (msg || 'Bir hata oluştu'))
     } finally {
       setSaving(false)
     }

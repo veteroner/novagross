@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { passwordError, PASSWORD_HINT } from '@/lib/password-policy'
 import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import { useAuth } from '@/providers/auth'
@@ -20,7 +21,8 @@ export default function Register() {
     setError(null)
     if (!form.firstName.trim() || !form.lastName.trim()) return setError('Ad ve soyad girin.')
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setError('Geçerli bir e-posta girin.')
-    if (form.password.length < 8) return setError('Şifre en az 8 karakter olmalı.')
+    const pwError = passwordError(form.password)
+    if (pwError) return setError(pwError)
     if (!accepted) return setError('Üyelik sözleşmesini ve KVKK aydınlatma metnini onaylayın.')
     setBusy(true)
     const msg = await signUp(form)
@@ -47,7 +49,7 @@ export default function Register() {
         <Field label="Ad" value={form.firstName} onChangeText={set('firstName')} autoComplete="given-name" textContentType="givenName" />
         <Field label="Soyad" value={form.lastName} onChangeText={set('lastName')} autoComplete="family-name" textContentType="familyName" />
         <Field label="E-posta" value={form.email} onChangeText={set('email')} autoCapitalize="none" keyboardType="email-address" autoComplete="email" textContentType="emailAddress" />
-        <Field label="Şifre" value={form.password} onChangeText={set('password')} secureTextEntry autoComplete="new-password" textContentType="newPassword" placeholder="En az 8 karakter" />
+        <Field label="Şifre" value={form.password} onChangeText={set('password')} secureTextEntry autoComplete="new-password" textContentType="newPassword" placeholder={PASSWORD_HINT} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(3) }}>
           <Switch value={accepted} onValueChange={setAccepted} trackColor={{ true: colors.primary }} />
           <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>

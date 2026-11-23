@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { queueEmail } from '@/lib/email/queue';
 import crypto from 'crypto';
+import { passwordError } from '@/lib/password-policy';
+import { translateAuthError } from '@/lib/auth-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,19 +23,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate password strength
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: 'Şifre en az 8 karakter olmalıdır' },
-        { status: 400 }
-      );
-    }
-
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-      return NextResponse.json(
-        { error: 'Şifre büyük/küçük harf ve rakam içermelidir' },
-        { status: 400 }
-      );
+    // Supabase Auth ile aynı şifre kuralı (lib/password-policy)
+    const policyError = typeof password === 'string' ? passwordError(password) : 'Geçersiz şifre';
+    if (policyError) {
+      return NextResponse.json({ error: policyError }, { status: 400 });
     }
 
     const supabase = createClient(
@@ -76,9 +69,11 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       console.error('Failed to update password:', updateError);
+      // Supabase'in reddettiği şifre (ör. sızdırılmış şifre) kullanıcı hatasıdır; bağlantı kullanılmamış kalır.
+      const status = (updateError as any).status && (updateError as any).status < 500 ? 400 : 500;
       return NextResponse.json(
-        { error: 'Şifre güncellenirken bir hata oluştu' },
-        { status: 500 }
+        { error: status === 400 ? translateAuthError(updateError as any) : 'Şifre güncellenirken bir hata oluştu' },
+        { status }
       );
     }
 

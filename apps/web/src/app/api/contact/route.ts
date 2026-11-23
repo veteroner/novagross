@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { COMPANY_INFO } from '@/lib/company-info'
 import { createClient } from '@/lib/supabase/server'
 import { Resend } from 'resend'
 import { csrfProtection } from '@/lib/csrf'
@@ -43,10 +44,8 @@ export async function POST(request: NextRequest) {
         message,
       })
 
-    if (dbError) {
-      console.error('Database error:', dbError)
-      // Don't fail the request if DB save fails, continue with email
-    }
+    if (dbError) console.error('Database error:', dbError)
+    let emailed = false
 
     // Send email notification if Resend is configured
     if (resend && process.env.RESEND_FROM_EMAIL) {
@@ -64,10 +63,19 @@ export async function POST(request: NextRequest) {
             <p>${escapeHtml(message)}</p>
           `,
         })
+        emailed = true
       } catch (emailError) {
         console.error('Email error:', emailError)
         // Don't fail the request if email fails
       }
+    }
+
+    // Mesaj ne kaydedildi ne de e-postayla iletildiyse kullanıcıya başarı denmez.
+    if (dbError && !emailed) {
+      return NextResponse.json(
+        { error: `Mesajınız şu anda iletilemedi. Lütfen daha sonra tekrar deneyin veya ${COMPANY_INFO.email} adresine yazın.` },
+        { status: 503 }
+      )
     }
 
     return NextResponse.json({ 

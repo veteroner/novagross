@@ -38,6 +38,7 @@ export function AddToCartButton({ product, variantId }: AddToCartButtonProps) {
       price: product.price,
       name: product.name,
       image: product.images?.[0]?.url || null,
+      maxQuantity: typeof product.stock === 'number' ? product.stock : null,
     })
 
     setIsAdding(false)

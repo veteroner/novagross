@@ -38,7 +38,7 @@ export function NewsletterForm() {
         2 // Max 2 retries (3 total attempts)
       )
 
-      toast.success(data.message || 'Bültene başarıyla abone oldunuz!')
+      toast.success(data.message || 'Onay e-postası gönderildi. Aboneliği tamamlamak için e-postadaki bağlantıya tıklayın.')
       setEmail('')
       setKvkkConsent(false)
     } catch (error) {

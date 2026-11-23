@@ -299,34 +299,43 @@ export async function POST(request: NextRequest) {
     let serverDiscountAmount = bilgooOffer ? 100 : 0
     let couponFreeShipping = false
     if (couponCode && !bilgooOffer) {
+      // Kupon kodu büyük/küçük harf duyarsız eşleşir (% ve _ joker değil, kaçışlanır).
+      const normalizedCode = String(couponCode).trim().replace(/[\\%_]/g, (c) => `\\${c}`)
       const { data: couponData } = await db
         .from('coupons')
-        .select('id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, is_active, expires_at, free_shipping')
-        .eq('code', couponCode)
+        .select('id, code, discount_type, discount_value, minimum_amount, maximum_discount, usage_limit, used_count, is_active, starts_at, expires_at, free_shipping')
+        .ilike('code', normalizedCode)
         .eq('is_active', true)
-        .single()
+        .maybeSingle()
 
-      if (couponData) {
-        const now = new Date()
-        const isExpired = couponData.expires_at && new Date(couponData.expires_at) < now
-        const isOverLimit = couponData.max_uses && couponData.used_count >= couponData.max_uses
-        const isBelowMin = couponData.min_order_amount && serverSubtotal < Number(couponData.min_order_amount)
-
-        if (!isExpired && !isOverLimit && !isBelowMin) {
-          couponFreeShipping = Boolean((couponData as any).free_shipping)
-          if (couponData.discount_type === 'percentage') {
-            serverDiscountAmount = Number((serverSubtotal * Number(couponData.discount_value) / 100).toFixed(2))
-          } else {
-            serverDiscountAmount = Number(Number(couponData.discount_value).toFixed(2))
-          }
-          // Cap discount at subtotal
-          serverDiscountAmount = Math.min(serverDiscountAmount, serverSubtotal)
-        } else {
-          console.warn(`Coupon ${couponCode} is invalid: expired=${isExpired}, overLimit=${isOverLimit}, belowMin=${isBelowMin}`)
-        }
-      } else {
-        console.warn(`Coupon ${couponCode} not found or not active`)
+      // Geçersiz kupon artık sessizce düşürülmez: müşteri indirimli tutarı görmüşken
+      // tam fiyat çekilmesin diye ödeme başlamadan sebep döner.
+      const now = new Date()
+      const couponReason = !couponData
+        ? 'Kupon kodu bulunamadı veya artık geçerli değil.'
+        : couponData.expires_at && new Date(couponData.expires_at) <= now
+          ? 'Kuponun süresi dolmuş.'
+          : couponData.starts_at && new Date(couponData.starts_at) > now
+            ? 'Kupon henüz aktif değil.'
+            : couponData.usage_limit != null && Number(couponData.used_count ?? 0) >= Number(couponData.usage_limit)
+              ? 'Kuponun kullanım hakkı dolmuş.'
+              : couponData.minimum_amount != null && serverSubtotal < Number(couponData.minimum_amount)
+                ? `Bu kupon en az ${Number(couponData.minimum_amount)} TL'lik siparişte geçerli.`
+                : null
+      if (couponReason || !couponData) {
+        return NextResponse.json({ error: couponReason, code: 'COUPON_INVALID' }, { status: 409 })
       }
+      couponFreeShipping = Boolean((couponData as any).free_shipping)
+      if (couponData.discount_type === 'percentage') {
+        serverDiscountAmount = Number((serverSubtotal * Number(couponData.discount_value) / 100).toFixed(2))
+      } else {
+        serverDiscountAmount = Number(Number(couponData.discount_value).toFixed(2))
+      }
+      // İndirim tavanı ve sepet tutarı ile sınırla
+      if (couponData.maximum_discount != null && Number(couponData.maximum_discount) > 0) {
+        serverDiscountAmount = Math.min(serverDiscountAmount, Number(couponData.maximum_discount))
+      }
+      serverDiscountAmount = Math.min(serverDiscountAmount, serverSubtotal)
     }
 
     // Recalculate total server-side
@@ -581,8 +590,12 @@ export async function POST(request: NextRequest) {
         p_items: stockPayload,
       })
       if (stockError) {
+        const stockMsg = String(stockError.message || '')
+        const outOfStockName = stockMsg.match(new RegExp('Yetersiz stok: (.*?) [(]id='))?.[1]
         return NextResponse.json(
-          { error: stockError.message || 'Yetersiz stok' },
+          { error: /yetersiz stok/i.test(stockMsg)
+              ? `${outOfStockName ?? 'Bir ürün'} için yeterli stok kalmadı. Sepetteki adedi azaltın.`
+              : 'Stok kontrol edilemedi. Lütfen tekrar deneyin.', code: 'OUT_OF_STOCK' },
           { status: 409 }
         )
       }

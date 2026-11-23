@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const { data: user } = await supabase
       .from('profiles')
       .select('id, email, first_name, last_name')
-      .eq('email', email)
+      .ilike('email', String(email).trim().replace(/[\\%_]/g, (c: string) => `\\${c}`))
       .single();
 
     // Always return success to prevent email enumeration

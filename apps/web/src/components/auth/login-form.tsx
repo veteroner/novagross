@@ -16,6 +16,18 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [remember, setRemember] = useState(false)
+  // /api/auth/verify-email ve /auth/callback yönlendirmelerinin sonuç parametreleri
+  const notice = (() => {
+    if (searchParams.get('verified') === 'true') return { type: 'success' as const, text: 'E-posta adresiniz doğrulandı. Şimdi giriş yapabilirsiniz.' }
+    const code = searchParams.get('error')
+    const map: Record<string, string> = {
+      invalid_token: 'Doğrulama bağlantısı geçersiz. Yeni bir bağlantı talep edin.',
+      expired_token: 'Doğrulama bağlantısının süresi dolmuş. Yeni bir bağlantı talep edin.',
+      verification_failed: 'E-posta doğrulanamadı. Lütfen tekrar deneyin.',
+      auth_callback_error: 'Giriş tamamlanamadı. Lütfen tekrar deneyin.',
+    }
+    return code ? { type: 'error' as const, text: map[code] ?? 'Giriş sırasında bir sorun oluştu. Lütfen tekrar deneyin.' } : null
+  })()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -34,7 +46,7 @@ export function LoginForm() {
       })
 
       if (error) {
-        setError(translateAuthError(error.message))
+        setError(translateAuthError(error))
         return
       }
 
@@ -92,6 +104,11 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {notice && !error && (
+            <div role="status" className={`p-3 text-sm rounded-md ${notice.type === 'success' ? 'text-green-800 bg-green-50' : 'text-destructive bg-destructive/10'}`}>
+              {notice.text}
+            </div>
+          )}
           {error && (
             <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
               {error}

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@novagross/ui';
 import { Button } from '@novagross/ui';
 import { ArrowLeft, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { passwordError as policyError } from '@/lib/password-policy';
+import { PasswordRules } from '@/components/auth/password-rules';
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
@@ -26,13 +28,7 @@ export default function ResetPasswordPage() {
     }
   }, [token]);
 
-  const validatePassword = (pwd: string) => {
-    if (pwd.length < 8) return 'Şifre en az 8 karakter olmalıdır';
-    if (!/[A-Z]/.test(pwd)) return 'Şifre en az bir büyük harf içermelidir';
-    if (!/[a-z]/.test(pwd)) return 'Şifre en az bir küçük harf içermelidir';
-    if (!/[0-9]/.test(pwd)) return 'Şifre en az bir rakam içermelidir';
-    return null;
-  };
+  const validatePassword = (pwd: string) => policyError(pwd);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,9 +130,7 @@ export default function ResetPasswordPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                En az 8 karakter, büyük/küçük harf ve rakam içermelidir
-              </p>
+              <PasswordRules password={password} />
             </div>
 
             <div>

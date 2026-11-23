@@ -99,3 +99,24 @@ Durum: ✅ geçti · ❌ hata bulundu (bu PR'da düzeltildi) · ⏸ denenmedi (s
 - İki ayrı iade sistemi (`customer_claims` / `return_requests`).
 - Canlı geçiş geçmişi eksik: Supabase dalı ve felaket kurtarma için yalnız repo geçişleri güvenilir.
 - Mobil mağaza değişikliği mağaza sürümü gerektirir; mobil tip kontrolü çalıştırılmadı.
+
+## İzole smoke testi (GitHub Actions, geçici yerel Supabase)
+Çalışma `45241234363`, commit `14111e7`. `supabase start` + 100 repo geçişi, web `PAYMENT_MOCK_MODE=true`; canlı secret ve canlı veritabanı yok. Canlıda olup repo geçişlerinde gövdesi bulunmayan `reserve_stock_atomic`, `release_stock_atomic`, `claim_order_for_payment` canlı katalogdan salt okunur alınıp yalnız test veritabanına fixture olarak yüklendi (`scripts/tests/smoke-local-supabase/prod-functions.fixture.sql`).
+
+| Adım | Sonuç |
+|---|---|
+| Zayıf şifre Supabase'te reddedilir (`weak_password: length,characters`) | ✅ |
+| Güçlü şifreyle kayıt, oturum, profil tetikleyicisi | ✅ |
+| Aynı e-postayla tekrar kayıt yeni kimlik açmaz | ✅ |
+| Yanlış şifre `invalid_credentials` | ✅ |
+| `/kayit`, `/sepet`, `/giris?verified=true`, BILGOO bayrağı | ✅ |
+| Geçersiz kupon → "Kupon kodu bulunamadı…" (409 `COUPON_INVALID`) | ✅ |
+| BILGOO 240 TL → "…en az 500 TL olmalı." | ✅ |
+| BILGOO 600 TL → mock ödeme formu, 100 TL indirim, toplam 500 TL, stok 10→8, hak `reserved` | ✅ |
+| Açık BILGOO ödemesi varken ikinci sipariş → "…ilk siparişin ödemesi açık." | ✅ |
+| Mock callback başarı → `/siparis-basarili`, sipariş `paid`, hak `paid`, kota 1 | ✅ |
+| İlk siparişten sonra BILGOO → "…yalnızca ilk siparişte…" | ✅ |
+| Mock callback bilinmeyen sepet → `?error=order_not_found` | ✅ |
+| İkinci müşteri, ödeme başarısız → hak `released` | ✅ |
+
+Ret senaryoları özgül mesaj ister; genel stok hatası (`OUT_OF_STOCK`) başarı sayılmaz.

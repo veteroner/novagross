@@ -8,22 +8,23 @@ export const dynamic = 'force-dynamic'
 //
 // Müşteri iyzico ekranını kapatırsa veya callback gelmezse sipariş 'pending',
 // kampanya hakkı 'reserved' kalır; 30 dk temizliği bu siparişleri bilerek atlar.
-// Süre dolması tek başına ödemenin alınmadığını kanıtlamaz. Bu iş sonucu
-// iyzico'dan sorar:
-//   - Ödeme formu bir sonuç döndürürse (SUCCESS ya da FAILURE) token web
-//     callback'ine iletilir; sipariş, iyzico'nun normal dönüşüyle aynı yoldan
-//     (tutar doğrulama, ödeme kaydı, stok, e-posta) sonuçlanır.
-//   - Form sonuç vermiyorsa ve form süresi dolmuşsa ödeme ayrıca konuşma
-//     kimliğiyle sorgulanır. İki sorgu da ödeme bulunmadığını söylerse sipariş
-//     kapatılır, hak ve stok serbest kalır.
-//     "Ödeme yok" hata kodları BILGOO_RECONCILE_NOT_FOUND_CODES ile verilir; sandbox'ta
-//     doğrulanmadan tanımlanmamalıdır.
-//   - Ağ hatası, belirsiz yanıt veya tutarsız sonuçta hiçbir şey değişmez;
-//     bir sonraki çalışmada yeniden denenir ve son durum last_check'e yazılır.
+// Bu iş siparişi hiçbir zaman kendisi kapatmaz. Üç yol vardır:
+//
+//   1. KESİN SONUÇ — ödeme formu SUCCESS ya da FAILURE döndürür. Token web
+//      callback'ine iletilir; callback sonucu iyzico'dan yeniden doğrular ve
+//      siparişi normal dönüşle aynı yoldan sonuçlandırır (ödeme kaydı, tutar
+//      kontrolü, stok, e-posta; FAILURE'da hak serbest kalır).
+//   2. AÇIK / BELİRSİZ — form sonuç vermiyor, token yok, alanlar boş, ağ veya
+//      iyzico hatası. Bunların hiçbiri ödemenin alınmadığını kanıtlamaz; hak
+//      ayrılmış kalır ve bir sonraki çalışmada yeniden sorulur.
+//   3. MANUEL İNCELEME — iyzico'da ödeme kaydı var ama form sonucu alınamıyor,
+//      token başka sepete ait ya da REVIEW_AFTER_CHECKS denemede sonuç çıkmadı.
+//      needs_review=true işaretlenir. Yönetici iyzico panelinden kontrol edip
+//      gerekirse admin /api/iyzico/bilgoo-review ile siparişi kapatır.
 
 const FORM_EXPIRY_MS = 45 * 60 * 1000 // iyzico ödeme formu token'ı 30 dk geçerli; pay bırakıldı
 const BATCH = 20
-const ALERT_AFTER_CHECKS = 12 // ~2 saat sonuç alınamazsa kayıtta görünür uyarı
+const REVIEW_AFTER_CHECKS = 12 // ~2 saat (10 dk aralık) kesin sonuç yoksa manuel inceleme
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.IYZICO_CRON_SECRET
@@ -38,7 +39,9 @@ function call(iyzipay: any, resource: string, method: string, request: any): Pro
 }
 
 const describe = (r: any) =>
-  [r?.status, r?.paymentStatus, r?.errorCode, r?.errorMessage].filter(Boolean).join(' / ').slice(0, 300)
+  [r?.status, r?.paymentStatus, r?.errorCode, r?.errorMessage].filter(Boolean).join(' / ').slice(0, 300) || 'boş yanıt'
+
+type Outcome = { path: 'definitive' | 'open' | 'manual_review'; text: string }
 
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
   const cutoff = new Date(Date.now() - FORM_EXPIRY_MS).toISOString()
   const { data: queue, error } = await service
     .from('bilgoo_coupon_attempts')
-    .select('order_id, conversation_id, checkout_token, reserved_at, check_count, orders!inner(order_number, payment_status, total)')
+    .select('order_id, conversation_id, checkout_token, check_count, needs_review, orders!inner(order_number, payment_status)')
     .eq('state', 'reserved')
     .lt('reserved_at', cutoff)
     .order('checked_at', { ascending: true, nullsFirst: true })
@@ -70,83 +73,64 @@ export async function POST(req: NextRequest) {
   const results: any[] = []
   for (const a of (queue || []) as any[]) {
     const order = a.orders
-    const note = async (text: string) => {
-      const alert = a.check_count + 1 >= ALERT_AFTER_CHECKS ? 'MANUEL KONTROL: ' : ''
-      await service.from('bilgoo_coupon_attempts')
-        .update({ checked_at: new Date().toISOString(), check_count: a.check_count + 1, last_check: alert + text })
-        .eq('order_id', a.order_id).eq('state', 'reserved')
-      results.push({ order: order?.order_number, result: alert + text })
-    }
-
+    let outcome: Outcome
     try {
-      if (order?.payment_status !== 'pending') {
-        // Sipariş başka yoldan sonuçlandı; settle trigger hakkı zaten güncellemiş olmalı.
-        await note(`sipariş durumu ${order?.payment_status}, işlem yapılmadı`)
-        continue
-      }
-
-      let formSaysNoPayment = false
-      if (a.checkout_token) {
-        const form = await call(iyzipay, 'checkoutForm', 'retrieve', {
-          locale: 'tr', conversationId: `bilgoo_reconcile_${order.order_number}`, token: a.checkout_token,
-        })
-        if (form?.status === 'success' && (form.paymentStatus === 'SUCCESS' || form.paymentStatus === 'FAILURE')) {
-          if (form.basketId && form.basketId !== order.order_number) {
-            await note(`token başka sepete ait (${form.basketId}), işlem yapılmadı`)
-            continue
-          }
-          // Kesin sonuç: web callback'i aynı token'ı iyzico'dan yeniden doğrular ve siparişi sonuçlandırır.
-          const res = await fetch(`${webUrl}/api/payment/callback`, {
-            method: 'POST',
-            body: new URLSearchParams({ token: a.checkout_token }),
-            redirect: 'manual',
-          })
-          await note(`iyzico ${form.paymentStatus}; callback ${res.status} ${res.headers.get('location') ?? ''}`.trim())
-          continue
-        }
-        // Form sonuç döndürmedi: ödeme hiç tamamlanmamış ya da form süresi dolmuş olabilir.
-        formSaysNoPayment = !form?.paymentId && !form?.paymentStatus
-        if (!formSaysNoPayment) {
-          await note(`belirsiz form yanıtı: ${describe(form)}`)
-          continue
-        }
-      }
-
-      if (!a.conversation_id) {
-        await note('konuşma kimliği yok; ödeme ikinci kez doğrulanamadı')
-        continue
-      }
-      const payment = await call(iyzipay, 'payment', 'retrieve', {
-        locale: 'tr', conversationId: `bilgoo_reconcile_${order.order_number}`, paymentConversationId: a.conversation_id,
-      })
-      if (payment?.status === 'success' && payment.paymentId) {
-        // Ödeme var ama form sonucu alınamadı: otomatik kapatma yok, insan bakmalı.
-        await note(`MANUEL KONTROL: iyzico'da ödeme var (paymentId ${payment.paymentId}, ${payment.paymentStatus ?? '?'}) ama form sonucu alınamadı`)
-        continue
-      }
-      // Yalnız sandbox'ta "ödeme yok" anlamına geldiği doğrulanmış iyzico hata kodları
-      // kapatma yapar. Liste boşsa (varsayılan) sipariş açık kalır ve elle kontrol beklenir;
-      // yetki, imza veya geçici hatalar hiçbir zaman ödeme yok sayılmaz.
-      const notFoundCodes = (process.env.BILGOO_RECONCILE_NOT_FOUND_CODES || '')
-        .split(',').map((c) => c.trim()).filter(Boolean)
-      if (payment?.status !== 'failure' || !notFoundCodes.includes(String(payment?.errorCode ?? ''))) {
-        await note(`belirsiz ödeme sorgusu: ${describe(payment)}`)
-        continue
-      }
-      // İki bağımsız sorgu da ödeme bulunmadığını söylüyor ve form süresi doldu.
-      const reason = `iyzico ödeme yok (form: ${a.checkout_token ? 'sonuçsuz' : 'token yok'}; ödeme sorgusu: ${describe(payment)})`
-      const { data: closed, error: closeError } = await service.rpc('close_unpaid_bilgoo_order', {
-        p_order_id: a.order_id, p_reason: reason,
-      })
-      if (closeError) {
-        await note(`kapatma hatası: ${closeError.message}`)
-        continue
-      }
-      results.push({ order: order.order_number, result: closed ? `kapatıldı: ${reason}` : 'zaten sonuçlanmış' })
+      outcome = await check(a, order)
     } catch (e: any) {
-      await note(`hata: ${String(e?.message || e).slice(0, 200)}`)
+      outcome = { path: 'open', text: `hata: ${String(e?.message || e).slice(0, 200)}` }
     }
+    const checks = a.check_count + 1
+    const review = a.needs_review || outcome.path === 'manual_review' ||
+      (outcome.path === 'open' && checks >= REVIEW_AFTER_CHECKS)
+    await service.from('bilgoo_coupon_attempts')
+      .update({
+        checked_at: new Date().toISOString(),
+        check_count: checks,
+        last_check: `${outcome.path}: ${outcome.text}`.slice(0, 500),
+        needs_review: review,
+      })
+      .eq('order_id', a.order_id).eq('state', 'reserved')
+    results.push({ order: order?.order_number, path: outcome.path, needsReview: review, result: outcome.text })
   }
 
   return NextResponse.json({ ok: true, processed: results.length, results })
+
+  async function check(a: any, order: any): Promise<Outcome> {
+    if (order?.payment_status !== 'pending') {
+      // Sipariş başka yoldan sonuçlandı ama hak hâlâ reserved: trigger dışı bir değişiklik.
+      return { path: 'manual_review', text: `sipariş ${order?.payment_status} iken hak reserved` }
+    }
+    if (a.checkout_token) {
+      const form = await call(iyzipay, 'checkoutForm', 'retrieve', {
+        locale: 'tr', conversationId: `bilgoo_reconcile_${order.order_number}`, token: a.checkout_token,
+      })
+      const definitive = form?.status === 'success' && (form.paymentStatus === 'SUCCESS' || form.paymentStatus === 'FAILURE')
+      if (definitive) {
+        if (form.basketId !== order.order_number) {
+          return { path: 'manual_review', text: `token ${form.basketId ?? 'sepetsiz'} sepetine ait` }
+        }
+        const res = await fetch(`${webUrl}/api/payment/callback`, {
+          method: 'POST',
+          body: new URLSearchParams({ token: a.checkout_token }),
+          redirect: 'manual',
+        })
+        return { path: 'definitive', text: `iyzico ${form.paymentStatus}; callback ${res.status} ${res.headers.get('location') ?? ''}`.trim() }
+      }
+      if (form?.paymentId) {
+        return { path: 'manual_review', text: `form ödeme kimliği var ama sonuç belirsiz: ${describe(form)}` }
+      }
+    }
+    // Token yok ya da form sonuçsuz: ödeme kaydını konuşma kimliğiyle ara. Bulunamaması
+    // hiçbir zaman "ödeme alınmadı" sayılmaz; yalnız bulunan ödeme incelemeye düşer.
+    if (a.conversation_id) {
+      const payment = await call(iyzipay, 'payment', 'retrieve', {
+        locale: 'tr', conversationId: `bilgoo_reconcile_${order.order_number}`, paymentConversationId: a.conversation_id,
+      })
+      if (payment?.paymentId) {
+        return { path: 'manual_review', text: `iyzico'da ödeme kaydı var (${payment.paymentId}, ${payment.paymentStatus ?? '?'}) ama form sonucu alınamadı` }
+      }
+      return { path: 'open', text: `form ${a.checkout_token ? 'sonuçsuz' : 'token yok'}; ödeme sorgusu: ${describe(payment)}` }
+    }
+    return { path: 'open', text: `form ${a.checkout_token ? 'sonuçsuz' : 'token yok'}; konuşma kimliği yok` }
+  }
 }

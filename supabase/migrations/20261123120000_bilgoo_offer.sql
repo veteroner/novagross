@@ -9,17 +9,21 @@ INSERT INTO public.bilgoo_offer DEFAULT VALUES;
 CREATE TABLE public.bilgoo_coupon_attempts (
   order_id uuid PRIMARY KEY REFERENCES public.orders(id) ON DELETE RESTRICT,
   user_id uuid NOT NULL,
-  state text NOT NULL CHECK (state IN ('reserved', 'paid', 'released')),
+  -- reserved: ödeme açık · paid: tahsil edildi (iade kotayı açmaz) · released: kesin
+  -- başarısız · disputed: tutar uyuşmazlığı/itiraz açık (kotayı tutar) · void: ihtilaf
+  -- tahsilatsız kapandı (iade/başarısız), hak kullanılmamış sayılır.
+  state text NOT NULL CHECK (state IN ('reserved', 'paid', 'released', 'disputed', 'void')),
   -- iyzico sonucunu sonradan doğrulamak için (admin /api/iyzico/bilgoo-reconcile)
   conversation_id text,
   checkout_token text,
   reserved_at timestamptz NOT NULL DEFAULT now(),
   checked_at timestamptz,
   check_count int NOT NULL DEFAULT 0,
-  last_check text
+  last_check text,
+  needs_review boolean NOT NULL DEFAULT false
 );
 CREATE UNIQUE INDEX bilgoo_coupon_once_per_account ON public.bilgoo_coupon_attempts(user_id)
-WHERE state IN ('reserved', 'paid');
+WHERE state IN ('reserved', 'paid', 'disputed');
 ALTER TABLE public.bilgoo_offer ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bilgoo_coupon_attempts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.bilgoo_offer, public.bilgoo_coupon_attempts FROM PUBLIC, anon, authenticated;
@@ -31,7 +35,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_
       WHEN starts_at IS NULL OR cardinality(product_ids) = 0 OR now() < starts_at THEN 'pending'
       WHEN (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state = 'paid') >= 20 THEN 'sold_out'
       WHEN now() >= starts_at + interval '672 hours' THEN 'ended'
-      WHEN (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state IN ('paid', 'reserved')) >= 20 THEN 'reserved'
+      WHEN (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state IN ('paid', 'reserved', 'disputed')) >= 20 THEN 'reserved'
       ELSE 'active' END,
     'starts_at', starts_at, 'ends_at', starts_at + interval '672 hours', 'product_ids', product_ids
   ) FROM bilgoo_offer WHERE singleton;
@@ -77,7 +81,7 @@ BEGIN
     RETURN 'reserved';
   END IF;
   IF EXISTS (SELECT 1 FROM orders WHERE user_id = p_user_id AND id <> p_order_id AND payment_status IN ('paid','refunded'))
-     OR EXISTS (SELECT 1 FROM bilgoo_coupon_attempts WHERE user_id = p_user_id AND state IN ('reserved','paid')) THEN
+     OR EXISTS (SELECT 1 FROM bilgoo_coupon_attempts WHERE user_id = p_user_id AND state IN ('reserved','paid','disputed')) THEN
     RETURN 'first_order_only';
   END IF;
   IF EXISTS (SELECT 1 FROM orders WHERE user_id = p_user_id AND id <> p_order_id
@@ -90,7 +94,7 @@ BEGIN
       WHERE oi.order_id = p_order_id AND oi.product_id = ANY(offer.product_ids)) < 500 THEN
     RETURN 'minimum';
   END IF;
-  IF (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state IN ('reserved','paid')) >= 20 THEN
+  IF (SELECT count(*) FROM bilgoo_coupon_attempts WHERE state IN ('reserved','paid','disputed')) >= 20 THEN
     RETURN 'quota';
   END IF;
   INSERT INTO bilgoo_coupon_attempts(order_id, user_id, state, conversation_id)
@@ -101,14 +105,18 @@ $$;
 REVOKE ALL ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reserve_bilgoo_offer(uuid, uuid, text) TO service_role;
 
--- Mutabakat, iyzico'dan ödemenin alınmadığını iki ayrı sorguyla doğruladığında
--- çağırır: sipariş pending→failed (settle trigger'ı hakkı serbest bırakır) ve
--- stok iadesi tek işlemde. Sipariş artık pending değilse hiçbir şey yapmaz.
+-- YALNIZ MANUEL İNCELEME: yönetici iyzico panelinde ödemenin alınmadığını
+-- doğruladıktan sonra admin /api/iyzico/bilgoo-review çağırır. Otomatik mutabakat
+-- bu fonksiyonu kullanmaz. Sipariş pending→failed (settle trigger hakkı serbest
+-- bırakır) ve stok iadesi tek işlemde; sipariş artık pending değilse işlem yapmaz.
 CREATE FUNCTION public.close_unpaid_bilgoo_order(p_order_id uuid, p_reason text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_id uuid;
 BEGIN
+  IF COALESCE(btrim(p_reason), '') = '' THEN
+    RAISE EXCEPTION 'close_unpaid_bilgoo_order: inceleme notu zorunlu';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM bilgoo_coupon_attempts WHERE order_id = p_order_id AND state = 'reserved') THEN
     RETURN false;
   END IF;
@@ -132,15 +140,32 @@ CREATE FUNCTION public.settle_bilgoo_offer()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   current_state text;
+  next_state text;
 BEGIN
-  SELECT state INTO current_state FROM bilgoo_coupon_attempts WHERE order_id = NEW.id;
-  IF NEW.payment_status = 'paid' AND (current_state IS NOT NULL OR OLD.notes = 'coupon:BILGOO') THEN
-    IF current_state IS DISTINCT FROM 'reserved' THEN
+  SELECT state INTO current_state FROM bilgoo_coupon_attempts WHERE order_id = NEW.id FOR UPDATE;
+  IF current_state IS NULL THEN
+    IF NEW.payment_status = 'paid' AND OLD.notes = 'coupon:BILGOO' THEN
       RAISE EXCEPTION 'BILGOO order requires an active reservation';
     END IF;
-    UPDATE bilgoo_coupon_attempts SET state = 'paid' WHERE order_id = NEW.id;
-  ELSIF NEW.payment_status = 'failed' AND current_state = 'reserved' THEN
-    UPDATE bilgoo_coupon_attempts SET state = 'released' WHERE order_id = NEW.id;
+    RETURN NEW;
+  END IF;
+  -- Açık geçişler. Listede olmayan geçiş hakkın durumunu değiştirmez.
+  next_state := CASE
+    WHEN current_state = 'reserved' AND NEW.payment_status = 'paid' THEN 'paid'
+    WHEN current_state = 'reserved' AND NEW.payment_status = 'failed' THEN 'released'
+    WHEN current_state = 'reserved' AND NEW.payment_status = 'disputed' THEN 'disputed'
+    WHEN current_state = 'disputed' AND NEW.payment_status = 'paid' THEN 'paid'
+    WHEN current_state = 'disputed' AND NEW.payment_status IN ('refunded', 'failed') THEN 'void'
+    ELSE current_state END;
+  IF NEW.payment_status = 'paid' AND next_state <> 'paid' THEN
+    RAISE EXCEPTION 'BILGOO order requires an active reservation (state=%)', current_state;
+  END IF;
+  IF current_state = 'disputed' AND NEW.payment_status = 'pending' THEN
+    RAISE EXCEPTION 'BILGOO disputed order cannot return to pending';
+  END IF;
+  IF next_state IS DISTINCT FROM current_state THEN
+    UPDATE bilgoo_coupon_attempts SET state = next_state, needs_review = (next_state = 'disputed')
+    WHERE order_id = NEW.id;
   END IF;
   RETURN NEW;
 END;
@@ -177,6 +202,8 @@ $$;
 
 CREATE VIEW public.bilgoo_offer_metrics AS
 SELECT count(*) FILTER (WHERE a.state = 'reserved') AS pending_payments,
+       count(*) FILTER (WHERE a.state = 'disputed') AS disputed,
+       count(*) FILTER (WHERE a.needs_review) AS needs_review,
        count(*) FILTER (WHERE a.state = 'paid') AS used_slots,
        count(*) FILTER (WHERE a.state = 'paid' AND o.payment_status = 'paid') AS paid_orders_net_of_refunds
 FROM public.bilgoo_coupon_attempts a

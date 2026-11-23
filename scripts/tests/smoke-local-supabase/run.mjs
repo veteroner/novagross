@@ -114,21 +114,25 @@ async function checkout(items, couponCode, token) {
     agreements: { mesafeli_satis: true, on_bilgilendirme: true, version: CHECKOUT_VERSION, documentToken: prep.body.documentToken },
   }), token)
 }
+// Genel stok/başka bir 409 başarı sayılmaz: yalnız beklenen özgül mesaj.
+function expectRejected(r, pattern) {
+  assert.notEqual(r.body?.code, 'OUT_OF_STOCK', `stok hatası: ${r.body?.error}`)
+  assert.equal(r.status, 409, JSON.stringify(r.body))
+  assert.match(String(r.body?.error ?? ''), pattern, `beklenmeyen mesaj: ${r.body?.error}`)
+  return r.body.error
+}
 const line = (p, quantity) => ({ productId: p.id, name: 'x', price: Number(p.price), quantity })
 
 // ---------- Ödeme (PAYMENT_MOCK_MODE) ----------
 await step('ödeme: geçersiz kupon ödeme başlamadan reddedilir', async () => {
   const r = await checkout([line(product, 2)], 'YOKBOYLEKOD')
-  assert.equal(r.status, 409, JSON.stringify(r.body))
-  assert.equal(r.body.code, 'COUPON_INVALID')
-  return r.body.error
+  assert.equal(r.body.code, 'COUPON_INVALID', JSON.stringify(r.body))
+  return expectRejected(r, /Kupon kodu bulunamadı/)
 })
 
 await step('ödeme: BILGOO 500 TL altı sepet reddedilir', async () => {
   const r = await checkout([line(cheapProduct, 2)], 'BILGOO')
-  assert.equal(r.status, 409, JSON.stringify(r.body))
-  assert.match(r.body.error ?? '', /en az 500 TL/)
-  return r.body.error
+  return expectRejected(r, /en az 500 TL/)
 })
 
 let order
@@ -137,6 +141,8 @@ await step('ödeme: BILGOO 600 TL sepet → mock ödeme formu, 100 TL indirim, h
   assert.equal(r.status, 200, JSON.stringify(r.body))
   assert.equal(r.body.mockMode, true)
   order = { id: r.body.orderId, basketId: r.body.basketId }
+  const st = must(await admin.from('products').select('stock').eq('id', product.id).single(), 'stock')
+  assert.equal(st.stock, 8, 'stok 10 → 8 ayrılmalı')
   const o = must(await admin.from('orders').select('total, discount_amount, payment_status, notes').eq('id', order.id).single(), 'order')
   assert.equal(Number(o.discount_amount), 100)
   assert.equal(o.payment_status, 'pending')
@@ -147,9 +153,7 @@ await step('ödeme: BILGOO 600 TL sepet → mock ödeme formu, 100 TL indirim, h
 
 await step('ödeme: açık BILGOO ödemesi varken ikinci sipariş engellenir', async () => {
   const r = await checkout([line(product, 2)], 'BILGOO')
-  assert.equal(r.status, 409, JSON.stringify(r.body))
-  assert.match(r.body.error ?? '', /ödemesi açık/)
-  return r.body.error
+  return expectRejected(r, /ödemesi açık/)
 })
 
 await step('ödeme: mock callback başarı → sipariş paid, hak paid, kota 1', async () => {
@@ -170,9 +174,7 @@ await step('ödeme: mock callback başarı → sipariş paid, hak paid, kota 1',
 
 await step('ödeme: ilk siparişten sonra BILGOO tekrar kullanılamaz', async () => {
   const r = await checkout([line(product, 2)], 'BILGOO')
-  assert.equal(r.status, 409, JSON.stringify(r.body))
-  assert.match(r.body.error ?? '', /yalnızca ilk siparişte/)
-  return r.body.error
+  return expectRejected(r, /yalnızca ilk siparişte/)
 })
 
 await step('ödeme: mock callback başarısızlık (bilinmeyen sepet) → Türkçe hata kodu', async () => {

@@ -49,11 +49,12 @@ jobs:
           printf '\n[db.seed]\nenabled = false\n' >> supabase/config.toml
           supabase start -x studio,imgproxy,edge-runtime,logflare,vector
 
-      - name: Eksik ödeme RPC'lerini yalnız izole veritabanında simüle et
+      - name: Canlıda olup repo geçişlerinde olmayan fonksiyonları yükle (yalnız izole test DB)
+        # Tanımlar canlı katalogdan salt okunur alındı (prod-functions.fixture.sql)
         run: |
           db_container=$(docker ps --filter 'name=^supabase_db_' --format '{{.Names}}')
           test -n "$db_container"
-          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < scripts/tests/smoke-local-supabase/checkout-rpc-fixtures.sql
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < scripts/tests/smoke-local-supabase/prod-functions.fixture.sql
 
       - name: Yerel anahtarları ortama aktar
         run: |

@@ -78,6 +78,14 @@ export function RegisterForm() {
         return
       }
 
+      // Kayıtlı e-postayla tekrar kayıt: Supabase hata yerine kimliksiz (identities: [])
+      // sahte bir kullanıcı döndürür ve e-posta göndermez. Kullanıcıya "e-postanı kontrol et"
+      // demek yerine girişe/şifre sıfırlamaya yönlendir.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError('Bu e-posta adresiyle zaten bir hesap var. Giriş yapın veya "Şifremi unuttum" ile yeni şifre belirleyin.')
+        return
+      }
+
       // Send verification email
       if (data.user) {
         await fetch('/api/auth/send-verification', {

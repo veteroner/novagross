@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pickDistrict } from './kolay-gelsin'
+import { pickDistrict, findMessage, redactedBody } from './kolay-gelsin'
 
 test('pickDistrict: { cityId, districts[] } biçimi', () => {
   assert.deepEqual(
@@ -24,4 +24,16 @@ test('pickDistrict: belirsiz eşleşmede 0 döner (yanlış ilçeye iş emri aç
   ]
   assert.deepEqual(pickDistrict(rows, 'C'), { cityId: 0, districtId: 0 })
   assert.deepEqual(pickDistrict(null, 'C'), { cityId: 0, districtId: 0 })
+})
+
+test('findMessage iç içe hata metnini bulur', () => {
+  assert.equal(findMessage({ isSuccess: false, result: { message: 'Kullanıcı bulunamadı' } }), 'Kullanıcı bulunamadı')
+  assert.equal(findMessage({ isSuccess: false, errors: ['Şifre hatalı'] }), 'Şifre hatalı')
+  assert.equal(findMessage({ isSuccess: false }), '')
+})
+
+test('redactedBody token ve şifreyi maskeler', () => {
+  const out = redactedBody('{"isSuccess":false,"accessToken":"abc.def","sifre":"x1","message":"hata"}')
+  assert.ok(!out.includes('abc.def') && !out.includes('x1'))
+  assert.ok(out.includes('"message":"hata"'))
 })

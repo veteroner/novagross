@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { cargoService, type CargoProvider } from '@novagross/cargo'
+import { cargoService, isKolayGelsinEnabledForStore, type CargoProvider } from '@novagross/cargo'
 import { assertSellerOwnsOrder } from '@/lib/order-ownership'
 
 export const runtime = 'nodejs'
@@ -37,6 +37,30 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
 
     if (shipmentError || !shipment) {
       return NextResponse.json({ error: 'Kargo kaydı bulunamadı' }, { status: 404 })
+    }
+
+    if (shipment.provider_code === 'kolaygelsin') {
+      if (!isKolayGelsinEnabledForStore(ownership.storeId)) {
+        return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+      }
+      if (!shipment.tracking_number) {
+        return NextResponse.json({ error: 'Kolay Gelsin takip numarası bulunamadı' }, { status: 404 })
+      }
+
+      const barcode = shipment.label_zpl ? null : await cargoService.getBarcode(
+        'kolaygelsin', shipment.tracking_number, `NG-${params.orderId}`,
+      )
+      const zpl = shipment.label_zpl || barcode?.zpl
+      if (!zpl) return NextResponse.json({ error: barcode?.error || 'Kolay Gelsin etiketi alınamadı' }, { status: 502 })
+
+      return new NextResponse(zpl, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="kolay-gelsin-etiket.zpl"',
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
     }
 
     // Kargo oluşturulurken resmi barkod alınamadıysa (createbarcode geçici hata

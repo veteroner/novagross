@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { cargoService, type CargoProvider } from '@novagross/cargo'
+import { cargoService, isKolayGelsinEnabledForStore, type CargoProvider } from '@novagross/cargo'
 import { assertSellerOwnsOrder } from '@/lib/order-ownership'
+import { createServiceRoleClient } from '@/lib/supabase/service'
 import { fullAddressLine } from '@novagross/cargo/address'
 
 export const runtime = 'nodejs'
@@ -20,7 +21,7 @@ type ShipmentStatus =
   | 'failed'
   | 'returned'
 
-const REAL_PROVIDERS: CargoProvider[] = ['mng', 'aras', 'yurtici']
+const REAL_PROVIDERS: CargoProvider[] = ['mng', 'aras', 'yurtici', 'kolaygelsin']
 
 function buildTrackingUrl(template: string | null | undefined, trackingNumber: string) {
   if (!template) return null
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_number, subtotal, shipping_cost, status, email, shipping_address')
+      .select('id, order_number, subtotal, shipping_cost, status, payment_status, email, shipping_address')
       .eq('id', orderId)
       .single()
 
@@ -66,25 +67,49 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       return NextResponse.json({ error: 'Sipariş bulunamadı' }, { status: 404 })
     }
 
-    const { data: existingShipment } = await supabase
+    const { data: existingShipment, error: shipmentError } = await (supabase as any)
       .from('order_shipments')
-      .select('id, tracking_number')
+      .select('id, tracking_number, status, provider_code')
       .eq('order_id', orderId)
       .maybeSingle()
 
-    if (existingShipment?.tracking_number) {
-      return NextResponse.json({ error: 'Bu sipariş zaten kargoya verilmiş' }, { status: 400 })
-    }
+    if (shipmentError) throw shipmentError
 
-    // Kargo firması kodu (mng/aras/yurtici) — gerçek API çağrısı için gerekli
+    // Kargo firması kodu — gerçek API çağrısı için gerekli
     const { data: carrier } = await supabase
       .from('shipping_carriers')
-      .select('code, tracking_url_template')
+      .select('code, tracking_url_template, is_active, api_enabled')
       .eq('id', carrierId)
       .maybeSingle()
 
     const carrierCode = (carrier?.code || '').toLowerCase() as CargoProvider
 
+    const isKolayGelsin = carrierCode === 'kolaygelsin'
+    const replacingCancelledKolayGelsin = existingShipment?.provider_code === 'kolaygelsin' &&
+      existingShipment.status === 'failed' && !isKolayGelsin
+    if (existingShipment?.tracking_number && !replacingCancelledKolayGelsin) {
+      return NextResponse.json({ error: 'Bu siparişin mevcut bir kargo kaydı var' }, { status: 400 })
+    }
+    if (isKolayGelsin) {
+      if (!carrier?.is_active || !carrier.api_enabled || !isKolayGelsinEnabledForStore(ownership.storeId)) {
+        return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+      }
+      if (order.status !== 'processing' || order.payment_status !== 'paid' || !createLabel || manualTrackingNumber) {
+        return NextResponse.json({ error: 'Kolay Gelsin iş emri yalnızca ödenmiş, hazırlanan siparişler için oluşturulabilir' }, { status: 422 })
+      }
+
+      const [{ data: method, error: methodError }, { data: otherItems, error: itemsError }] = await Promise.all([
+        supabase.from('shipping_methods').select('id').eq('id', methodId).eq('carrier_id', carrierId).eq('is_active', true).maybeSingle(),
+        createServiceRoleClient().from('order_items').select('id').eq('order_id', orderId)
+          .or(`store_id.neq.${ownership.storeId},store_id.is.null`).limit(1),
+      ])
+      if (methodError || itemsError) throw methodError || itemsError
+      if (!method || otherItems?.length) {
+        return NextResponse.json({ error: 'Tek mağazaya ait bir sipariş ve etkin Kolay Gelsin yöntemi gerekli' }, { status: 422 })
+      }
+    }
+
+    let carrierTrackingUrl: string | undefined
     let trackingNumber: string | null = null
     let labelUrl: string | null = null
     let barcodeData: string | null = null
@@ -107,7 +132,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
 
         const ship = (order.shipping_address as any) || {}
 
-        if (!store?.address || !store?.city) {
+        if (!isKolayGelsin && (!store?.address || !store?.city)) {
           return NextResponse.json(
             { error: 'Mağaza adresi eksik. Ayarlar > Mağaza Bilgileri’nden adres girin.' },
             { status: 422 }
@@ -118,11 +143,11 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         }
 
         const result = await cargoService.createShipment(carrierCode, {
-          senderName: store.store_name,
-          senderAddress: store.address,
-          senderCity: store.city,
-          senderDistrict: store.district || '',
-          senderPhone: store.phone || '',
+          senderName: store?.store_name || '',
+          senderAddress: store?.address || '',
+          senderCity: store?.city || '',
+          senderDistrict: store?.district || '',
+          senderPhone: store?.phone || '',
 
           receiverName: `${ship.first_name || ''} ${ship.last_name || ''}`.trim() || 'Müşteri',
           receiverAddress: fullAddressLine(ship),
@@ -137,9 +162,15 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
           serviceType: 'STANDARD',
 
           description: `Novagross Sipariş #${order.order_number}`,
+          referenceNumber: isKolayGelsin ? `NG-${order.id}` : undefined,
           invoiceNumber: order.order_number,
           invoiceValue: Number(order.subtotal || 0),
-        })
+        }, isKolayGelsin ? async () => {
+          const { error } = await (createServiceRoleClient() as any).from('kolay_gelsin_dispatches').insert({ order_id: orderId })
+          if (error?.code === '23505') return false
+          if (error) throw new Error('Kolay Gelsin iş emri için kayıt açılamadı.')
+          return true
+        } : undefined)
 
         if (!result.success || !result.trackingNumber) {
           // Sahte veri üretme — gerçek hatayı satıcıya göster
@@ -152,11 +183,17 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
         trackingNumber = result.trackingNumber
         labelUrl = result.labelUrl || null
         providerCode = carrierCode
-        const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
-        if (bc.success) {
-          barcodeData = bc.barcodeBase64 || null
-          officialBarcode = bc.officialBarcode || null
-          labelZpl = bc.zpl || null
+        carrierTrackingUrl = result.trackingUrl
+        if (isKolayGelsin) {
+          officialBarcode = result.officialBarcode || null
+          labelZpl = result.zpl || null
+        } else {
+          const bc = await cargoService.getBarcode(carrierCode, result.trackingNumber)
+          if (bc.success) {
+            barcodeData = bc.barcodeBase64 || null
+            officialBarcode = bc.officialBarcode || null
+            labelZpl = bc.zpl || null
+          }
         }
       } else {
         // API'siz firma seçildi ve takip no girilmedi
@@ -168,7 +205,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     }
 
     const trackingUrl = trackingNumber
-      ? buildTrackingUrl(carrier?.tracking_url_template, trackingNumber)
+      ? carrierTrackingUrl || buildTrackingUrl(carrier?.tracking_url_template, trackingNumber)
       : null
 
     let shippingCost = Number(order.shipping_cost || 0)
@@ -185,7 +222,8 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       /* ignore */
     }
 
-    const status: ShipmentStatus = trackingNumber ? 'shipped' : 'preparing'
+    const shipped = Boolean(trackingNumber) && !isKolayGelsin
+    const status: ShipmentStatus = shipped ? 'shipped' : 'preparing'
 
     const shipmentData = {
       order_id: orderId,
@@ -201,7 +239,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
       official_barcode: officialBarcode,
       label_zpl: labelZpl,
       provider_code: providerCode,
-      shipped_at: trackingNumber ? new Date().toISOString() : null,
+      shipped_at: shipped ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     }
 
@@ -242,7 +280,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     await supabase
       .from('orders')
       .update({
-        status: trackingNumber ? 'shipped' : 'processing',
+        status: shipped ? 'shipped' : 'processing',
         tracking_number: trackingNumber,
         updated_at: new Date().toISOString(),
       })
@@ -251,7 +289,7 @@ export async function POST(request: NextRequest, { params }: { params: { orderId
     return NextResponse.json({
       success: true,
       shipment,
-      cargoApiResult: { trackingNumber, labelUrl, barcode: Boolean(barcodeData), providerCode },
+      cargoApiResult: { trackingNumber, labelUrl, barcode: Boolean(barcodeData || labelZpl), providerCode },
     })
   } catch (error: any) {
     console.error('Create shipment error:', error)
@@ -303,6 +341,48 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
 
     const body = await request.json()
 
+    if (body.action === 'refresh_kolay_gelsin') {
+      if (!isKolayGelsinEnabledForStore(ownership.storeId)) {
+        return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+      }
+      const { data: shipment, error } = await (supabase as any).from('order_shipments')
+        .select('id, status, tracking_number, shipped_at, delivered_at')
+        .eq('order_id', params.orderId).eq('provider_code', 'kolaygelsin').maybeSingle()
+      if (error || !shipment?.tracking_number) {
+        return NextResponse.json({ error: 'Kolay Gelsin iş emri bulunamadı' }, { status: 404 })
+      }
+      const tracking = await cargoService.trackShipment('kolaygelsin', shipment.tracking_number, `NG-${params.orderId}`)
+      if (!tracking.success) return NextResponse.json({ error: tracking.statusDescription }, { status: 502 })
+
+      const statusMap: Record<string, ShipmentStatus> = {
+        in_transit: 'in_transit', out_for_delivery: 'out_for_delivery', delivered: 'delivered',
+        cancelled: 'failed', returned: 'returned',
+      }
+      const status = statusMap[tracking.status]
+      if (!status || (['delivered', 'failed', 'returned'].includes(shipment.status) && status !== shipment.status)) {
+        return NextResponse.json({ success: true, description: tracking.statusDescription })
+      }
+
+      const now = new Date().toISOString()
+      const inDelivery = ['in_transit', 'out_for_delivery', 'delivered'].includes(status)
+      if (status !== shipment.status) {
+        const { data: updated, error: updateError } = await supabase.from('order_shipments').update({
+          status, updated_at: now,
+          shipped_at: inDelivery ? shipment.shipped_at || now : shipment.shipped_at,
+          delivered_at: status === 'delivered' ? shipment.delivered_at || now : shipment.delivered_at,
+        }).eq('id', shipment.id).eq('status', shipment.status).select('id').maybeSingle()
+        if (updateError) throw updateError
+        if (!updated) return NextResponse.json({ success: true, description: tracking.statusDescription })
+      }
+      if (inDelivery) {
+        const { error: orderError } = await supabase.from('orders')
+          .update({ status: status === 'delivered' ? 'delivered' : 'shipped', updated_at: now })
+          .eq('id', params.orderId).in('status', status === 'delivered' ? ['processing', 'shipped'] : ['processing'])
+        if (orderError) throw orderError
+      }
+      return NextResponse.json({ success: true, description: tracking.statusDescription })
+    }
+
     // Resmi MNG barkodunu, gönderiyi yeniden oluşturmadan tekrar dener
     // (ilk oluşturmada hesap izni/ge​çici bir sebeple gelmemiş olabilir).
     if (body.action === 'retry_barcode') {
@@ -317,7 +397,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { orderI
       if (!shipment.tracking_number || !REAL_PROVIDERS.includes((shipment.provider_code || '').toLowerCase() as CargoProvider)) {
         return NextResponse.json({ error: 'Bu gönderi için resmi barkod desteklenmiyor' }, { status: 400 })
       }
-      const bc = await cargoService.getBarcode(shipment.provider_code as CargoProvider, shipment.tracking_number)
+      const isKolayGelsin = shipment.provider_code === 'kolaygelsin'
+      if (isKolayGelsin && !isKolayGelsinEnabledForStore(ownership.storeId)) {
+        return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+      }
+      const bc = await cargoService.getBarcode(shipment.provider_code as CargoProvider, shipment.tracking_number,
+        isKolayGelsin ? `NG-${params.orderId}` : undefined)
       if (!bc.success || (!bc.barcodeBase64 && !bc.officialBarcode && !bc.zpl)) {
         return NextResponse.json({ error: bc.error || 'Resmi barkod alınamadı' }, { status: 502 })
       }
@@ -433,15 +518,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { order
 
     let cancelNote = `Kargo iptal edildi: ${reason}`
     const provider = (shipment.provider_code || '').toLowerCase() as CargoProvider
+    const isKolayGelsin = provider === 'kolaygelsin'
+    if (isKolayGelsin && !isKolayGelsinEnabledForStore(ownership.storeId)) {
+      return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+    }
     if (REAL_PROVIDERS.includes(provider)) {
-      const result = await cargoService.cancelShipment(provider, shipment.tracking_number, reason)
+      const result = await cargoService.cancelShipment(provider, shipment.tracking_number, reason,
+        isKolayGelsin ? `NG-${params.orderId}` : undefined)
       if (!result.success) {
-        if (!force) {
+        if (!force || isKolayGelsin) {
           // MNG API'si reddetti (örn. hesap yetki hatası) — satıcıya elle
           // iptal seçeneği sunulsun diye ham hatayı geri döndür, kaydı
           // henüz değiştirme.
           return NextResponse.json(
-            { error: result.message || 'Kargo iptal edilemedi', canForce: true },
+            { error: result.message || 'Kargo iptal edilemedi', canForce: !isKolayGelsin },
             { status: 502 }
           )
         }
@@ -471,6 +561,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { order
       })
     } catch {
       /* ignore */
+    }
+
+    if (isKolayGelsin) {
+      const { error: orderError } = await supabase.from('orders')
+        .update({ tracking_number: null, updated_at: new Date().toISOString() })
+        .eq('id', params.orderId).eq('tracking_number', shipment.tracking_number)
+      if (orderError) throw orderError
+      return NextResponse.json({ success: true, shipment: updated, shipmentOnly: true })
     }
 
     await supabase

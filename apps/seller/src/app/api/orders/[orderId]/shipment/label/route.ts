@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { cargoService, type CargoProvider } from '@novagross/cargo'
+import { cargoService, isKolayGelsinEnabledForStore, type CargoProvider } from '@novagross/cargo'
 import { assertSellerOwnsOrder } from '@/lib/order-ownership'
 
 export const runtime = 'nodejs'
@@ -39,6 +39,39 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
       return NextResponse.json({ error: 'Kargo kaydı bulunamadı' }, { status: 404 })
     }
 
+    if (shipment.provider_code === 'kolaygelsin') {
+      if (!isKolayGelsinEnabledForStore(ownership.storeId)) {
+        return NextResponse.json({ error: 'Bu mağazada Kolay Gelsin bağlantısı etkin değil' }, { status: 403 })
+      }
+      if (!shipment.tracking_number) {
+        return NextResponse.json({ error: 'Kolay Gelsin takip numarası bulunamadı' }, { status: 404 })
+      }
+
+      const barcode = shipment.label_zpl ? null : await cargoService.getBarcode(
+        'kolaygelsin', shipment.tracking_number, `NG-${params.orderId}`,
+      )
+      if (!shipment.label_zpl && !barcode?.zpl) {
+        return NextResponse.json({ error: barcode?.error || 'Kolay Gelsin etiketi alınamadı' }, { status: 502 })
+      }
+      if (!shipment.label_zpl && barcode?.zpl) {
+        await (supabase as any)
+          .from('order_shipments')
+          .update({ label_zpl: barcode.zpl, updated_at: new Date().toISOString() })
+          .eq('id', shipment.id)
+      }
+      if (request.nextUrl.searchParams.get('format') === 'zpl') {
+        return new NextResponse(shipment.label_zpl || barcode!.zpl!, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="kolay-gelsin-etiket.zpl"',
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        })
+      }
+      shipment.label_zpl = shipment.label_zpl || barcode!.zpl!
+    }
+
     // Kargo oluşturulurken resmi barkod alınamadıysa (createbarcode geçici hata
     // vb.) burada yeniden iste ve kaydet; olmazsa MNG'nin gerçek hatasını göster.
     let zpl: string | null = shipment.label_zpl
@@ -61,7 +94,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
       }
     }
     if (!zpl) {
-      return NextResponse.json({ error: 'Resmi MNG etiketi henüz alınamadı' }, { status: 404 })
+      return NextResponse.json({ error: 'Resmi kargo etiketi henüz alınamadı' }, { status: 404 })
     }
 
     // Etiket boyutu ZPL'deki ^PW (print width) / ^LL (label length) alanlarından

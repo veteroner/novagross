@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint src/",
-    "test": "npx -y tsx --test src/address-format.test.ts"
+    "test": "npx -y tsx --test src/address-format.test.ts src/kolay-gelsin.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

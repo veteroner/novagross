@@ -7,7 +7,10 @@ import { yurticiKargo, type YurticiShipmentRequest, type YurticiShipmentResponse
 import { arasKargo, type ArasShipmentRequest, type ArasShipmentResponse } from './aras'
 import { mngKargo, type MngShipmentRequest, type MngShipmentResponse } from './mng'
 
-export type CargoProvider = 'yurtici' | 'aras' | 'mng' | 'ptt' | 'surat'
+import { kolayGelsin } from './kolay-gelsin'
+export { isKolayGelsinEnabledForStore } from './kolay-gelsin'
+
+export type CargoProvider = 'yurtici' | 'aras' | 'mng' | 'ptt' | 'surat' | 'kolaygelsin'
 
 export interface UnifiedShipmentRequest {
   // Sender
@@ -37,6 +40,7 @@ export interface UnifiedShipmentRequest {
   
   // Optional
   description?: string
+  referenceNumber?: string
   invoiceNumber?: string
   invoiceValue?: number
 }
@@ -46,6 +50,9 @@ export interface UnifiedShipmentResponse {
   provider: CargoProvider
   trackingNumber?: string
   labelUrl?: string
+  trackingUrl?: string
+  zpl?: string
+  officialBarcode?: string
   error?: string
   errorCode?: string
 }
@@ -73,10 +80,14 @@ export class CargoService {
    */
   async createShipment(
     provider: CargoProvider,
-    data: UnifiedShipmentRequest
+    data: UnifiedShipmentRequest,
+    claimDispatch?: () => Promise<boolean>
   ): Promise<UnifiedShipmentResponse> {
     try {
       switch (provider) {
+        case 'kolaygelsin':
+          return { ...await kolayGelsin.createShipment(data, claimDispatch), provider }
+
         case 'yurtici':
           return await this.createYurticiShipment(data)
         
@@ -122,10 +133,14 @@ export class CargoService {
    */
   async getBarcode(
     provider: CargoProvider,
-    trackingNumber: string
+    trackingNumber: string,
+    referenceNumber?: string
   ): Promise<{ success: boolean; barcodeBase64?: string; zpl?: string; officialBarcode?: string; error?: string }> {
     try {
       switch (provider) {
+        case 'kolaygelsin':
+          return await kolayGelsin.getBarcode(trackingNumber, referenceNumber)
+
         case 'mng':
           return await mngKargo.getBarcode(trackingNumber)
         default:
@@ -141,10 +156,14 @@ export class CargoService {
    */
   async trackShipment(
     provider: CargoProvider,
-    trackingNumber: string
+    trackingNumber: string,
+    referenceNumber?: string
   ): Promise<UnifiedTrackingResponse> {
     try {
       switch (provider) {
+        case 'kolaygelsin':
+          return await kolayGelsin.trackShipment(trackingNumber, referenceNumber)
+
         case 'yurtici': {
           const result = await yurticiKargo.trackShipment(trackingNumber)
           return {
@@ -206,10 +225,14 @@ export class CargoService {
   async cancelShipment(
     provider: CargoProvider,
     trackingNumber: string,
-    reason?: string
+    reason?: string,
+    referenceNumber?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
       switch (provider) {
+        case 'kolaygelsin':
+          return await kolayGelsin.cancelShipment(trackingNumber, referenceNumber)
+
         case 'yurtici':
           return await yurticiKargo.cancelShipment(trackingNumber)
 

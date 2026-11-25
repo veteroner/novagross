@@ -67,12 +67,13 @@ export default function SellerOrders() {
 
       setOrders(orderItems || [])
 
-      const [{ data: carriersData }, { data: methodsData }] = await Promise.all([
+      const [{ data: carriersData }, { data: methodsData }, kolayGelsin] = await Promise.all([
         supabase.from('shipping_carriers').select('id,name,code').order('display_order', { ascending: true }),
         supabase.from('shipping_methods').select('id,name,code,carrier_id').eq('is_active', true),
+        fetch('/api/shipping/kolay-gelsin').then(res => res.ok ? res.json() : null).catch(() => null),
       ])
 
-      setCarriers((carriersData as any[]) || [])
+      setCarriers(((carriersData as any[]) || []).filter(carrier => carrier.code !== 'kolaygelsin' || kolayGelsin?.enabled))
       setMethods((methodsData as any[]) || [])
 
       const orderIds = Array.from(new Set((orderItems || []).map((oi: any) => oi.order?.id).filter(Boolean)))
@@ -212,6 +213,27 @@ export default function SellerOrders() {
   const printBarcode = async (orderId: string, orderItem?: any) => {
     const shipment = shipmentsByOrderId[orderId]
     if (!shipment) return
+    if (shipment.provider_code === 'kolaygelsin') {
+      const w = window.open('', '_blank')
+      if (!w) return
+      w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">Kolay Gelsin etiketi hazırlanıyor…</body>`)
+      try {
+        const res = await fetch(`/api/orders/${orderId}/shipment/label`)
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Kolay Gelsin etiketi alınamadı')
+        const src = URL.createObjectURL(await res.blob())
+        w.document.open()
+        w.document.write(
+          `<body style="text-align:center;margin:0"><img src="${src}" style="max-width:100%" onload="window.print()"/>` +
+          `<p style="font-family:sans-serif;font-size:12px"><a href="/api/orders/${orderId}/shipment/label?format=zpl">Zebra yazıcı için ZPL indir</a></p></body>`
+        )
+        w.document.close()
+      } catch (error) {
+        w.document.open()
+        w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">${error instanceof Error ? error.message.replace(/</g, '&lt;') : 'Kolay Gelsin etiketi alınamadı'}</body>`)
+        w.document.close()
+      }
+      return
+    }
     const barcode = shipment.barcode_data as string | undefined
     const officialBarcode = shipment.official_barcode as string | undefined
     const labelZpl = shipment.label_zpl as string | undefined
@@ -360,8 +382,30 @@ export default function SellerOrders() {
     }
   }
 
+  const refreshKolayGelsin = async (orderId: string) => {
+    try {
+      setShippingSubmittingForOrderId(orderId)
+      const res = await fetch(`/api/orders/${orderId}/shipment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh_kolay_gelsin' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Kargo durumu alınamadı')
+      await fetchOrders()
+      alert(data.description)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Kargo durumu alınamadı')
+    } finally {
+      setShippingSubmittingForOrderId(null)
+    }
+  }
+
   const cancelShipmentAction = async (orderId: string) => {
-    const reason = window.prompt('Kargo ve sipariş iptal edilecek; müşterinin ödemesi otomatik olarak kartına iade edilecek.\n\nİptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
+    const isKolayGelsin = shipmentsByOrderId[orderId]?.provider_code === 'kolaygelsin'
+    const reason = window.prompt(isKolayGelsin
+      ? 'Kolay Gelsin iş emri iptal edilecek. Sipariş açık kalacak.\n\nİptal gerekçesi:'
+      : 'Kargo ve sipariş iptal edilecek; müşterinin ödemesi otomatik olarak kartına iade edilecek.\n\nİptal gerekçesi (müşteriye/kargo firmasına iletilecek):')
     if (reason === null) return // vazgeçildi
     try {
       setShippingSubmittingForOrderId(orderId)
@@ -397,7 +441,7 @@ export default function SellerOrders() {
 
       setShipmentsByOrderId((prev) => ({ ...prev, [orderId]: data.shipment }))
       await fetchOrders()
-      alert('Kargo ve sipariş iptal edildi. Müşteriye iade birkaç dakika içinde yapılacak.')
+      alert(data.shipmentOnly ? 'Kolay Gelsin iş emri iptal edildi.' : 'Kargo ve sipariş iptal edildi. Müşteriye iade birkaç dakika içinde yapılacak.')
     } catch (e: any) {
       alert(e?.message || 'İptal edilemedi')
     } finally {
@@ -678,7 +722,7 @@ export default function SellerOrders() {
                         // Resmi MNG barkodu henüz gelmediyse (hesap izni vb.
                         // yüzünden) yeniden deneme imkanı — gönderiyi yeniden
                         // oluşturmadan yalnızca barkodu tekrar ister.
-                        return s.tracking_number && !s.barcode_data && !s.official_barcode ? (
+                        return s.provider_code !== 'kolaygelsin' && s.tracking_number && !s.barcode_data && !s.official_barcode ? (
                           <button
                             onClick={() => retryOfficialBarcode(orderItem.order.id)}
                             disabled={shippingSubmittingForOrderId === orderItem.order.id}
@@ -687,6 +731,25 @@ export default function SellerOrders() {
                             🔄 Resmi Barkodu Tekrar Dene
                           </button>
                         ) : null
+                      })()}
+                      {(() => {
+                        const shipment = shipmentsByOrderId[orderItem.order.id]
+                        if (shipment.provider_code !== 'kolaygelsin' || !shipment.tracking_number ||
+                            ['failed', 'returned', 'delivered'].includes(shipment.status)) return null
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={() => refreshKolayGelsin(orderItem.order.id)}
+                              disabled={shippingSubmittingForOrderId === orderItem.order.id}>
+                              Kargo Durumunu Sorgula
+                            </Button>
+                            {shipment.status === 'preparing' && (
+                              <Button variant="outline" size="sm" onClick={() => cancelShipmentAction(orderItem.order.id)}
+                                disabled={shippingSubmittingForOrderId === orderItem.order.id}>
+                                İş Emrini İptal Et
+                              </Button>
+                            )}
+                          </div>
+                        )
                       })()}
                     </div>
                   </div>
@@ -756,7 +819,9 @@ export default function SellerOrders() {
                   </div>
                 )}
 
-                {orderItem.order.status === 'processing' && (
+                {orderItem.order.status === 'processing' &&
+                  !(shipmentsByOrderId[orderItem.order.id]?.provider_code === 'kolaygelsin' &&
+                    shipmentsByOrderId[orderItem.order.id]?.status !== 'failed') && (
                   <div className="space-y-2">
                     <Button
                       onClick={() => {
@@ -850,7 +915,7 @@ export default function SellerOrders() {
                   </div>
                 )}
 
-                {orderItem.order.status === 'shipped' && (
+                {orderItem.order.status === 'shipped' && shipmentsByOrderId[orderItem.order.id]?.provider_code !== 'kolaygelsin' && (
                   <div className="flex gap-2">
                     <Button
                       onClick={() => markDelivered(orderItem.order.id)}

@@ -27,6 +27,17 @@ function required(value: string, max: number, label: string) {
   return trimmed
 }
 
+/**
+ * Doküman: hatalı isteklerde ExceptionMessage (ör. "Receiver District Id is Not Correct.")
+ * döner. Satıcının sorunu düzeltebilmesi için kısa, tek satırlık hali mesaja eklenir.
+ */
+function carrierMessage(envelope: JsonObject, text: string) {
+  const message = str(field(envelope, 'exceptionMessage') ?? field(envelope, 'message') ?? field(envelope, 'errorMessage')) ||
+    (Object.keys(envelope).length === 0 && !/[<{]/.test(text) ? text.trim() : '')
+  const clean = message.replace(/[\r\n\t]+/g, ' ').replace(/[^\p{L}\p{N} .,:;'()/_-]/gu, '').trim().slice(0, 200)
+  return clean ? `: ${clean}` : ''
+}
+
 function trackingLink(value: unknown) {
   try {
     const url = new URL(str(value))
@@ -44,6 +55,37 @@ function status(code: number) {
   if (code === 101 || code === 102) return 'preparing'
   if (code >= 103 && code <= 108 || code === 138) return 'in_transit'
   return 'unknown'
+}
+
+const nameKey = (value: unknown) =>
+  str(value).replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr-TR').replace(/\s+/g, ' ').trim()
+
+/**
+ * GetCityDistricts yanıt şekli dokümanda tanımlı değil. Desteklenen biçimler:
+ *   { cityId, districts: [{ districtId, districtName }] }
+ *   [{ cityId, districts: [...] }]  veya  [{ cityId, districtId, districtName }]
+ * Birden fazla ilçe dönerse yalnızca adı birebir eşleşen kabul edilir.
+ */
+export function pickDistrict(raw: unknown, districtName: string) {
+  const target = nameKey(districtName)
+  const candidates: Array<{ cityId: number; districtId: number; name: string }> = []
+  for (const item of Array.isArray(raw) ? raw : [raw]) {
+    const row = record(item)
+    const cityId = Number(field(row, 'cityId'))
+    const nested = field(row, 'districts')
+    const rows = Array.isArray(nested) ? nested.map(record) : [row]
+    for (const d of rows) {
+      candidates.push({
+        cityId: Number(field(d, 'cityId') ?? cityId),
+        districtId: Number(field(d, 'districtId')),
+        name: nameKey(field(d, 'districtName') ?? field(d, 'name')),
+      })
+    }
+  }
+  const valid = candidates.filter(c => Number.isSafeInteger(c.cityId) && c.cityId > 0 && Number.isSafeInteger(c.districtId) && c.districtId > 0)
+  const exact = valid.filter(c => c.name && c.name === target)
+  const match = exact.length === 1 ? exact[0] : valid.length === 1 ? valid[0] : undefined
+  return { cityId: match?.cityId ?? 0, districtId: match?.districtId ?? 0 }
 }
 
 export function isKolayGelsinEnabledForStore(storeId: string | null | undefined) {
@@ -76,12 +118,17 @@ export class KolayGelsinClient {
       cache: 'no-store',
       signal: AbortSignal.timeout(12_000),
     })
-    if (!response.ok) throw new Error(`Kolay Gelsin isteği başarısız (HTTP ${response.status}).`)
-
-    const raw: unknown = await response.json()
+    const text = await response.text()
+    let raw: unknown = text
+    try { raw = text ? JSON.parse(text) : null } catch { /* düz metin hata gövdesi */ }
     const envelope = record(raw)
+    if (!response.ok) {
+      const error = new Error(`Kolay Gelsin isteği başarısız (HTTP ${response.status})${carrierMessage(envelope, text)}.`)
+      ;(error as Error & { status?: number }).status = response.status
+      throw error
+    }
     if (field(envelope, 'isSuccess') === false || field(envelope, 'isSuccessful') === false || Number(field(envelope, 'statusCode') || 200) >= 400) {
-      throw new Error('Kolay Gelsin isteği kabul etmedi. İşlemi kurumsal portalda kontrol edin.')
+      throw new Error(`Kolay Gelsin isteği kabul etmedi${carrierMessage(envelope, text)}. İşlemi kurumsal portalda kontrol edin.`)
     }
     return field(envelope, 'result') ?? raw
   }
@@ -103,18 +150,27 @@ export class KolayGelsinClient {
     return this.login
   }
 
+  private async cargoRaw(path: string, body?: JsonObject) {
+    try {
+      return await this.request(`/api/Cargo/${path}`, { token: await this.getToken(), body })
+    } catch (error) {
+      // Token 20 saatten önce geçersizleşebilir (ör. şifre değişti) — bir kez yenile.
+      if ((error as { status?: number }).status !== 401) throw error
+      this.token = undefined
+      return await this.request(`/api/Cargo/${path}`, { token: await this.getToken(), body })
+    }
+  }
+
   private async cargo(path: string, body?: JsonObject) {
-    return record(await this.request(`/api/Cargo/${path}`, { token: await this.getToken(), body }))
+    return record(await this.cargoRaw(path, body))
   }
 
   private async district(city: string, district: string) {
     const normalized = normalizeTrCityDistrict(city, district)
     if (!normalized.city || !normalized.district) throw new Error('Kolay Gelsin için il ve ilçe gerekli.')
     const query = new URLSearchParams({ CityName: normalized.city, DistrictName: normalized.district })
-    const result = await this.cargo(`GetCityDistricts?${query}`)
-    const districts = field(result, 'districts')
-    const cityId = Number(field(result, 'cityId'))
-    const districtId = Number(Array.isArray(districts) && districts.length === 1 ? field(record(districts[0]), 'districtId') : 0)
+    const raw = await this.cargoRaw(`GetCityDistricts?${query}`)
+    const { cityId, districtId } = pickDistrict(raw, normalized.district)
     if (!Number.isSafeInteger(cityId) || cityId < 1 || !Number.isSafeInteger(districtId) || districtId < 1) {
       throw new Error('Kolay Gelsin ilçe kodunu doğrulayamadı. Teslimat adresini kontrol edin.')
     }

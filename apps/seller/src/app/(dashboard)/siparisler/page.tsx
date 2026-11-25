@@ -214,17 +214,23 @@ export default function SellerOrders() {
     const shipment = shipmentsByOrderId[orderId]
     if (!shipment) return
     if (shipment.provider_code === 'kolaygelsin') {
+      const w = window.open('', '_blank')
+      if (!w) return
+      w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">Kolay Gelsin etiketi hazırlanıyor…</body>`)
       try {
         const res = await fetch(`/api/orders/${orderId}/shipment/label`)
-        if (!res.ok) throw new Error((await res.json()).error || 'Kolay Gelsin etiketi alınamadı')
-        const url = URL.createObjectURL(await res.blob())
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'kolay-gelsin-etiket.zpl'
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Kolay Gelsin etiketi alınamadı')
+        const src = URL.createObjectURL(await res.blob())
+        w.document.open()
+        w.document.write(
+          `<body style="text-align:center;margin:0"><img src="${src}" style="max-width:100%" onload="window.print()"/>` +
+          `<p style="font-family:sans-serif;font-size:12px"><a href="/api/orders/${orderId}/shipment/label?format=zpl">Zebra yazıcı için ZPL indir</a></p></body>`
+        )
+        w.document.close()
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Kolay Gelsin etiketi alınamadı')
+        w.document.open()
+        w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">${error instanceof Error ? error.message.replace(/</g, '&lt;') : 'Kolay Gelsin etiketi alınamadı'}</body>`)
+        w.document.close()
       }
       return
     }
@@ -707,7 +713,7 @@ export default function SellerOrders() {
                             onClick={() => printBarcode(orderItem.order.id, orderItem)}
                             className="mt-1 inline-flex items-center gap-1 rounded bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700"
                           >
-                            {s.provider_code === 'kolaygelsin' ? 'ZPL Etiketini İndir' : '🖨️ Kargo Etiketi Yazdır'}
+                            🖨️ Kargo Etiketi Yazdır
                           </button>
                         ) : null
                       })()}

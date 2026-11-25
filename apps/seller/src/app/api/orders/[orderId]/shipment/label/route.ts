@@ -50,17 +50,26 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
       const barcode = shipment.label_zpl ? null : await cargoService.getBarcode(
         'kolaygelsin', shipment.tracking_number, `NG-${params.orderId}`,
       )
-      const zpl = shipment.label_zpl || barcode?.zpl
-      if (!zpl) return NextResponse.json({ error: barcode?.error || 'Kolay Gelsin etiketi alınamadı' }, { status: 502 })
-
-      return new NextResponse(zpl, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Content-Disposition': 'attachment; filename="kolay-gelsin-etiket.zpl"',
-          'Cache-Control': 'private, no-store',
-          'X-Content-Type-Options': 'nosniff',
-        },
-      })
+      if (!shipment.label_zpl && !barcode?.zpl) {
+        return NextResponse.json({ error: barcode?.error || 'Kolay Gelsin etiketi alınamadı' }, { status: 502 })
+      }
+      if (!shipment.label_zpl && barcode?.zpl) {
+        await (supabase as any)
+          .from('order_shipments')
+          .update({ label_zpl: barcode.zpl, updated_at: new Date().toISOString() })
+          .eq('id', shipment.id)
+      }
+      if (request.nextUrl.searchParams.get('format') === 'zpl') {
+        return new NextResponse(shipment.label_zpl || barcode!.zpl!, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="kolay-gelsin-etiket.zpl"',
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        })
+      }
+      shipment.label_zpl = shipment.label_zpl || barcode!.zpl!
     }
 
     // Kargo oluşturulurken resmi barkod alınamadıysa (createbarcode geçici hata
@@ -85,7 +94,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
       }
     }
     if (!zpl) {
-      return NextResponse.json({ error: 'Resmi MNG etiketi henüz alınamadı' }, { status: 404 })
+      return NextResponse.json({ error: 'Resmi kargo etiketi henüz alınamadı' }, { status: 404 })
     }
 
     // Etiket boyutu ZPL'deki ^PW (print width) / ^LL (label length) alanlarından

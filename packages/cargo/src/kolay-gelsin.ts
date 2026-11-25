@@ -31,8 +31,41 @@ function required(value: string, max: number, label: string) {
  * Doküman: hatalı isteklerde ExceptionMessage (ör. "Receiver District Id is Not Correct.")
  * döner. Satıcının sorunu düzeltebilmesi için kısa, tek satırlık hali mesaja eklenir.
  */
+const MESSAGE_KEYS = ['exceptionMessage', 'message', 'errorMessage', 'resultMessage', 'error', 'errors', 'description', 'title', 'detail']
+
+/** Yanıtta (iç içe result/errors dahil) ilk anlamlı hata metnini bulur. */
+export function findMessage(value: unknown, depth = 0): string {
+  if (depth > 3 || value === null || value === undefined) return ''
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    for (const item of value) { const m = findMessage(item, depth + 1); if (m) return m }
+    return ''
+  }
+  const obj = record(value)
+  for (const key of MESSAGE_KEYS) {
+    const m = findMessage(field(obj, key), depth + 1)
+    if (m) return m
+  }
+  return findMessage(field(obj, 'result') ?? field(obj, 'data'), depth + 1)
+}
+
+/** Hata yanıtını loglamak için: kimlik bilgisi/token taşıyabilecek alanlar maskelenir. */
+export function redactedBody(text: string) {
+  return text.replace(/("(?:[^"]*(?:token|sifre|password|secret)[^"]*)"\s*:\s*)"[^"]*"/gi, '$1"***"').slice(0, 800)
+}
+
+function stepName(path: string) {
+  if (path.includes('/Token/')) return 'giriş'
+  if (path.includes('GetCityDistricts')) return 'il/ilçe sorgusu'
+  if (path.includes('SETDELIVERY')) return 'iş emri oluşturma'
+  if (path.includes('TRACKDELIVERY')) return 'takip'
+  if (path.includes('CANCELDELIVERY')) return 'iptal'
+  if (path.includes('GETBARCODE')) return 'etiket'
+  return 'istek'
+}
+
 function carrierMessage(envelope: JsonObject, text: string) {
-  const message = str(field(envelope, 'exceptionMessage') ?? field(envelope, 'message') ?? field(envelope, 'errorMessage')) ||
+  const message = findMessage(envelope) ||
     (Object.keys(envelope).length === 0 && !/[<{]/.test(text) ? text.trim() : '')
   const clean = message.replace(/[\r\n\t]+/g, ' ').replace(/[^\p{L}\p{N} .,:;'()/_-]/gu, '').trim().slice(0, 200)
   return clean ? `: ${clean}` : ''
@@ -122,13 +155,16 @@ export class KolayGelsinClient {
     let raw: unknown = text
     try { raw = text ? JSON.parse(text) : null } catch { /* düz metin hata gövdesi */ }
     const envelope = record(raw)
+    const step = stepName(path)
     if (!response.ok) {
-      const error = new Error(`Kolay Gelsin isteği başarısız (HTTP ${response.status})${carrierMessage(envelope, text)}.`)
+      console.error(`[kolaygelsin] ${step} HTTP ${response.status}:`, redactedBody(text))
+      const error = new Error(`Kolay Gelsin ${step} başarısız (HTTP ${response.status})${carrierMessage(envelope, text)}.`)
       ;(error as Error & { status?: number }).status = response.status
       throw error
     }
     if (field(envelope, 'isSuccess') === false || field(envelope, 'isSuccessful') === false || Number(field(envelope, 'statusCode') || 200) >= 400) {
-      throw new Error(`Kolay Gelsin isteği kabul etmedi${carrierMessage(envelope, text)}. İşlemi kurumsal portalda kontrol edin.`)
+      console.error(`[kolaygelsin] ${step} reddedildi:`, redactedBody(text))
+      throw new Error(`Kolay Gelsin ${step} isteğini kabul etmedi${carrierMessage(envelope, text)}.`)
     }
     return field(envelope, 'result') ?? raw
   }

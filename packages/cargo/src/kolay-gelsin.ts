@@ -141,7 +141,9 @@ export function isKolayGelsinEnabledForStore(storeId: string | null | undefined)
 }
 
 export class KolayGelsinClient {
-  private token?: { value: string; expiresAt: number }
+  /** unconfirmed: LoginAES IsSuccessful=false ile token döndürdü (servis teyidi yok). */
+  private token?: { value: string; expiresAt: number; unconfirmed: boolean }
+  private unconfirmedLogin = false
   private login?: Promise<string>
 
   private async request(path: string, options: { token?: string; body?: JsonObject; acceptToken?: boolean } = {}) {
@@ -178,9 +180,10 @@ export class KolayGelsinClient {
     }
     const statusRejected = Number(field(envelope, 'statusCode') || 200) >= 400
     if (field(envelope, 'isSuccess') === false || field(envelope, 'isSuccessful') === false || statusRejected) {
-      if (options.acceptToken && !statusRejected && loginToken(raw)) {
-        // Token geçersizse ilk Cargo çağrısı 401 döner ve hata orada görünür.
-        console.warn(`[kolaygelsin] ${step}: IsSuccessful=false ama token döndü; token kullanılıyor.`)
+      if (options.acceptToken && !statusRejected && !str(field(envelope, 'exceptionMessage')) && loginToken(raw)) {
+        // Kesin ret değil, servis anomalisi: token önce salt okunur il/ilçe sorgusunda denenir.
+        console.warn(`[kolaygelsin] ${step}: IsSuccessful=false ama token döndü; doğrulanmamış token kullanılıyor.`)
+        this.unconfirmedLogin = true
         return raw
       }
       console.error(`[kolaygelsin] ${step} reddedildi:`, redactedBody(text))
@@ -196,10 +199,11 @@ export class KolayGelsinClient {
         const musteri = process.env.KOLAY_GELSIN_API_USERNAME
         const sifre = process.env.KOLAY_GELSIN_API_PASSWORD
         if (!musteri || !sifre) throw new Error('Kolay Gelsin API kullanıcısı yapılandırılmamış.')
+        this.unconfirmedLogin = false
         const result = await this.request('/api/Token/LoginAES', { body: { musteri, sifre }, acceptToken: true })
         const token = typeof result === 'string' ? result.trim() : loginToken(result)
         if (!token || /\s/.test(token)) throw new Error('Kolay Gelsin giriş belirteci alınamadı.')
-        this.token = { value: token, expiresAt: Date.now() + 19 * 60 * 60 * 1000 }
+        this.token = { value: token, expiresAt: Date.now() + 19 * 60 * 60 * 1000, unconfirmed: this.unconfirmedLogin }
         return token
       })().finally(() => { this.login = undefined })
     }
@@ -212,7 +216,10 @@ export class KolayGelsinClient {
     } catch (error) {
       // Token 20 saatten önce geçersizleşebilir (ör. şifre değişti) — bir kez yenile.
       if ((error as { status?: number }).status !== 401) throw error
+      const unconfirmed = this.token?.unconfirmed
       this.token = undefined
+      // Doğrulanmamış token reddedildiyse yeniden giriş deneme (her giriş doğrulama/blok tetikleyebilir).
+      if (unconfirmed) throw new Error('Kolay Gelsin girişi belirsiz: giriş IsSuccessful=false ile token döndürdü, token il/ilçe sorgusunda reddedildi (HTTP 401). Kolay Gelsin desteğine iletin.')
       return await this.request(`/api/Cargo/${path}`, { token: await this.getToken(), body })
     }
   }

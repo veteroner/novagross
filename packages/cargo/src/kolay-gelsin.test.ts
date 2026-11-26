@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pickDistrict, findMessage, redactedBody, loginToken } from './kolay-gelsin'
+import { pickDistrict, findMessage, redactedBody, loginToken, fitKolayGelsinLabel } from './kolay-gelsin'
 
 test('pickDistrict: { cityId, districts[] } biçimi', () => {
   assert.deepEqual(
@@ -50,4 +50,17 @@ test('loginToken: hata metni veya boş token kabul edilmez', () => {
   assert.equal(loginToken({ IsSuccessful: false, Token: '' }), '')
   assert.equal(loginToken({ IsSuccessful: false, Token: 'kisa' }), '')
   assert.equal(loginToken(null), '')
+})
+
+test('fitKolayGelsinLabel: uzun referans barkodu metne binmeyecek şekilde daraltılır', () => {
+  const ref = 'NG-007586A0-D78C-45FB-A090-1312609DC9AE'
+  const zpl = `^XA^PW800^FO50,10,^BY2,2,^BC,62,N,N,N,A^FD${ref}^FS^FO520,10^A0,40,40^FDX^FS^XZ`
+  const out = fitKolayGelsinLabel(zpl)
+  assert.ok(out.includes(`^FO50,10,^BY1,2,^BC,62,N,N,N,A^FD${ref}^FS`))
+  assert.ok(out.includes('^FO520,10^A0,40,40^FDX^FS'))
+})
+
+test('fitKolayGelsinLabel: sığan kısa referansa dokunmaz', () => {
+  const zpl = '^XA^FO50,10,^BY2,2,^BC,62,N,N,N,A^FD2601734273^FS^XZ'
+  assert.equal(fitKolayGelsinLabel(zpl), zpl)
 })

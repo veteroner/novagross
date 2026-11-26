@@ -223,8 +223,11 @@ export default function SellerOrders() {
         const src = URL.createObjectURL(await res.blob())
         w.document.open()
         w.document.write(
-          `<body style="text-align:center;margin:0"><img src="${src}" style="max-width:100%" onload="window.print()"/>` +
-          `<p style="font-family:sans-serif;font-size:12px"><a href="/api/orders/${orderId}/shipment/label?format=zpl">Zebra yazıcı için ZPL indir</a></p></body>`
+          // Tek sayfa 100x150 mm termal etiket; ZPL bağlantısı yalnızca ekranda görünür.
+          `<head><style>@page{size:100mm 150mm;margin:0}html,body{margin:0}img{display:block;width:100mm;height:auto;margin:0 auto}` +
+          `@media print{.no-print{display:none}}</style></head>` +
+          `<body style="text-align:center"><img src="${src}" onload="window.print()"/>` +
+          `<p class="no-print" style="font-family:sans-serif;font-size:12px"><a href="/api/orders/${orderId}/shipment/label?format=zpl">Zebra yazıcı için ZPL indir</a></p></body>`
         )
         w.document.close()
       } catch (error) {

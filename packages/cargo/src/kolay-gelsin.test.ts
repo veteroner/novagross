@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pickDistrict, findMessage, redactedBody } from './kolay-gelsin'
+import { pickDistrict, findMessage, redactedBody, loginToken } from './kolay-gelsin'
 
 test('pickDistrict: { cityId, districts[] } biçimi', () => {
   assert.deepEqual(
@@ -36,4 +36,18 @@ test('redactedBody token ve şifreyi maskeler', () => {
   const out = redactedBody('{"isSuccess":false,"accessToken":"abc.def","sifre":"x1","message":"hata"}')
   assert.ok(!out.includes('abc.def') && !out.includes('x1'))
   assert.ok(out.includes('"message":"hata"'))
+})
+
+test('loginToken: IsSuccessful=false yanıtındaki token bulunur', () => {
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.payload.signature'
+  assert.equal(loginToken({ StatusCode: 200, IsSuccessful: false, Token: jwt }), jwt)
+  assert.equal(loginToken({ IsSuccessful: false, Result: { Token: jwt } }), jwt)
+  assert.equal(loginToken({ isSuccess: true, result: jwt }), jwt)
+})
+
+test('loginToken: hata metni veya boş token kabul edilmez', () => {
+  assert.equal(loginToken({ IsSuccessful: false, Result: 'Kullanıcı adı veya şifre hatalı' }), '')
+  assert.equal(loginToken({ IsSuccessful: false, Token: '' }), '')
+  assert.equal(loginToken({ IsSuccessful: false, Token: 'kisa' }), '')
+  assert.equal(loginToken(null), '')
 })

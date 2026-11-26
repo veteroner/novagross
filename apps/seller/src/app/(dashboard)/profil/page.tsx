@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { passwordError, PASSWORD_HINT, PASSWORD_MIN } from '@/lib/password-policy'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@novagross/ui'
 import { Button } from '@novagross/ui'
 import { Input } from '@novagross/ui'
@@ -100,8 +101,9 @@ export default function ProfilePage() {
       return
     }
 
-    if (passwordForm.new_password.length < 8) {
-      alert('Şifre en az 8 karakter olmalı')
+    const pwError = passwordError(passwordForm.new_password)
+    if (pwError) {
+      alert(pwError)
       return
     }
 
@@ -120,7 +122,7 @@ export default function ProfilePage() {
       setPasswordForm({ current: '', new_password: '', confirm: '' })
     } catch (error: any) {
       console.error('Password change error:', error)
-      alert(error.message || 'Şifre değiştirilemedi')
+      alert(error?.code === 'weak_password' || /password should/i.test(error?.message ?? '') ? `Şifre yeterince güçlü değil. ${PASSWORD_HINT}` : (error.message || 'Şifre değiştirilemedi'))
     } finally {
       setChangingPassword(false)
     }
@@ -212,8 +214,8 @@ export default function ProfilePage() {
                 type="password"
                 value={passwordForm.new_password}
                 onChange={(e) => setPasswordForm(prev => ({ ...prev, new_password: e.target.value }))}
-                placeholder="En az 8 karakter"
-                minLength={8}
+                placeholder={PASSWORD_HINT}
+                minLength={PASSWORD_MIN}
                 required
               />
             </div>
@@ -225,7 +227,7 @@ export default function ProfilePage() {
                 value={passwordForm.confirm}
                 onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
                 placeholder="Şifreyi tekrar girin"
-                minLength={8}
+                minLength={PASSWORD_MIN}
                 required
               />
             </div>

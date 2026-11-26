@@ -39,6 +39,8 @@ export default async function OrdersPage() {
       )
     `)
     .eq('user_id', user.id)
+    // Tamamlanmamış/başarısız ödeme denemeleri sipariş değildir; listede gösterilmez.
+    .in('payment_status', ['paid', 'refunded', 'disputed'])
     .order('created_at', { ascending: false })
 
   if (error) {

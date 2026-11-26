@@ -9,12 +9,20 @@ interface CartItem {
   price: number
   name: string
   image: string | null
+  // Ürün sayfasındaki stok; biliniyorsa sepet miktarı bunu aşamaz
+  maxQuantity?: number | null
 }
+
+const clampQuantity = (quantity: number, max?: number | null) =>
+  Math.max(1, typeof max === 'number' && max > 0 ? Math.min(quantity, max) : quantity)
 
 interface CartState {
   items: CartItem[]
   isHydrated: boolean
   lastSyncedUserId: string | null
+  // Sepette uygulanan kupon kodu; ödeme sayfası aynı kodu yeniden doğrular
+  couponCode: string | null
+  setCouponCode: (code: string | null) => void
   setHydrated: () => void
   addItem: (item: CartItem) => void
   removeItem: (productId: string, variantId: string | null) => void
@@ -34,6 +42,9 @@ export const useCartStore = create<CartState>()(
       items: [],
       isHydrated: false,
       lastSyncedUserId: null,
+      couponCode: null,
+
+      setCouponCode: (code) => set({ couponCode: code ? code.trim().toUpperCase() : null }),
 
       setHydrated: () => set({ isHydrated: true }),
 
@@ -68,11 +79,17 @@ export const useCartStore = create<CartState>()(
 
           if (existingIndex > -1) {
             const updatedItems = [...state.items]
-            updatedItems[existingIndex].quantity += item.quantity
+            const existing = updatedItems[existingIndex]
+            const max = item.maxQuantity ?? existing.maxQuantity
+            updatedItems[existingIndex] = {
+              ...existing,
+              maxQuantity: max,
+              quantity: clampQuantity(existing.quantity + item.quantity, max),
+            }
             return { items: updatedItems }
           }
 
-          return { items: [...state.items, item] }
+          return { items: [...state.items, { ...item, quantity: clampQuantity(item.quantity, item.maxQuantity) }] }
         })
         // Davranış analitiği (best-effort, akışı bloklamaz)
         trackProductEvent('add_to_cart', item.productId, item.quantity)
@@ -91,13 +108,13 @@ export const useCartStore = create<CartState>()(
         set((state) => ({
           items: state.items.map((item) =>
             item.productId === productId && item.variantId === variantId
-              ? { ...item, quantity: Math.max(1, quantity) }
+              ? { ...item, quantity: clampQuantity(quantity, item.maxQuantity) }
               : item
           ),
         }))
       },
 
-      clearCart: () => set({ items: [], lastSyncedUserId: null }),
+      clearCart: () => set({ items: [], lastSyncedUserId: null, couponCode: null }),
 
       getTotalItems: () => {
         return get().items.reduce((sum, item) => sum + item.quantity, 0)

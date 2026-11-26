@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { passwordError, PASSWORD_HINT } from '@/lib/password-policy'
 import { Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
 import { useAuth } from '@/providers/auth'
 import { supabase } from '@/lib/supabase'
@@ -33,12 +34,13 @@ export default function Profile() {
 
   const changePassword = async () => {
     setError(null)
-    if (pw.next.length < 8) return setError('Yeni şifre en az 8 karakter olmalı.')
+    const pwError = passwordError(pw.next)
+    if (pwError) return setError(pwError)
     if (pw.next !== pw.again) return setError('Şifreler eşleşmiyor.')
     setBusy('password')
     const { error: err } = await supabase.auth.updateUser({ password: pw.next })
     setBusy(null)
-    if (err) return setError(/different from the old/i.test(err.message) ? 'Yeni şifre eskisiyle aynı olamaz.' : err.message)
+    if (err) return setError(/different from the old/i.test(err.message) ? 'Yeni şifre eskisiyle aynı olamaz.' : (/Password should|weak_password|known to be weak/i.test(err.message) ? `Şifre yeterince güçlü değil. ${PASSWORD_HINT}` : err.message))
     setPw({ next: '', again: '' })
     Alert.alert('Şifreniz değiştirildi')
   }

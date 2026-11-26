@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@novagross/ui'
 import { createClient } from '@/lib/supabase/client'
 import { translateAuthError } from '@/lib/auth-errors'
+import { passwordError, PASSWORD_RULES, PASSWORD_MIN } from '@/lib/password-policy'
+import { PasswordRules } from '@/components/auth/password-rules'
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function ChangePasswordPage() {
@@ -34,34 +36,23 @@ export default function ChangePasswordPage() {
     checkAuth()
   }, [])
 
-  const passwordStrength = (pw: string) => {
-    let score = 0
-    if (pw.length >= 8) score++
-    if (/[A-Z]/.test(pw)) score++
-    if (/[a-z]/.test(pw)) score++
-    if (/[0-9]/.test(pw)) score++
-    if (/[^A-Za-z0-9]/.test(pw)) score++
-    return score
-  }
+  const passwordStrength = (pw: string) => PASSWORD_RULES.filter((r) => r.test(pw)).length
 
   const strength = passwordStrength(newPassword)
-  const strengthLabel = strength <= 1 ? 'Zayıf' : strength <= 3 ? 'Orta' : 'Güçlü'
-  const strengthColor = strength <= 1 ? 'bg-red-500' : strength <= 3 ? 'bg-yellow-500' : 'bg-green-500'
+  const strengthLabel = strength <= 2 ? 'Zayıf' : strength <= 4 ? 'Orta' : 'Güçlü'
+  const strengthColor = strength <= 2 ? 'bg-red-500' : strength <= 4 ? 'bg-yellow-500' : 'bg-green-500'
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
 
-    if (newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Şifre en az 8 karakter olmalıdır.' })
+    const pwError = passwordError(newPassword)
+    if (pwError) {
+      setMessage({ type: 'error', text: pwError })
       return
     }
     if (newPassword !== confirmPassword) {
       setMessage({ type: 'error', text: 'Şifreler eşleşmiyor.' })
-      return
-    }
-    if (strength < 3) {
-      setMessage({ type: 'error', text: 'Lütfen daha güçlü bir şifre belirleyin (büyük harf, küçük harf ve rakam içermeli).' })
       return
     }
 
@@ -69,7 +60,7 @@ export default function ChangePasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) {
-        setMessage({ type: 'error', text: translateAuthError(error.message) })
+        setMessage({ type: 'error', text: translateAuthError(error) })
       } else {
         setMessage({ type: 'success', text: 'Şifreniz başarıyla güncellendi!' })
         setNewPassword('')
@@ -90,7 +81,7 @@ export default function ChangePasswordPage() {
         redirectTo: `${window.location.origin}/auth/callback?next=/hesabim/sifre-degistir`,
       })
       if (error) {
-        setMessage({ type: 'error', text: translateAuthError(error.message) })
+        setMessage({ type: 'error', text: translateAuthError(error) })
       } else {
         setMessage({ type: 'success', text: `Şifre sıfırlama bağlantısı ${userEmail} adresine gönderildi.` })
       }
@@ -140,6 +131,8 @@ export default function ChangePasswordPage() {
                   placeholder="Yeni şifrenizi girin"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  aria-describedby="new-password-rules"
                   required
                 />
                 <button
@@ -156,15 +149,13 @@ export default function ChangePasswordPage() {
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                       <div className={`h-full ${strengthColor} transition-all`} style={{ width: `${(strength / 5) * 100}%` }} />
                     </div>
-                    <span className={`text-xs font-medium ${strength <= 1 ? 'text-red-600' : strength <= 3 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    <span className={`text-xs font-medium ${strength <= 2 ? 'text-red-600' : strength <= 4 ? 'text-yellow-600' : 'text-green-600'}`}>
                       {strengthLabel}
                     </span>
                   </div>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">
-                En az 8 karakter, bir büyük harf, bir küçük harf ve bir rakam içermelidir.
-              </p>
+              <PasswordRules id="new-password-rules" password={newPassword} />
             </div>
 
             <div>
@@ -196,7 +187,7 @@ export default function ChangePasswordPage() {
             <div className="bg-muted p-4 rounded-lg">
               <h4 className="font-medium mb-2">Güçlü Şifre Önerileri:</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• En az 8 karakter kullanın</li>
+                <li>• En az {PASSWORD_MIN} karakter kullanın</li>
                 <li>• Büyük ve küçük harfleri birlikte kullanın</li>
                 <li>• Rakam ve özel karakterler ekleyin</li>
                 <li>• Kolayca tahmin edilebilecek kelimelerden kaçının</li>

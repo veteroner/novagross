@@ -1,0 +1,99 @@
+name: Smoke (geçici yerel Supabase)
+
+# SECRET GEREKTİRMEZ. Runner'daki Docker ile `supabase start` geçici bir yerel
+# Supabase açar; repo migration'ları uygulanır. Web uygulaması PAYMENT_MOCK_MODE
+# ile (iyzico çağrılmaz) derlenip başlatılır, kayıt/auth/kupon/ödeme akışı
+# scripts/tests/smoke-local-supabase/run.mjs ile denenir. Canlıya bağlanmaz.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'supabase/**'
+      - 'scripts/tests/smoke-local-supabase/**'
+      - '.github/workflows/smoke-local-supabase.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-local-supabase-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4   # sürüm package.json packageManager alanından
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Yerel Supabase başlat (repo migration'ları uygulanır)
+        # supabase/seed.sql eski şemaya göre (products.compare_price yok); smoke testi
+        # kendi verisini oluşturur, bu yüzden CI'da örnek veri yüklenmez.
+        run: |
+          printf '\n[db.seed]\nenabled = false\n' >> supabase/config.toml
+          supabase start -x studio,imgproxy,edge-runtime,logflare,vector
+
+      - name: Canlıda olup repo geçişlerinde olmayan fonksiyonları yükle (yalnız izole test DB)
+        # Tanımlar canlı katalogdan salt okunur alındı (prod-functions.fixture.sql)
+        run: |
+          db_container=$(docker ps --filter 'name=^supabase_db_' --format '{{.Names}}')
+          test -n "$db_container"
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < scripts/tests/smoke-local-supabase/prod-functions.fixture.sql
+
+      - name: Yerel anahtarları ortama aktar
+        run: |
+          supabase status -o env > /tmp/sb.env
+          set -a; . /tmp/sb.env; set +a
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+
+      - name: Web uygulamasını derle
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: pnpm --filter @novagross/web build
+
+      - name: Web uygulamasını başlat
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          PAYMENT_MOCK_MODE: 'true'
+          BILGOO_OFFER_CHECKOUT_ENABLED: '1'
+        run: |
+          (cd apps/web && nohup npx next start -p 3000 > /tmp/next.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/campaigns/bilgoo >/dev/null && exit 0; sleep 2; done
+          cat /tmp/next.log; exit 1
+
+      - name: Smoke testi
+        env:
+          APP_URL: http://localhost:3000
+        run: node scripts/tests/smoke-local-supabase/run.mjs
+
+      - name: Hata ayıklama günlükleri
+        if: failure()
+        run: |
+          tail -n 200 /tmp/next.log || true
+          supabase status || true

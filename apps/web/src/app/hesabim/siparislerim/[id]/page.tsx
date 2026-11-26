@@ -233,6 +233,14 @@ export default async function OrderDetailPage({
                   <div className="flex-1">
                     <h4 className="font-medium">{item.name}</h4>
                     <p className="text-sm text-muted-foreground">Adet: {item.quantity}</p>
+                    {order.status === 'delivered' && (
+                      <Link
+                        href={`/hesabim/siparislerim/${order.id}/iade-talep-et/${item.id}`}
+                        className="mt-1 inline-block text-xs font-medium text-primary hover:underline"
+                      >
+                        İade talebi oluştur (teslimden itibaren 14 gün)
+                      </Link>
+                    )}
                     {(claimsAllowed || existingClaim) && (
                       <div className="mt-1">
                         <ClaimButton

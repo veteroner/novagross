@@ -112,7 +112,9 @@ export default function CartPage() {
                         <span className="px-3 font-medium">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.productId, item.variantId, item.quantity + 1)}
-                          className="p-2 hover:bg-muted"
+                          disabled={typeof item.maxQuantity === 'number' && item.quantity >= item.maxQuantity}
+                          aria-label="Adedi artır"
+                          className="p-2 hover:bg-muted disabled:opacity-50"
                         >
                           <Plus className="h-4 w-4" />
                         </button>

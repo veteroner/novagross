@@ -55,6 +55,8 @@ const nextConfig = {
         destination: 'https://novagross.com/:path*',
         permanent: true,
       },
+      { source: '/siparis-takip', destination: '/kargo-takip', permanent: true },
+      { source: '/satici-sozlesmesi', destination: '/sozlesmeler/pazaryeri-satici-sozlesmesi', permanent: true },
     ]
   },
 

@@ -24,6 +24,9 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/**"]
 jwt_expiry = 3600
 enable_signup = true
+# Canlı Supabase Auth ile aynı şifre kuralı (apps/web/src/lib/password-policy.ts)
+minimum_password_length = 12
+password_requirements = "lower_upper_letters_digits_symbols"
 
 [auth.email]
 enable_signup = true

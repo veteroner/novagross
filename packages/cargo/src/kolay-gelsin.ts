@@ -68,6 +68,21 @@ export function loginToken(raw: unknown): string {
   return candidates.map(str).find(token => /^[^\s]{20,}$/.test(token)) ?? ''
 }
 
+/**
+ * Kolay Gelsin etiketinde (^PW800) üstteki Code128 referans barkodu x=50'de başlar,
+ * sağındaki metin/logo x=520'de. `NG-<sipariş uuid>` gibi uzun referanslar ^BY2 ile
+ * ~930 nokta genişliğe çıkıp metin ve logonun üstüne biner. Barkod modül genişliği,
+ * barkod 470 noktaya sığacak şekilde (en az 1) küçültülür; diğer alanlara dokunulmaz.
+ */
+export function fitKolayGelsinLabel(zpl: string): string {
+  return zpl.replace(/\^FO(\d+),(\d+),?\^BY(\d+)(,[^^]*)?\^BC([^^]*)\^FD([^^]*)\^FS/, (match, x, y, module, rest, bc, data) => {
+    const available = 520 - Number(x) - 5
+    const modules = 11 * String(data).length + 35 // Code128: karakter başı 11 + start/check/stop
+    const fitted = Math.max(1, Math.min(Number(module), Math.floor(available / modules)))
+    return fitted === Number(module) ? match : `^FO${x},${y},^BY${fitted}${rest ?? ''}^BC${bc}^FD${data}^FS`
+  })
+}
+
 function stepName(path: string) {
   if (path.includes('/Token/')) return 'giriş'
   if (path.includes('GetCityDistricts')) return 'il/ilçe sorgusu'

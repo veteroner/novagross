@@ -8,7 +8,7 @@ import { arasKargo, type ArasShipmentRequest, type ArasShipmentResponse } from '
 import { mngKargo, type MngShipmentRequest, type MngShipmentResponse } from './mng'
 
 import { kolayGelsin } from './kolay-gelsin'
-export { isKolayGelsinEnabledForStore } from './kolay-gelsin'
+export { isKolayGelsinEnabledForStore, fitKolayGelsinLabel } from './kolay-gelsin'
 
 export type CargoProvider = 'yurtici' | 'aras' | 'mng' | 'ptt' | 'surat' | 'kolaygelsin'
 

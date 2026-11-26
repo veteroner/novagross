@@ -122,7 +122,7 @@ export async function GET(request: NextRequest, { params }: { params: { orderId:
 
     const png = await labelaryRes.arrayBuffer()
     return new NextResponse(png, {
-      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=3600' },
+      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' }, // düzeltilen etiket hemen görünsün
     })
   } catch (e: any) {
     console.error('[label] hata', e)

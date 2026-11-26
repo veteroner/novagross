@@ -218,13 +218,13 @@ export default function SellerOrders() {
       if (!w) return
       w.document.write(`<body style="text-align:center;font-family:sans-serif;margin:20px">Kolay Gelsin etiketi hazırlanıyor…</body>`)
       try {
-        const res = await fetch(`/api/orders/${orderId}/shipment/label`)
+        const res = await fetch(`/api/orders/${orderId}/shipment/label`, { cache: 'no-store' })
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Kolay Gelsin etiketi alınamadı')
         const src = URL.createObjectURL(await res.blob())
         w.document.open()
         w.document.write(
           // Tek sayfa 100x150 mm termal etiket; ZPL bağlantısı yalnızca ekranda görünür.
-          `<head><style>@page{size:100mm 150mm;margin:0}html,body{margin:0}img{display:block;width:100mm;height:auto;margin:0 auto}` +
+          `<head><style>@page{size:100mm 150mm;margin:0}html,body{margin:0}img{display:block;width:100mm;height:150mm;object-fit:contain;margin:0 auto}` +
           `@media print{.no-print{display:none}}</style></head>` +
           `<body style="text-align:center"><img src="${src}" onload="window.print()"/>` +
           `<p class="no-print" style="font-family:sans-serif;font-size:12px"><a href="/api/orders/${orderId}/shipment/label?format=zpl">Zebra yazıcı için ZPL indir</a></p></body>`
